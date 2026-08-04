@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # Redis Queue & Caching Layer
+  redis:
+    image: redis:7-alpine
+    container_name: ngw-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  # Service 1: API Gateway (Port 3001)
+  gateway-service:
+    build:
+      context: .
+      dockerfile: services/gateway-service/Dockerfile
+    container_name: ngw-gateway-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - AUTH_SERVICE_URL=http://auth-service:3002
+      - CLIENT_SERVICE_URL=http://client-service:3003
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3004
+      - CALLBACK_LOG_SERVICE_URL=http://callback-log-service:3005
+    depends_on:
+      - redis
+    restart: always
+
+  # Service 2: Auth Service (Port 3002)
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: ngw-auth-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    restart: always
+
+  # Service 3: Client Service (Port 3003)
+  client-service:
+    build:
+      context: .
+      dockerfile: services/client-service/Dockerfile
+    container_name: ngw-client-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    restart: always
+
+  # Service 4: Notification Ingestion Service (Port 3004)
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: ngw-notification-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    depends_on:
+      - redis
+    restart: always
+
+  # Service 5: Dispatch Processing Worker Service
+  dispatch-service:
+    build:
+      context: .
+      dockerfile: services/dispatch-service/Dockerfile
+    container_name: ngw-dispatch-service
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    depends_on:
+      - redis
+    restart: always
+
+  # Service 6: Callback & Log Worker Service (Port 3005)
+  callback-log-service:
+    build:
+      context: .
+      dockerfile: services/callback-log-service/Dockerfile
+    container_name: ngw-callback-log-service
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    depends_on:
+      - redis
+    restart: always

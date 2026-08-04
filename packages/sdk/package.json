@@ -1,0 +1,17 @@
+{
+  "name": "@notification-gateway/sdk",
+  "version": "1.0.0",
+  "description": "Developer Client SDK for Central Notification Gateway (Pure JavaScript)",
+  "main": "src/index.js",
+  "type": "module",
+  "keywords": [
+    "notification",
+    "sdk",
+    "whatsapp",
+    "email",
+    "gateway",
+    "javascript"
+  ],
+  "author": "",
+  "license": "MIT"
+}

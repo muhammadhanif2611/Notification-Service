@@ -1,0 +1,31 @@
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Modular Microservices & SDK-Ready Notification System",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:gateway": "npm run dev --workspace=services/gateway-service",
+    "dev:auth": "npm run dev --workspace=services/auth-service",
+    "dev:client": "npm run dev --workspace=services/client-service",
+    "dev:notification": "npm run dev --workspace=services/notification-service",
+    "dev:dispatch": "npm run dev --workspace=services/dispatch-service",
+    "dev:callback": "npm run dev --workspace=services/callback-log-service"
+  },
+  "keywords": [
+    "notification-service",
+    "microservices",
+    "sdk",
+    "supabase",
+    "whatsapp",
+    "email"
+  ],
+  "author": "",
+  "license": "ISC"
+}
