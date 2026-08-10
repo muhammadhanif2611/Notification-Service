@@ -1,25 +1,19 @@
 import nodemailer from 'nodemailer';
+import { createLogger } from '@notification-gateway/shared';
 
-/**
- * Email SMTP / Resend Provider Adapter
- */
+const logger = createLogger('dispatch-service');
+
 export async function sendEmailMessage({ recipient, subject, body, credentials }) {
-  if (!credentials || !credentials.host) {
-    console.log(`[SIMULATION EMAIL] Sending to ${recipient}: ${subject || 'Notification'}`);
-    return {
-      success: true,
-      providerMessageId: `email_msg_${Date.now()}`
-    };
+  if (!credentials?.host) {
+    logger.info({ recipient, subject }, '[SANDBOX] Email simulated');
+    return { success: true, providerMessageId: `email_msg_${Date.now()}` };
   }
 
   const transporter = nodemailer.createTransport({
     host: credentials.host,
     port: credentials.port || 587,
     secure: credentials.secure || false,
-    auth: {
-      user: credentials.user,
-      pass: credentials.pass
-    }
+    auth: { user: credentials.user, pass: credentials.pass }
   });
 
   const info = await transporter.sendMail({
@@ -29,8 +23,5 @@ export async function sendEmailMessage({ recipient, subject, body, credentials }
     html: body
   });
 
-  return {
-    success: true,
-    providerMessageId: info.messageId
-  };
+  return { success: true, providerMessageId: info.messageId };
 }

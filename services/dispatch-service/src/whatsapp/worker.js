@@ -1,13 +1,16 @@
 import { Worker, Queue } from 'bullmq';
 import { supabase } from '@notification-gateway/database';
+import { createLogger } from '@notification-gateway/shared';
 import { sendWhatsApp } from './sender.js';
+
+const logger = createLogger('dispatch-service');
 
 export function startWhatsAppWorker(redisConfig) {
   const statusQueue = new Queue('status-queue', { connection: redisConfig });
 
   const worker = new Worker('whatsapp-queue', async (job) => {
     const { messageId, projectId, recipient, templateCode, body, isSandbox } = job.data;
-    console.log(`[WA Worker] Processing ${messageId} to ${recipient}`);
+    logger.info({ messageId, recipient }, 'WhatsApp job processing');
 
     const { data: vendor } = await supabase.from('vendors').select('*').eq('channel', 'WHATSAPP').eq('is_active', true).maybeSingle();
 
@@ -16,12 +19,12 @@ export function startWhatsAppWorker(redisConfig) {
       await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendor?.id });
       return res;
     } catch (err) {
-      console.error(`[WA Worker Error] ${messageId}:`, err.message);
+      logger.error({ messageId, err: err.message }, 'WhatsApp job failed');
       await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: err.message });
       throw err;
     }
   }, { connection: redisConfig, concurrency: 5 });
 
-  worker.on('completed', (j) => console.log(`✅ [WA Sent] ${j.data.messageId}`));
-  worker.on('failed', (j, err) => console.error(`❌ [WA Failed] ${j.data.messageId}: ${err.message}`));
+  worker.on('completed', (j) => logger.info({ messageId: j.data.messageId }, 'WhatsApp sent'));
+  worker.on('failed', (j, err) => logger.error({ messageId: j.data.messageId, err: err.message }, 'WhatsApp failed permanently'));
 }

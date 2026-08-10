@@ -1,11 +1,11 @@
 import nodemailer from 'nodemailer';
+import { createLogger } from '@notification-gateway/shared';
 
-/**
- * Nodemailer Email Sender
- */
+const logger = createLogger('dispatch-service');
+
 export async function sendEmail({ recipient, subject, body, credentials, isSandbox }) {
-  if (isSandbox || !credentials || !credentials.host) {
-    console.log(`[SANDBOX EMAIL] To: ${recipient} | Subject: ${subject}`);
+  if (isSandbox || !credentials?.host) {
+    logger.info({ recipient, subject }, '[SANDBOX] Email simulated');
     return { success: true, providerMessageId: `email.sandbox.${Date.now()}` };
   }
 

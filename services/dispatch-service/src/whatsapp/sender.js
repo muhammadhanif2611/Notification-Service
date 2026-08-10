@@ -1,9 +1,10 @@
-/**
- * WhatsApp Meta Business Cloud API Native Fetch Sender
- */
+import { createLogger } from '@notification-gateway/shared';
+
+const logger = createLogger('dispatch-service');
+
 export async function sendWhatsApp({ recipient, body, templateCode, credentials, isSandbox }) {
-  if (isSandbox || !credentials || !credentials.phoneNumberId || !credentials.accessToken) {
-    console.log(`[SANDBOX WA] To: ${recipient} | Msg: ${body || templateCode}`);
+  if (isSandbox || !credentials?.phoneNumberId || !credentials?.accessToken) {
+    logger.info({ recipient, templateCode }, '[SANDBOX] WhatsApp simulated');
     return { success: true, providerMessageId: `wamid.sandbox.${Date.now()}` };
   }
 
@@ -17,7 +18,7 @@ export async function sendWhatsApp({ recipient, body, templateCode, credentials,
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${credentials.accessToken}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${credentials.accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
 
