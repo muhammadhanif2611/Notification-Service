@@ -4,7 +4,23 @@ import { Worker } from 'bullmq';
 import { supabase } from '@notification-gateway/database';
 import { generateWebhookSignature, NOTIFICATION_STATUS } from '@notification-gateway/shared';
 
-dotenv.config();
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const findEnv = () => {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (dir !== path.parse(dir).root) {
+    const envPath = path.join(dir, '.env');
+    if (fs.existsSync(envPath)) {
+      return envPath;
+    }
+    dir = path.dirname(dir);
+  }
+  return null;
+};
+
+dotenv.config({ path: findEnv() });
 
 const app = express();
 const PORT = process.env.PORT || 3005;

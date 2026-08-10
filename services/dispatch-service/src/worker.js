@@ -5,7 +5,23 @@ import { NOTIFICATION_STATUS, CHANNELS, QUEUE_NAMES } from '@notification-gatewa
 import { sendWhatsAppMessage } from './vendors/whatsapp.js';
 import { sendEmailMessage } from './vendors/email.js';
 
-dotenv.config();
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const findEnv = () => {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (dir !== path.parse(dir).root) {
+    const envPath = path.join(dir, '.env');
+    if (fs.existsSync(envPath)) {
+      return envPath;
+    }
+    dir = path.dirname(dir);
+  }
+  return null;
+};
+
+dotenv.config({ path: findEnv() });
 
 const redisConfig = {
   host: process.env.REDIS_HOST || '127.0.0.1',

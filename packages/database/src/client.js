@@ -1,7 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
-dotenv.config();
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const findEnv = () => {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (dir !== path.parse(dir).root) {
+    const envPath = path.join(dir, '.env');
+    if (fs.existsSync(envPath)) {
+      return envPath;
+    }
+    dir = path.dirname(dir);
+  }
+  return null;
+};
+
+dotenv.config({ path: findEnv() });
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://xyzcompany.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
