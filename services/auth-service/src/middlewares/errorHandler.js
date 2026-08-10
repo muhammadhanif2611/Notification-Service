@@ -1,6 +1,7 @@
-/**
- * Custom Operational Error Class
- */
+import { createLogger } from '@notification-gateway/shared';
+
+const logger = createLogger('auth-service');
+
 export class AppError extends Error {
   constructor(message, statusCode = 400, errorCode = 'OPERATIONAL_ERROR') {
     super(message);
@@ -11,24 +12,19 @@ export class AppError extends Error {
   }
 }
 
-/**
- * Centralized Express Error Handling Middleware
- */
-export function errorHandler(err, req, res, next) {
+export function errorHandler(err, req, res, _next) {
   const statusCode = err.statusCode || 500;
   const errorCode = err.errorCode || 'INTERNAL_SERVER_ERROR';
   const message = err.message || 'An unexpected error occurred';
 
-  if (process.env.NODE_ENV === 'development') {
-    console.error(`[Error] ${errorCode} - ${message}`, err.stack);
+  if (statusCode >= 500) {
+    logger.error({ err, path: req.path }, message);
+  } else {
+    logger.warn({ errorCode, path: req.path }, message);
   }
 
   return res.status(statusCode).json({
     success: false,
-    error: {
-      code: errorCode,
-      message,
-      ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {})
-    }
+    error: { code: errorCode, message }
   });
 }
