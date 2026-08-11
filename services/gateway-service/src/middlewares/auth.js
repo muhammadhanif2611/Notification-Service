@@ -1,8 +1,9 @@
-import { supabase } from '@notification-gateway/database';
 import { verifyApiKey, verifyAuthToken, createLogger } from '@notification-gateway/shared';
+import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
 
 const logger = createLogger('gateway-service');
 
+// Middleware: autentikasi via API Key
 export async function apiKeyAuth(req, res, next) {
   const apiKey = req.headers['x-api-key'];
   if (!apiKey) {
@@ -15,13 +16,8 @@ export async function apiKeyAuth(req, res, next) {
       return res.status(401).json({ success: false, error: { code: 'INVALID_API_KEY_FORMAT', message: 'API Key must start with ngw_prod_ or ngw_sand_' } });
     }
 
-    const { data: keys, error } = await supabase
-      .from('api_keys')
-      .select('*, projects(*)')
-      .eq('key_prefix', keyPrefix)
-      .eq('is_active', true);
-
-    if (error || !keys?.length) {
+    const keys = await apiKeyRepository.findActiveByPrefix(keyPrefix);
+    if (!keys?.length) {
       return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or inactive API Key.' } });
     }
 
@@ -41,8 +37,8 @@ export async function apiKeyAuth(req, res, next) {
     req.apiKeyRecord = matchedKey;
     req.environment = matchedKey.environment;
 
-    // Update last_used_at secara async — tidak menghambat request
-    supabase.from('api_keys').update({ last_used_at: new Date().toISOString() }).eq('id', matchedKey.id).then();
+    // Update last_used_at secara async
+    apiKeyRepository.updateLastUsed(matchedKey.id);
 
     next();
   } catch (err) {
@@ -51,6 +47,7 @@ export async function apiKeyAuth(req, res, next) {
   }
 }
 
+// Middleware: autentikasi via JWT Bearer token
 export function jwtAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -66,7 +63,7 @@ export function jwtAuth(req, res, next) {
   next();
 }
 
-/** @param {string[]} allowedRoles */
+// Middleware: cek role user
 export function roleCheck(allowedRoles = ['admin']) {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {

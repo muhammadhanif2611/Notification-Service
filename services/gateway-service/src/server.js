@@ -1,14 +1,11 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import { createLogger } from '@notification-gateway/shared';
+import { config } from './config/env.js';
 import { apiKeyAuth, jwtAuth, roleCheck } from './middlewares/auth.js';
-
-dotenv.config();
 
 const logger = createLogger('gateway-service');
 const app = express();
-const PORT = process.env.PORT || 3001;
 
 const SERVICES = {
   AUTH: process.env.AUTH_SERVICE_URL || 'http://localhost:3002',
@@ -20,10 +17,12 @@ const SERVICES = {
 app.use(cors());
 app.use(express.json());
 
+// Endpoint health check server gateway
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() })
 );
 
+// Helper proxy permintaan HTTP ke microservice tujuan
 async function proxyRequest(targetUrl, req, res) {
   try {
     const response = await fetch(targetUrl, {
@@ -45,11 +44,11 @@ async function proxyRequest(targetUrl, req, res) {
   }
 }
 
-// Auth
+// Proxy rute Auth Service
 app.post('/v1/auth/login', (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/login`, req, res));
 app.post('/v1/auth/register', (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/register`, req, res));
 
-// Client Management
+// Proxy rute Client Service (Projects, API Keys, Templates, Vendors)
 app.get('/v1/clients/projects', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
 app.get('/v1/clients/projects/:id', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
 app.post('/v1/clients/projects', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
@@ -66,14 +65,14 @@ app.put('/v1/clients/templates/:id/status', jwtAuth, roleCheck(['admin']), (req,
 app.get('/v1/clients/vendors', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res));
 app.post('/v1/clients/vendors', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res));
 
-// Notifications (API Key auth)
+// Proxy rute Notification Service
 app.post('/v1/notifications/send', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/process`, req, res));
 app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/broadcast`, req, res));
 
-// Logs
+// Proxy rute Callback Log Service
 app.get('/v1/logs', (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/logs`, req, res));
 app.get('/v1/statistics', (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/statistics`, req, res));
 
-app.listen(PORT, () => {
-  logger.info(`Gateway Service running on http://localhost:${PORT}`);
+app.listen(config.port, () => {
+  logger.info(`Gateway Service running on http://localhost:${config.port}`);
 });
