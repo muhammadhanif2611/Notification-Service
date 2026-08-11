@@ -7,6 +7,7 @@ import {
   createProjectSchema,
   createApiKeySchema,
   createTemplateSchema,
+  createVendorSchema,
   createLogger
 } from '@notification-gateway/shared';
 import { AppError } from '../middlewares/errorHandler.js';
@@ -133,7 +134,7 @@ export async function regenerateApiKey(keyId, userId = null) {
 
 // Layanan menonaktifkan API Key
 export async function deactivateApiKey(keyId, userId = null) {
-  const deactivatedKey = await apiKeyRepository.updateById(keyId, { is_active: false }, '*');
+  const deactivatedKey = await apiKeyRepository.updateById(keyId, { is_active: false, revoked_at: new Date().toISOString() }, '*');
   if (!deactivatedKey) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
   }
@@ -203,16 +204,18 @@ export async function updateTemplateStatus(templateId, { status, rejectionReason
 
 // Layanan mengambil daftar metadata vendor
 export async function listVendors() {
-  return await vendorRepository.findAllOrderedByPriority();
+  const vendors = await vendorRepository.findAllOrderedByPriority();
+  return vendors.map(({ credential_encrypted, credential_iv, credential_auth_tag, ...meta }) => meta);
 }
 
 // Layanan mendaftarkan vendor baru dengan enkripsi credentials
 export async function createVendor(payload, userId = null) {
-  const { name, channel, credentials, priority = 1 } = payload;
-  if (!name || !channel || !credentials) {
-    throw new AppError('Name, channel, and credentials are required', 400, 'VALIDATION_ERROR');
+  const validation = createVendorSchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
+  const { name, channel, credentials, priority } = validation.data;
   const { encryptedData, iv, authTag } = encryptAES(JSON.stringify(credentials));
 
   const registeredVendor = await vendorRepository.insert({

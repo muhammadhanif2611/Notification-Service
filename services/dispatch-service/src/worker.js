@@ -1,5 +1,5 @@
 import { Worker, Queue } from 'bullmq';
-import { NOTIFICATION_STATUS, CHANNELS, QUEUE_NAMES, createLogger } from '@notification-gateway/shared';
+import { NOTIFICATION_STATUS, CHANNELS, QUEUE_NAMES, createLogger, decryptAES } from '@notification-gateway/shared';
 import { config } from './config/env.js';
 import { sendWhatsAppMessage } from './vendors/whatsapp.js';
 import { sendEmailMessage } from './vendors/email.js';
@@ -7,6 +7,16 @@ import * as dispatchRepository from './repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
 const webhookQueue = new Queue(QUEUE_NAMES.WEBHOOK_DELIVERY, { connection: config.redis });
+
+// Helper: dekripsi credentials vendor jika tersedia, null jika sandbox
+function resolveVendorCredentials(vendorRecord) {
+  if (!vendorRecord?.credential_encrypted) return null;
+  return JSON.parse(decryptAES({
+    encryptedData: vendorRecord.credential_encrypted,
+    iv: vendorRecord.credential_iv,
+    authTag: vendorRecord.credential_auth_tag
+  }));
+}
 
 // Worker: memproses pengiriman notifikasi utama via queue BullMQ
 const worker = new Worker(
@@ -18,13 +28,14 @@ const worker = new Worker(
     await dispatchRepository.updateStatusByMessageId(messageId, { status: NOTIFICATION_STATUS.PROCESSING });
 
     const vendorRecord = await dispatchRepository.findActiveVendorByChannel(channel);
+    const credentials = resolveVendorCredentials(vendorRecord);
 
     try {
       let dispatchResult;
       if (channel === CHANNELS.WHATSAPP) {
-        dispatchResult = await sendWhatsAppMessage({ recipient, body, templateCode, variables, credentials: vendorRecord?.credentials });
+        dispatchResult = await sendWhatsAppMessage({ recipient, body, templateCode, variables, credentials });
       } else if (channel === CHANNELS.EMAIL) {
-        dispatchResult = await sendEmailMessage({ recipient, subject, body, credentials: vendorRecord?.credentials });
+        dispatchResult = await sendEmailMessage({ recipient, subject, body, credentials });
       } else {
         throw new Error(`Unsupported channel: ${channel}`);
       }

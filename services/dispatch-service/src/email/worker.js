@@ -1,9 +1,19 @@
 import { Worker, Queue } from 'bullmq';
-import { createLogger } from '@notification-gateway/shared';
+import { createLogger, decryptAES } from '@notification-gateway/shared';
 import { sendEmail } from './sender.js';
 import * as dispatchRepository from '../repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
+
+// Helper: dekripsi credentials vendor jika tersedia, null jika sandbox
+function resolveVendorCredentials(vendorRecord) {
+  if (!vendorRecord?.credential_encrypted) return null;
+  return JSON.parse(decryptAES({
+    encryptedData: vendorRecord.credential_encrypted,
+    iv: vendorRecord.credential_iv,
+    authTag: vendorRecord.credential_auth_tag
+  }));
+}
 
 // Worker: memproses pengiriman antrean email
 export function startEmailWorker(redisConfig) {
@@ -14,9 +24,10 @@ export function startEmailWorker(redisConfig) {
     logger.info({ messageId, recipient }, 'Email job processing');
 
     const vendorRecord = await dispatchRepository.findActiveVendorByChannel('EMAIL');
+    const credentials = resolveVendorCredentials(vendorRecord);
 
     try {
-      const sendResult = await sendEmail({ recipient, subject, body, credentials: vendorRecord?.credentials, isSandbox });
+      const sendResult = await sendEmail({ recipient, subject, body, credentials, isSandbox });
       await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendorRecord?.id });
       return sendResult;
     } catch (error) {

@@ -42,3 +42,14 @@ export const createTemplateSchema = z.object({
   body: z.string().min(1, 'Template body is required'),
   variables: z.array(z.string()).default([])
 });
+
+// Skema validasi request pembuatan vendor baru
+export const createVendorSchema = z.object({
+  name: z.string().min(2, 'Vendor name must be at least 2 characters'),
+  channel: z.enum([CHANNELS.WHATSAPP, CHANNELS.EMAIL]),
+  credentials: z.record(z.string(), z.unknown()).refine(
+    (obj) => Object.keys(obj).length > 0,
+    { message: 'Credentials object must not be empty' }
+  ),
+  priority: z.number().int().min(1).max(10).default(1)
+});
