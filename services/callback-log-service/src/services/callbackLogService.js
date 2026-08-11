@@ -7,13 +7,13 @@ export async function getRecentLogs() {
 
 // Layanan mengkalkulasi statistik ringkasan status notifikasi
 export async function getLogStatistics() {
-  const logs = await callbackLogRepository.findAllLogStats();
+  const notificationLogs = await callbackLogRepository.findAllLogStats();
   return {
-    total: logs.length,
-    sent: logs.filter(l => l.status === 'SENT').length,
-    failed: logs.filter(l => l.status === 'FAILED').length,
-    pending: logs.filter(l => l.status === 'PENDING' || l.status === 'QUEUED').length,
-    whatsapp: logs.filter(l => l.channel === 'WHATSAPP').length,
-    email: logs.filter(l => l.channel === 'EMAIL').length
+    total: notificationLogs.length,
+    sent: notificationLogs.filter(log => log.status === 'SENT').length,
+    failed: notificationLogs.filter(log => log.status === 'FAILED').length,
+    pending: notificationLogs.filter(log => log.status === 'PENDING' || log.status === 'QUEUED').length,
+    whatsapp: notificationLogs.filter(log => log.channel === 'WHATSAPP').length,
+    email: notificationLogs.filter(log => log.channel === 'EMAIL').length
   };
 }

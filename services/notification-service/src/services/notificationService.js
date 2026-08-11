@@ -6,21 +6,22 @@ import * as templateRepository from '../repositories/templateRepository.js';
 import * as projectRepository from '../repositories/projectRepository.js';
 import * as notificationLogRepository from '../repositories/notificationLogRepository.js';
 
-// --- Helpers ---
-
+// Helper membuat ID pesan unik
 function generateMessageId() {
   return `msg_${Date.now()}_${randomBytes(4).toString('hex')}`;
 }
 
+// Helper membuat ID broadcast unik
 function generateBroadcastId() {
   return `bcast_${Date.now()}_${randomBytes(4).toString('hex')}`;
 }
 
+// Helper mengecek status mode sandbox
 function isSandboxMode(apiKeyPrefix, environment) {
   return environment === 'sandbox' || apiKeyPrefix === 'ngw_sand_';
 }
 
-// Resolve konten pesan dari template atau body langsung
+// Helper menyelesaikan isi konten pesan dari template
 async function resolveMessageContent(projectId, channel, templateCode, body, variables) {
   if (!templateCode) return { resolvedBody: body, resolvedSubject: null };
 
@@ -42,21 +43,21 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
   return { resolvedBody, resolvedSubject: template.subject ?? null };
 }
 
-// Cek kuota harian & status aktif project
+// Helper mengecek kuota harian & status keaktifan project
 async function checkProjectThreshold(projectId) {
   const project = await projectRepository.findByIdWithQuota(projectId);
   if (!project) throw new AppError('Associated project not found.', 404, 'PROJECT_NOT_FOUND');
   if (!project.is_active) throw new AppError('Project is inactive.', 403, 'PROJECT_INACTIVE');
 
-  const count = await notificationLogRepository.countTodayByProject(projectId);
-  if (count >= project.daily_quota) {
+  const todayCount = await notificationLogRepository.countTodayByProject(projectId);
+  if (todayCount >= project.daily_quota) {
     throw new AppError(`Daily quota of ${project.daily_quota} has been reached.`, 429, 'DAILY_QUOTA_EXCEEDED');
   }
 
   return project;
 }
 
-// Simpan log notifikasi & masukkan ke queue
+// Helper menyimpan log dan memasukkan job ke antrean BullMQ
 async function persistAndEnqueue({ messageId, projectId, channel, recipient, payload, isSandbox, subject, body, templateCode, variables, broadcastId }) {
   await notificationLogRepository.insert({
     message_id: messageId,
@@ -67,10 +68,16 @@ async function persistAndEnqueue({ messageId, projectId, channel, recipient, pay
   });
 
   const jobPayload = {
-    messageId, projectId, channel, recipient,
-    body, subject: subject ?? null,
-    templateCode: templateCode ?? null, variables: variables ?? {},
-    isSandbox, createdAt: new Date().toISOString(),
+    messageId,
+    projectId,
+    channel,
+    recipient,
+    body,
+    subject: subject ?? null,
+    templateCode: templateCode ?? null,
+    variables: variables ?? {},
+    isSandbox,
+    createdAt: new Date().toISOString(),
     ...(broadcastId ? { broadcastId, isBroadcast: true } : {})
   };
 
@@ -81,81 +88,115 @@ async function persistAndEnqueue({ messageId, projectId, channel, recipient, pay
   }
 }
 
-// --- Public Service Functions ---
-
+// Layanan memproses pengiriman notifikasi tunggal
 export async function processNotification({ body: reqBody, project, environment, apiKeyPrefix }) {
-  const parse = sendNotificationSchema.safeParse(reqBody);
-  if (!parse.success) {
-    throw new AppError('Invalid notification payload.', 400, 'VALIDATION_ERROR', parse.error.errors);
+  const validation = sendNotificationSchema.safeParse(reqBody);
+  if (!validation.success) {
+    throw new AppError('Invalid notification payload.', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
-  const { channel, recipient, templateCode, variables, body, subject } = parse.data;
+  const { channel, recipient, templateCode, variables, body, subject } = validation.data;
   const projectId = project?.id;
-  const sandbox = isSandboxMode(apiKeyPrefix, environment);
+  const isSandbox = isSandboxMode(apiKeyPrefix, environment);
   const normalizedChannel = channel.toUpperCase();
 
-  if (!sandbox) await checkProjectThreshold(projectId);
+  if (!isSandbox) {
+    await checkProjectThreshold(projectId);
+  }
 
   const { resolvedBody, resolvedSubject } = await resolveMessageContent(projectId, normalizedChannel, templateCode, body, variables);
   const messageId = generateMessageId();
 
   await persistAndEnqueue({
-    messageId, projectId, channel: normalizedChannel, recipient,
+    messageId,
+    projectId,
+    channel: normalizedChannel,
+    recipient,
     payload: { templateCode, variables, body: resolvedBody, subject: resolvedSubject ?? subject },
-    isSandbox: sandbox, subject: resolvedSubject ?? subject, body: resolvedBody,
-    templateCode, variables
+    isSandbox,
+    subject: resolvedSubject ?? subject,
+    body: resolvedBody,
+    templateCode,
+    variables
   });
 
-  return { messageId, status: NOTIFICATION_STATUS.QUEUED, channel: normalizedChannel, recipient, isSandbox: sandbox, acceptedAt: new Date().toISOString() };
+  return {
+    messageId,
+    status: NOTIFICATION_STATUS.QUEUED,
+    channel: normalizedChannel,
+    recipient,
+    isSandbox,
+    acceptedAt: new Date().toISOString()
+  };
 }
 
+// Layanan memproses pengiriman notifikasi masal (broadcast)
 export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, project, isSandbox = false }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new AppError('recipients must be a non-empty array.', 400, 'VALIDATION_ERROR');
   }
-  if (!channel) throw new AppError('channel is required for broadcast.', 400, 'VALIDATION_ERROR');
+  if (!channel) {
+    throw new AppError('channel is required for broadcast.', 400, 'VALIDATION_ERROR');
+  }
 
   const projectId = project?.id;
   const normalizedChannel = channel.toUpperCase();
   const broadcastId = generateBroadcastId();
 
   if (!isSandbox) {
-    const proj = await checkProjectThreshold(projectId);
-    const count = await notificationLogRepository.countTodayByProject(projectId);
-    const remaining = proj.daily_quota - count;
-    if (recipients.length > remaining) {
-      throw new AppError(`Broadcast exceeds quota. Remaining: ${remaining}, Requested: ${recipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
+    const projectRecord = await checkProjectThreshold(projectId);
+    const todayCount = await notificationLogRepository.countTodayByProject(projectId);
+    const remainingQuota = projectRecord.daily_quota - todayCount;
+    if (recipients.length > remainingQuota) {
+      throw new AppError(`Broadcast exceeds quota. Remaining: ${remainingQuota}, Requested: ${recipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
     }
   }
 
   const { resolvedBody, resolvedSubject } = await resolveMessageContent(projectId, normalizedChannel, templateCode, body, variables);
 
-  const results = [];
+  const queuedResults = [];
   for (const recipient of recipients) {
     const messageId = generateMessageId();
     await persistAndEnqueue({
-      messageId, projectId, channel: normalizedChannel, recipient,
+      messageId,
+      projectId,
+      channel: normalizedChannel,
+      recipient,
       payload: { templateCode, body: resolvedBody, subject: resolvedSubject ?? subject, isBroadcast: true, broadcastId },
-      isSandbox, subject: resolvedSubject ?? subject, body: resolvedBody,
-      templateCode, variables, broadcastId
+      isSandbox,
+      subject: resolvedSubject ?? subject,
+      body: resolvedBody,
+      templateCode,
+      variables,
+      broadcastId
     });
-    results.push({ recipient, messageId });
+    queuedResults.push({ recipient, messageId });
   }
 
-  return { broadcastId, channel: normalizedChannel, totalQueued: results.length, isSandbox, recipients: results, acceptedAt: new Date().toISOString() };
+  return {
+    broadcastId,
+    channel: normalizedChannel,
+    totalQueued: queuedResults.length,
+    isSandbox,
+    recipients: queuedResults,
+    acceptedAt: new Date().toISOString()
+  };
 }
 
+// Layanan mengambil daftar riwayat log notifikasi
 export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
-  try {
-    const { data, count } = await notificationLogRepository.findPaginated({ projectId, page, limit, status, channel });
-    return { data, pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) } };
-  } catch (error) {
-    throw new AppError(`Failed to fetch logs: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  const { data, count } = await notificationLogRepository.findPaginated({ projectId, page, limit, status, channel });
+  return {
+    data,
+    pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) }
+  };
 }
 
+// Layanan mengambil detail notifikasi by message ID
 export async function getNotificationByMessageId(messageId) {
-  const data = await notificationLogRepository.findByMessageId(messageId);
-  if (!data) throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');
-  return data;
+  const notification = await notificationLogRepository.findByMessageId(messageId);
+  if (!notification) {
+    throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');
+  }
+  return notification;
 }

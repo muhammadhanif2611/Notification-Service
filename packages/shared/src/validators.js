@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CHANNELS } from './constants.js';
 
+// Skema validasi request pengiriman notifikasi
 export const sendNotificationSchema = z.object({
   channel: z.enum([CHANNELS.WHATSAPP, CHANNELS.EMAIL]),
   recipient: z.string().min(1, 'Recipient phone number or email is required'),
@@ -13,6 +14,7 @@ export const sendNotificationSchema = z.object({
   path: ['body']
 });
 
+// Skema validasi request pembuatan project baru
 export const createProjectSchema = z.object({
   name: z.string().min(2, 'Project name must be at least 2 characters'),
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
@@ -23,12 +25,14 @@ export const createProjectSchema = z.object({
   webhookSecret: z.string().optional()
 });
 
+// Skema validasi request pembuatan API Key baru
 export const createApiKeySchema = z.object({
   projectId: z.string().uuid(),
   name: z.string().min(1, 'API Key name is required'),
   environment: z.enum(['production', 'sandbox']).default('production')
 });
 
+// Skema validasi request pembuatan template baru
 export const createTemplateSchema = z.object({
   projectId: z.string().uuid().optional(),
   name: z.string().min(2),

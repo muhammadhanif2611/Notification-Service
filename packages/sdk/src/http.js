@@ -1,39 +1,35 @@
+// Handler HTTP Client internal SDK dengan timeout otomatis
 export class HttpClient {
-  /**
-   * @param {object} config
-   * @param {string} config.apiKey
-   * @param {string} [config.baseUrl]
-   * @param {number} [config.timeout]
-   */
-  constructor(config) {
-    this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || 'http://localhost:3001';
-    this.timeout = config.timeout || 10000;
+  constructor(configuration) {
+    this.apiKey = configuration.apiKey;
+    this.baseUrl = configuration.baseUrl || 'http://localhost:3001';
+    this.timeoutMilliseconds = configuration.timeout || 10000;
   }
 
-  async post(path, payload) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
+  // Mengirim request HTTP POST
+  async post(endpointPath, requestPayload) {
+    const abortController = new AbortController();
+    const timeoutTimer = setTimeout(() => abortController.abort(), this.timeoutMilliseconds);
 
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const httpResponse = await fetch(`${this.baseUrl}${endpointPath}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': this.apiKey
         },
-        body: JSON.stringify(payload),
-        signal: controller.signal
+        body: JSON.stringify(requestPayload),
+        signal: abortController.signal
       });
 
-      return await response.json();
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error(`Request timed out after ${this.timeout}ms`);
+      return await httpResponse.json();
+    } catch (requestError) {
+      if (requestError.name === 'AbortError') {
+        throw new Error(`Request timed out after ${this.timeoutMilliseconds}ms`);
       }
-      throw err;
+      throw requestError;
     } finally {
-      clearTimeout(timer);
+      clearTimeout(timeoutTimer);
     }
   }
 }

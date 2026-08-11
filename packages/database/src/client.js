@@ -4,29 +4,37 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-const findEnv = () => {
-  let dir = path.dirname(fileURLToPath(import.meta.url));
-  while (dir !== path.parse(dir).root) {
-    const envPath = path.join(dir, '.env');
-    if (fs.existsSync(envPath)) return envPath;
-    dir = path.dirname(dir);
+// Helper pencari lokasi file environment .env
+const locateEnvironmentFile = () => {
+  let currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+  while (currentDirectory !== path.parse(currentDirectory).root) {
+    const environmentPath = path.join(currentDirectory, '.env');
+    if (fs.existsSync(environmentPath)) return environmentPath;
+    currentDirectory = path.dirname(currentDirectory);
   }
   return null;
 };
 
-dotenv.config({ path: findEnv() });
+dotenv.config({ path: locateEnvironmentFile() });
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://xyzcompany.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 
+// Client utama database Supabase
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false }
 });
 
+// Helper mencatat riwayat audit log sistem
 export async function writeAuditLog({ userId = null, action, targetEntity, detail }) {
   try {
-    return await supabase.from('audit_logs').insert({ user_id: userId, action, target_entity: targetEntity, detail });
+    return await supabase.from('audit_logs').insert({
+      user_id: userId,
+      action,
+      target_entity: targetEntity,
+      detail
+    });
   } catch {
-    // Audit log failure tidak boleh menghentikan flow utama
+    // Kegagalan audit log tidak boleh menghentikan alur utama aplikasi
   }
 }

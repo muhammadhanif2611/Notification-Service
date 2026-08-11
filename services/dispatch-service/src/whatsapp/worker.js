@@ -5,7 +5,7 @@ import * as dispatchRepository from '../repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
 
-// Worker: proses antrean whatsapp
+// Worker: memproses pengiriman antrean whatsapp
 export function startWhatsAppWorker(redisConfig) {
   const statusQueue = new Queue('status-queue', { connection: redisConfig });
 
@@ -13,19 +13,19 @@ export function startWhatsAppWorker(redisConfig) {
     const { messageId, projectId, recipient, templateCode, body, isSandbox } = job.data;
     logger.info({ messageId, recipient }, 'WhatsApp job processing');
 
-    const vendor = await dispatchRepository.findActiveVendorByChannel('WHATSAPP');
+    const vendorRecord = await dispatchRepository.findActiveVendorByChannel('WHATSAPP');
 
     try {
-      const res = await sendWhatsApp({ recipient, body, templateCode, credentials: vendor?.credentials, isSandbox });
-      await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendor?.id });
-      return res;
-    } catch (err) {
-      logger.error({ messageId, err: err.message }, 'WhatsApp job failed');
-      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: err.message });
-      throw err;
+      const sendResult = await sendWhatsApp({ recipient, body, templateCode, credentials: vendorRecord?.credentials, isSandbox });
+      await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendorRecord?.id });
+      return sendResult;
+    } catch (error) {
+      logger.error({ messageId, err: error.message }, 'WhatsApp job failed');
+      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message });
+      throw error;
     }
   }, { connection: redisConfig, concurrency: 5 });
 
-  worker.on('completed', (j) => logger.info({ messageId: j.data.messageId }, 'WhatsApp sent'));
-  worker.on('failed', (j, err) => logger.error({ messageId: j.data.messageId, err: err.message }, 'WhatsApp failed permanently'));
+  worker.on('completed', (job) => logger.info({ messageId: job.data.messageId }, 'WhatsApp sent'));
+  worker.on('failed', (job, error) => logger.error({ messageId: job.data.messageId, err: error.message }, 'WhatsApp failed permanently'));
 }

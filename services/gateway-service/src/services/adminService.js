@@ -17,16 +17,29 @@ export async function loginAdmin({ email, password }) {
     throw { statusCode: 400, message: 'Email and password are required.' };
   }
 
-  const user = await adminUserRepository.findActiveByEmail(email.toLowerCase().trim());
-  if (!user) throw { statusCode: 401, message: 'Invalid email or password.' };
+  const adminUser = await adminUserRepository.findActiveByEmail(email.toLowerCase().trim());
+  if (!adminUser) {
+    throw { statusCode: 401, message: 'Invalid email or password.' };
+  }
 
-  const isValid = await verifyApiKey(password, user.password_hash);
-  if (!isValid) throw { statusCode: 401, message: 'Invalid email or password.' };
+  const isPasswordValid = await verifyApiKey(password, adminUser.password_hash);
+  if (!isPasswordValid) {
+    throw { statusCode: 401, message: 'Invalid email or password.' };
+  }
 
-  const token = generateAuthToken({ userId: user.id, email: user.email, name: user.name, role: user.role });
-  adminUserRepository.updateLastLogin(user.id);
+  const token = generateAuthToken({
+    userId: adminUser.id,
+    email: adminUser.email,
+    name: adminUser.name,
+    role: adminUser.role
+  });
 
-  return { token, user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+  adminUserRepository.updateLastLogin(adminUser.id);
+
+  return {
+    token,
+    user: { id: adminUser.id, email: adminUser.email, name: adminUser.name, role: adminUser.role }
+  };
 }
 
 // Layanan mengambil semua daftar project
@@ -36,46 +49,51 @@ export async function listProjects() {
 
 // Layanan membuat project baru
 export async function createProject(payload) {
-  const parse = createProjectSchema.safeParse(payload);
-  if (!parse.success) {
-    throw { statusCode: 400, details: parse.error.errors };
+  const validation = createProjectSchema.safeParse(payload);
+  if (!validation.success) {
+    throw { statusCode: 400, details: validation.error.errors };
   }
 
+  const { name, slug, description, rateLimitPerMin, dailyQuota, webhookUrl, webhookSecret } = validation.data;
   return await projectRepository.insert({
-    name: parse.data.name,
-    slug: parse.data.slug,
-    description: parse.data.description,
-    rate_limit_per_min: parse.data.rateLimitPerMin,
-    daily_quota: parse.data.dailyQuota,
-    webhook_url: parse.data.webhookUrl,
-    webhook_secret: parse.data.webhookSecret
+    name,
+    slug,
+    description,
+    rate_limit_per_min: rateLimitPerMin,
+    daily_quota: dailyQuota,
+    webhook_url: webhookUrl,
+    webhook_secret: webhookSecret
   });
 }
 
 // Layanan membuat API Key baru
 export async function generateApiKey(payload) {
-  const parse = createApiKeySchema.safeParse(payload);
-  if (!parse.success) {
-    throw { statusCode: 400, details: parse.error.errors };
+  const validation = createApiKeySchema.safeParse(payload);
+  if (!validation.success) {
+    throw { statusCode: 400, details: validation.error.errors };
   }
 
-  const project = await projectRepository.findSlugById(parse.data.projectId);
-  if (!project) throw { statusCode: 404, message: 'Project not found' };
+  const { projectId, name, environment } = validation.data;
+  const projectRecord = await projectRepository.findSlugById(projectId);
+  if (!projectRecord) {
+    throw { statusCode: 404, message: 'Project not found' };
+  }
 
-  const envPrefix = parse.data.environment === 'production' ? 'prod' : 'sand';
-  const rawKey = generateRawApiKey(envPrefix, project.slug);
-  const keyHash = await hashApiKey(rawKey);
-  const keyPreview = extractKeyPreview(rawKey);
-  const keyPrefix = envPrefix === 'prod' ? 'ngw_prod_' : 'ngw_sand_';
+  const isProduction = environment === 'production';
+  const environmentPrefix = isProduction ? 'prod' : 'sand';
+  const keyPrefix = isProduction ? 'ngw_prod_' : 'ngw_sand_';
+  const rawApiKey = generateRawApiKey(environmentPrefix, projectRecord.slug);
+  const keyHash = await hashApiKey(rawApiKey);
+  const keyPreview = extractKeyPreview(rawApiKey);
 
-  const data = await apiKeyRepository.insert({
-    project_id: parse.data.projectId,
-    name: parse.data.name,
+  const apiKeyRecord = await apiKeyRepository.insert({
+    project_id: projectId,
+    name,
     key_prefix: keyPrefix,
     key_hash: keyHash,
     key_preview: keyPreview,
-    environment: parse.data.environment
+    environment
   });
 
-  return { rawApiKey: rawKey, apiKeyInfo: data };
+  return { rawApiKey, apiKeyInfo: apiKeyRecord };
 }

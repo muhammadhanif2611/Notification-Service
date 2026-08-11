@@ -19,183 +19,162 @@ const logger = createLogger('client-service');
 
 // Layanan mengambil daftar semua project
 export async function listProjects() {
-  try {
-    return await projectRepository.findAll();
-  } catch (error) {
-    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  return await projectRepository.findAll();
 }
 
 // Layanan mengambil detail project berdasarkan ID
 export async function getProjectById(projectId) {
-  try {
-    const data = await projectRepository.findByIdWithApiKeys(projectId);
-    if (!data) throw new AppError('Project not found', 404, 'NOT_FOUND');
-    return data;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
+  const project = await projectRepository.findByIdWithApiKeys(projectId);
+  if (!project) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
   }
+  return project;
 }
 
-// Layanan membuat project baru
+// Layanan membuat project baru dengan validasi skema
 export async function createProject(payload, userId = null) {
-  const parse = createProjectSchema.safeParse(payload);
-  if (!parse.success) {
-    throw new AppError('Invalid project creation payload', 400, 'VALIDATION_ERROR', parse.error.errors);
+  const validation = createProjectSchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid project creation payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
+  const { name, slug, description, rateLimitPerMin, dailyQuota, webhookUrl, webhookSecret } = validation.data;
   try {
-    const data = await projectRepository.insert({
-      name: parse.data.name,
-      slug: parse.data.slug.toLowerCase().trim(),
-      description: parse.data.description,
-      rate_limit_per_min: parse.data.rateLimitPerMin,
-      daily_quota: parse.data.dailyQuota,
-      webhook_url: parse.data.webhookUrl,
-      webhook_secret: parse.data.webhookSecret
+    const createdProject = await projectRepository.insert({
+      name,
+      slug: slug.toLowerCase().trim(),
+      description,
+      rate_limit_per_min: rateLimitPerMin,
+      daily_quota: dailyQuota,
+      webhook_url: webhookUrl,
+      webhook_secret: webhookSecret
     });
 
-    logger.info({ projectId: data.id, slug: data.slug }, 'Project created');
-    writeAuditLog({ userId, action: 'CREATE_PROJECT', targetEntity: 'projects', detail: `Created project '${parse.data.name}'` });
-    return data;
+    logger.info({ projectId: createdProject.id, slug: createdProject.slug }, 'Project created');
+    writeAuditLog({ userId, action: 'CREATE_PROJECT', targetEntity: 'projects', detail: `Created project '${name}'` });
+    return createdProject;
   } catch (error) {
-    if (error.code === '23505') throw new AppError('Project slug already exists', 409, 'SLUG_EXISTS');
+    if (error.code === '23505') {
+      throw new AppError('Project slug already exists', 409, 'SLUG_EXISTS');
+    }
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
 }
 
 // Layanan memperbarui data project
 export async function updateProject(projectId, updateData, userId = null) {
-  try {
-    const data = await projectRepository.updateById(projectId, updateData);
-
-    logger.info({ projectId }, 'Project updated');
-    writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
-    return data;
-  } catch (error) {
-    throw new AppError(`Failed to update project: ${error.message}`, 500, 'DATABASE_ERROR');
+  const updatedProject = await projectRepository.updateById(projectId, updateData);
+  if (!updatedProject) {
+    throw new AppError('Project not found or update failed', 404, 'NOT_FOUND');
   }
+
+  logger.info({ projectId }, 'Project updated');
+  writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
+  return updatedProject;
 }
 
 // Layanan membuat API Key baru untuk project
 export async function generateApiKey(payload, userId = null) {
-  const parse = createApiKeySchema.safeParse(payload);
-  if (!parse.success) {
-    throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', parse.error.errors);
+  const validation = createApiKeySchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
-  let project;
-  try {
-    project = await projectRepository.findSlugAndNameById(parse.data.projectId);
-  } catch {
+  const { projectId, name, environment } = validation.data;
+  const project = await projectRepository.findSlugAndNameById(projectId);
+  if (!project) {
     throw new AppError('Associated project not found', 404, 'NOT_FOUND');
   }
-  if (!project) throw new AppError('Associated project not found', 404, 'NOT_FOUND');
 
-  const envPrefix = parse.data.environment === 'production' ? 'prod' : 'sand';
-  const rawKey = generateRawApiKey(envPrefix, project.slug);
-  const [keyHash, keyPreview, keyPrefix] = [
-    await hashApiKey(rawKey),
-    extractKeyPreview(rawKey),
-    envPrefix === 'prod' ? 'ngw_prod_' : 'ngw_sand_'
-  ];
+  const isProduction = environment === 'production';
+  const environmentPrefix = isProduction ? 'prod' : 'sand';
+  const keyPrefix = isProduction ? 'ngw_prod_' : 'ngw_sand_';
+  const rawApiKey = generateRawApiKey(environmentPrefix, project.slug);
+  const keyHash = await hashApiKey(rawApiKey);
+  const keyPreview = extractKeyPreview(rawApiKey);
 
-  try {
-    const data = await apiKeyRepository.insert({
-      project_id: parse.data.projectId,
-      name: parse.data.name,
-      key_prefix: keyPrefix,
-      key_hash: keyHash,
-      key_preview: keyPreview,
-      environment: parse.data.environment
-    });
+  const apiKeyRecord = await apiKeyRepository.insert({
+    project_id: projectId,
+    name,
+    key_prefix: keyPrefix,
+    key_hash: keyHash,
+    key_preview: keyPreview,
+    environment
+  });
 
-    logger.info({ keyId: data.id, projectId: parse.data.projectId }, 'API Key generated');
-    writeAuditLog({ userId, action: 'GENERATE_API_KEY', targetEntity: 'api_keys', detail: `Generated key '${parse.data.name}' for project '${project.name}'` });
-    return { rawApiKey: rawKey, apiKeyInfo: data };
-  } catch (error) {
-    throw new AppError(`Failed to generate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  logger.info({ keyId: apiKeyRecord.id, projectId }, 'API Key generated');
+  writeAuditLog({ userId, action: 'GENERATE_API_KEY', targetEntity: 'api_keys', detail: `Generated key '${name}' for project '${project.name}'` });
+  return { rawApiKey, apiKeyInfo: apiKeyRecord };
 }
 
 // Layanan meregenerasi API Key yang sudah ada
 export async function regenerateApiKey(keyId, userId = null) {
-  let existing;
-  try {
-    existing = await apiKeyRepository.findByIdWithProject(keyId);
-  } catch {
+  const existingKey = await apiKeyRepository.findByIdWithProject(keyId);
+  if (!existingKey) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
   }
-  if (!existing) throw new AppError('API Key not found', 404, 'NOT_FOUND');
 
-  const envPrefix = existing.environment === 'production' ? 'prod' : 'sand';
-  const rawKey = generateRawApiKey(envPrefix, existing.projects.slug);
-  const keyHash = await hashApiKey(rawKey);
-  const keyPreview = extractKeyPreview(rawKey);
+  const environmentPrefix = existingKey.environment === 'production' ? 'prod' : 'sand';
+  const rawApiKey = generateRawApiKey(environmentPrefix, existingKey.projects.slug);
+  const keyHash = await hashApiKey(rawApiKey);
+  const keyPreview = extractKeyPreview(rawApiKey);
 
-  try {
-    const data = await apiKeyRepository.updateById(keyId, {
-      key_hash: keyHash,
-      key_preview: keyPreview,
-      last_used_at: null,
-      is_active: true
-    });
+  const updatedKey = await apiKeyRepository.updateById(keyId, {
+    key_hash: keyHash,
+    key_preview: keyPreview,
+    last_used_at: null,
+    is_active: true
+  });
 
-    logger.info({ keyId }, 'API Key regenerated');
-    writeAuditLog({ userId, action: 'REGENERATE_API_KEY', targetEntity: 'api_keys', detail: `Regenerated key '${existing.name}'` });
-    return { rawApiKey: rawKey, apiKeyInfo: data };
-  } catch (error) {
-    throw new AppError(`Failed to regenerate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  logger.info({ keyId }, 'API Key regenerated');
+  writeAuditLog({ userId, action: 'REGENERATE_API_KEY', targetEntity: 'api_keys', detail: `Regenerated key '${existingKey.name}'` });
+  return { rawApiKey, apiKeyInfo: updatedKey };
 }
 
 // Layanan menonaktifkan API Key
 export async function deactivateApiKey(keyId, userId = null) {
-  try {
-    const data = await apiKeyRepository.updateById(keyId, { is_active: false }, '*');
-
-    logger.info({ keyId }, 'API Key deactivated');
-    writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
-    return data;
-  } catch (error) {
-    throw new AppError(`Failed to deactivate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  const deactivatedKey = await apiKeyRepository.updateById(keyId, { is_active: false }, '*');
+  if (!deactivatedKey) {
+    throw new AppError('API Key not found', 404, 'NOT_FOUND');
   }
+
+  logger.info({ keyId }, 'API Key deactivated');
+  writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
+  return deactivatedKey;
 }
 
 // Layanan mengambil daftar template pesan
 export async function listTemplates(projectId = null) {
-  try {
-    return await templateRepository.findAll(projectId);
-  } catch (error) {
-    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  return await templateRepository.findAll(projectId);
 }
 
 // Layanan membuat template pesan baru
 export async function createTemplate(payload, userId = null) {
-  const parse = createTemplateSchema.safeParse(payload);
-  if (!parse.success) {
-    throw new AppError('Invalid template payload', 400, 'VALIDATION_ERROR', parse.error.errors);
+  const validation = createTemplateSchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid template payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
+  const { projectId, name, code, channel, subject, body, variables } = validation.data;
   try {
-    const data = await templateRepository.insert({
-      project_id: parse.data.projectId,
-      name: parse.data.name,
-      code: parse.data.code.toLowerCase().trim(),
-      channel: parse.data.channel.toUpperCase(),
-      subject: parse.data.subject,
-      body: parse.data.body,
-      variables: parse.data.variables || [],
+    const createdTemplate = await templateRepository.insert({
+      project_id: projectId,
+      name,
+      code: code.toLowerCase().trim(),
+      channel: channel.toUpperCase(),
+      subject,
+      body,
+      variables: variables || [],
       status: 'PENDING'
     });
 
-    logger.info({ templateId: data.id, code: data.code }, 'Template created');
-    writeAuditLog({ userId, action: 'CREATE_TEMPLATE', targetEntity: 'templates', detail: `Created template '${parse.data.name}'` });
-    return data;
+    logger.info({ templateId: createdTemplate.id, code: createdTemplate.code }, 'Template created');
+    writeAuditLog({ userId, action: 'CREATE_TEMPLATE', targetEntity: 'templates', detail: `Created template '${name}'` });
+    return createdTemplate;
   } catch (error) {
-    if (error.code === '23505') throw new AppError('Template code already exists', 409, 'TEMPLATE_CODE_EXISTS');
+    if (error.code === '23505') {
+      throw new AppError('Template code already exists', 409, 'TEMPLATE_CODE_EXISTS');
+    }
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
 }
@@ -207,28 +186,24 @@ export async function updateTemplateStatus(templateId, { status, rejectionReason
     throw new AppError("Status must be 'APPROVED' or 'REJECTED'", 400, 'INVALID_STATUS');
   }
 
-  try {
-    const data = await templateRepository.updateStatusById(templateId, {
-      status,
-      rejection_reason: status === 'REJECTED' ? rejectionReason : null,
-      updated_at: new Date().toISOString()
-    });
+  const updatedTemplate = await templateRepository.updateStatusById(templateId, {
+    status,
+    rejection_reason: status === 'REJECTED' ? rejectionReason : null,
+    updated_at: new Date().toISOString()
+  });
 
-    logger.info({ templateId, status }, 'Template status updated');
-    writeAuditLog({ userId, action: `TEMPLATE_${status}`, targetEntity: 'templates', detail: `Template ID ${templateId} set to ${status}` });
-    return data;
-  } catch (error) {
-    throw new AppError(`Failed to update template status: ${error.message}`, 500, 'DATABASE_ERROR');
+  if (!updatedTemplate) {
+    throw new AppError('Template not found', 404, 'NOT_FOUND');
   }
+
+  logger.info({ templateId, status }, 'Template status updated');
+  writeAuditLog({ userId, action: `TEMPLATE_${status}`, targetEntity: 'templates', detail: `Template ID ${templateId} set to ${status}` });
+  return updatedTemplate;
 }
 
 // Layanan mengambil daftar metadata vendor
 export async function listVendors() {
-  try {
-    return await vendorRepository.findAllOrderedByPriority();
-  } catch (error) {
-    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  return await vendorRepository.findAllOrderedByPriority();
 }
 
 // Layanan mendaftarkan vendor baru dengan enkripsi credentials
@@ -240,20 +215,16 @@ export async function createVendor(payload, userId = null) {
 
   const { encryptedData, iv, authTag } = encryptAES(JSON.stringify(credentials));
 
-  try {
-    const data = await vendorRepository.insert({
-      name,
-      channel: channel.toUpperCase(),
-      credential_encrypted: encryptedData,
-      credential_iv: iv,
-      credential_auth_tag: authTag,
-      priority
-    });
+  const registeredVendor = await vendorRepository.insert({
+    name,
+    channel: channel.toUpperCase(),
+    credential_encrypted: encryptedData,
+    credential_iv: iv,
+    credential_auth_tag: authTag,
+    priority
+  });
 
-    logger.info({ vendorId: data.id, channel: data.channel }, 'Vendor registered');
-    writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
-    return data;
-  } catch (error) {
-    throw new AppError(`Failed to register vendor: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
+  logger.info({ vendorId: registeredVendor.id, channel: registeredVendor.channel }, 'Vendor registered');
+  writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
+  return registeredVendor;
 }
