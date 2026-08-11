@@ -19,6 +19,8 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - AUTH_SERVICE_URL=http://auth-service:3002
       - CLIENT_SERVICE_URL=http://client-service:3003
       - NOTIFICATION_SERVICE_URL=http://notification-service:3004
