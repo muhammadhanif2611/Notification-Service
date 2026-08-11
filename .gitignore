@@ -43,5 +43,9 @@ next-env.d.ts
 
 /app/generated/prisma
 
-# local implementation plans
+# local implementation plans & agent rules
 IMPLEMENTATION_PLAN.md
+.agents/
+AGENTS.md
+**/AGENTS.md
+**/.agents/
