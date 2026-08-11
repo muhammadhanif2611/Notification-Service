@@ -1,53 +1,29 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import { Worker } from 'bullmq';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { supabase } from '@notification-gateway/database';
 import { generateWebhookSignature, NOTIFICATION_STATUS, createLogger } from '@notification-gateway/shared';
-
-const findEnv = () => {
-  let dir = path.dirname(fileURLToPath(import.meta.url));
-  while (dir !== path.parse(dir).root) {
-    const envPath = path.join(dir, '.env');
-    if (fs.existsSync(envPath)) return envPath;
-    dir = path.dirname(dir);
-  }
-  return null;
-};
-
-dotenv.config({ path: findEnv() });
+import { config } from './config/env.js';
+import callbackLogRoutes from './routes/callbackLogRoutes.js';
+import * as callbackLogRepository from './repositories/callbackLogRepository.js';
 
 const logger = createLogger('callback-log-service');
 const app = express();
-const PORT = process.env.PORT || 3005;
 
 app.use(express.json());
+app.use('/', callbackLogRoutes);
 
-const redisConfig = {
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  password: process.env.REDIS_PASSWORD || undefined
-};
-
-// BullMQ worker — update status & kirim webhook ke client app
-const worker = new Worker('status-queue', async (job) => {
+// Worker: pembaruan status log & pengiriman webhook callback
+new Worker('status-queue', async (job) => {
   const { messageId, projectId, status, error, vendorId } = job.data;
   logger.info({ messageId, status }, 'Updating notification status');
 
-  await supabase.from('notification_logs').update({
+  await callbackLogRepository.updateLogStatus(messageId, {
     status: status === 'SENT' ? NOTIFICATION_STATUS.SENT : NOTIFICATION_STATUS.FAILED,
     error_message: error || null,
     vendor_id: vendorId || null,
     sent_at: status === 'SENT' ? new Date().toISOString() : null
-  }).eq('message_id', messageId);
+  });
 
-  const { data: project } = await supabase
-    .from('projects')
-    .select('webhook_url, webhook_secret')
-    .eq('id', projectId)
-    .maybeSingle();
+  const project = await callbackLogRepository.findProjectWebhook(projectId);
 
   if (project?.webhook_url) {
     const payload = { event: 'notification.status_update', messageId, status, error: error || null, timestamp: new Date().toISOString() };
@@ -63,42 +39,8 @@ const worker = new Worker('status-queue', async (job) => {
       logger.error({ messageId, url: project.webhook_url, err: err.message }, 'Webhook delivery failed');
     }
   }
-}, { connection: redisConfig });
+}, { connection: config.redis });
 
-// GET /logs
-app.get('/logs', async (_req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('notification_logs')
-      .select('*, projects(name)')
-      .order('created_at', { ascending: false })
-      .limit(100);
-    if (error) throw error;
-    return res.json({ success: true, data });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// GET /statistics
-app.get('/statistics', async (_req, res) => {
-  try {
-    const { data: logs, error } = await supabase.from('notification_logs').select('status, channel');
-    if (error) throw error;
-    const stats = {
-      total: logs.length,
-      sent: logs.filter(l => l.status === 'SENT').length,
-      failed: logs.filter(l => l.status === 'FAILED').length,
-      pending: logs.filter(l => l.status === 'PENDING' || l.status === 'QUEUED').length,
-      whatsapp: logs.filter(l => l.channel === 'WHATSAPP').length,
-      email: logs.filter(l => l.channel === 'EMAIL').length
-    };
-    return res.json({ success: true, stats });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.listen(PORT, () => {
-  logger.info(`Callback & Log Service running on http://localhost:${PORT}`);
+app.listen(config.port, () => {
+  logger.info(`Callback & Log Service running on http://localhost:${config.port}`);
 });
