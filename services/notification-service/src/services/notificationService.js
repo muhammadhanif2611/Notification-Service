@@ -1,8 +1,10 @@
-import { supabase } from '@notification-gateway/database';
 import { CHANNELS, NOTIFICATION_STATUS, sendNotificationSchema } from '@notification-gateway/shared';
 import { whatsappQueue, emailQueue } from '../config/queue.js';
 import { AppError } from '../middlewares/errorHandler.js';
 import { randomBytes } from 'node:crypto';
+import * as templateRepository from '../repositories/templateRepository.js';
+import * as projectRepository from '../repositories/projectRepository.js';
+import * as notificationLogRepository from '../repositories/notificationLogRepository.js';
 
 // --- Helpers ---
 
@@ -18,18 +20,12 @@ function isSandboxMode(apiKeyPrefix, environment) {
   return environment === 'sandbox' || apiKeyPrefix === 'ngw_sand_';
 }
 
+// Resolve konten pesan dari template atau body langsung
 async function resolveMessageContent(projectId, channel, templateCode, body, variables) {
   if (!templateCode) return { resolvedBody: body, resolvedSubject: null };
 
-  const { data: template, error } = await supabase
-    .from('templates')
-    .select('body, subject, status')
-    .eq('code', templateCode)
-    .eq('channel', channel.toUpperCase())
-    .eq('project_id', projectId)
-    .maybeSingle();
-
-  if (error || !template) {
+  const template = await templateRepository.findApprovedTemplate(templateCode, channel, projectId);
+  if (!template) {
     throw new AppError(`Template '${templateCode}' not found for this project/channel.`, 404, 'TEMPLATE_NOT_FOUND');
   }
   if (template.status !== 'APPROVED') {
@@ -46,26 +42,13 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
   return { resolvedBody, resolvedSubject: template.subject ?? null };
 }
 
+// Cek kuota harian & status aktif project
 async function checkProjectThreshold(projectId) {
-  const { data: project, error } = await supabase
-    .from('projects')
-    .select('id, name, daily_quota, rate_limit_per_min, is_active')
-    .eq('id', projectId)
-    .maybeSingle();
-
-  if (error || !project) throw new AppError('Associated project not found.', 404, 'PROJECT_NOT_FOUND');
+  const project = await projectRepository.findByIdWithQuota(projectId);
+  if (!project) throw new AppError('Associated project not found.', 404, 'PROJECT_NOT_FOUND');
   if (!project.is_active) throw new AppError('Project is inactive.', 403, 'PROJECT_INACTIVE');
 
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-
-  const { count, error: countError } = await supabase
-    .from('notification_logs')
-    .select('id', { count: 'exact', head: true })
-    .eq('project_id', projectId)
-    .gte('created_at', todayStart.toISOString());
-
-  if (countError) throw new AppError(`Quota check failed: ${countError.message}`, 500, 'DATABASE_ERROR');
+  const count = await notificationLogRepository.countTodayByProject(projectId);
   if (count >= project.daily_quota) {
     throw new AppError(`Daily quota of ${project.daily_quota} has been reached.`, 429, 'DAILY_QUOTA_EXCEEDED');
   }
@@ -73,25 +56,24 @@ async function checkProjectThreshold(projectId) {
   return project;
 }
 
-async function persistNotificationLog({ messageId, projectId, channel, recipient, payload, isSandbox }) {
-  const { data, error } = await supabase
-    .from('notification_logs')
-    .insert({
-      message_id: messageId,
-      project_id: projectId,
-      channel: channel.toUpperCase(),
-      recipient,
-      payload: { ...payload, isSandbox },
-      status: NOTIFICATION_STATUS.QUEUED
-    })
-    .select('id, message_id, status, created_at')
-    .single();
+// Simpan log notifikasi & masukkan ke queue
+async function persistAndEnqueue({ messageId, projectId, channel, recipient, payload, isSandbox, subject, body, templateCode, variables, broadcastId }) {
+  await notificationLogRepository.insert({
+    message_id: messageId,
+    project_id: projectId,
+    channel,
+    recipient,
+    payload: { ...payload, isSandbox }
+  });
 
-  if (error) throw new AppError(`Failed to persist log: ${error.message}`, 500, 'DATABASE_ERROR');
-  return data;
-}
+  const jobPayload = {
+    messageId, projectId, channel, recipient,
+    body, subject: subject ?? null,
+    templateCode: templateCode ?? null, variables: variables ?? {},
+    isSandbox, createdAt: new Date().toISOString(),
+    ...(broadcastId ? { broadcastId, isBroadcast: true } : {})
+  };
 
-async function enqueueJob(channel, jobPayload) {
   if (channel === CHANNELS.WHATSAPP) {
     await whatsappQueue.add('send-whatsapp', jobPayload);
   } else {
@@ -115,21 +97,14 @@ export async function processNotification({ body: reqBody, project, environment,
   if (!sandbox) await checkProjectThreshold(projectId);
 
   const { resolvedBody, resolvedSubject } = await resolveMessageContent(projectId, normalizedChannel, templateCode, body, variables);
-
   const messageId = generateMessageId();
-  await persistNotificationLog({
+
+  await persistAndEnqueue({
     messageId, projectId, channel: normalizedChannel, recipient,
     payload: { templateCode, variables, body: resolvedBody, subject: resolvedSubject ?? subject },
-    isSandbox: sandbox
+    isSandbox: sandbox, subject: resolvedSubject ?? subject, body: resolvedBody,
+    templateCode, variables
   });
-
-  const jobPayload = {
-    messageId, projectId, channel: normalizedChannel, recipient,
-    body: resolvedBody, subject: resolvedSubject ?? subject ?? null,
-    templateCode: templateCode ?? null, variables: variables ?? {},
-    isSandbox: sandbox, createdAt: new Date().toISOString()
-  };
-  await enqueueJob(normalizedChannel, jobPayload);
 
   return { messageId, status: NOTIFICATION_STATUS.QUEUED, channel: normalizedChannel, recipient, isSandbox: sandbox, acceptedAt: new Date().toISOString() };
 }
@@ -146,14 +121,8 @@ export async function processBroadcast({ channel, recipients, templateCode, body
 
   if (!isSandbox) {
     const proj = await checkProjectThreshold(projectId);
-    const todayStart = new Date();
-    todayStart.setUTCHours(0, 0, 0, 0);
-    const { count } = await supabase
-      .from('notification_logs')
-      .select('id', { count: 'exact', head: true })
-      .eq('project_id', projectId)
-      .gte('created_at', todayStart.toISOString());
-    const remaining = proj.daily_quota - (count || 0);
+    const count = await notificationLogRepository.countTodayByProject(projectId);
+    const remaining = proj.daily_quota - count;
     if (recipients.length > remaining) {
       throw new AppError(`Broadcast exceeds quota. Remaining: ${remaining}, Requested: ${recipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
     }
@@ -164,16 +133,11 @@ export async function processBroadcast({ channel, recipients, templateCode, body
   const results = [];
   for (const recipient of recipients) {
     const messageId = generateMessageId();
-    await persistNotificationLog({
+    await persistAndEnqueue({
       messageId, projectId, channel: normalizedChannel, recipient,
       payload: { templateCode, body: resolvedBody, subject: resolvedSubject ?? subject, isBroadcast: true, broadcastId },
-      isSandbox
-    });
-    await enqueueJob(normalizedChannel, {
-      messageId, broadcastId, projectId, channel: normalizedChannel, recipient,
-      body: resolvedBody, subject: resolvedSubject ?? subject ?? null,
-      templateCode: templateCode ?? null, isSandbox, isBroadcast: true,
-      createdAt: new Date().toISOString()
+      isSandbox, subject: resolvedSubject ?? subject, body: resolvedBody,
+      templateCode, variables, broadcastId
     });
     results.push({ recipient, messageId });
   }
@@ -182,31 +146,16 @@ export async function processBroadcast({ channel, recipients, templateCode, body
 }
 
 export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  let query = supabase
-    .from('notification_logs')
-    .select('*', { count: 'exact' })
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: false })
-    .range(from, to);
-
-  if (status) query = query.eq('status', status.toUpperCase());
-  if (channel) query = query.eq('channel', channel.toUpperCase());
-
-  const { data, count, error } = await query;
-  if (error) throw new AppError(`Failed to fetch logs: ${error.message}`, 500, 'DATABASE_ERROR');
-
-  return { data, pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) } };
+  try {
+    const { data, count } = await notificationLogRepository.findPaginated({ projectId, page, limit, status, channel });
+    return { data, pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) } };
+  } catch (error) {
+    throw new AppError(`Failed to fetch logs: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
 export async function getNotificationByMessageId(messageId) {
-  const { data, error } = await supabase
-    .from('notification_logs')
-    .select('*')
-    .eq('message_id', messageId)
-    .maybeSingle();
-  if (error || !data) throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');
+  const data = await notificationLogRepository.findByMessageId(messageId);
+  if (!data) throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');
   return data;
 }

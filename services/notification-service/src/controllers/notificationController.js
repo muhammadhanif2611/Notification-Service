@@ -1,5 +1,6 @@
 import * as notificationService from '../services/notificationService.js';
 
+// Controller: pemrosesan tunggal notifikasi
 export async function process(req, res, next) {
   try {
     const context = {
@@ -13,6 +14,7 @@ export async function process(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: pemrosesan broadcast notifikasi
 export async function broadcast(req, res, next) {
   try {
     const { channel, recipients, templateCode, body, subject, variables, project, isSandbox } = req.body;
@@ -25,6 +27,7 @@ export async function broadcast(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mengambil riwayat log notifikasi
 export async function getLogs(req, res, next) {
   try {
     const { projectId } = req.params;
@@ -40,6 +43,7 @@ export async function getLogs(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mengambil detail notifikasi by message ID
 export async function getByMessageId(req, res, next) {
   try {
     const data = await notificationService.getNotificationByMessageId(req.params.messageId);
