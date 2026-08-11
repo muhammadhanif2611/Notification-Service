@@ -1,10 +1,11 @@
 import { Worker, Queue } from 'bullmq';
-import { supabase } from '@notification-gateway/database';
 import { createLogger } from '@notification-gateway/shared';
 import { sendEmail } from './sender.js';
+import * as dispatchRepository from '../repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
 
+// Worker: proses antrean email
 export function startEmailWorker(redisConfig) {
   const statusQueue = new Queue('status-queue', { connection: redisConfig });
 
@@ -12,7 +13,7 @@ export function startEmailWorker(redisConfig) {
     const { messageId, projectId, recipient, subject, body, isSandbox } = job.data;
     logger.info({ messageId, recipient }, 'Email job processing');
 
-    const { data: vendor } = await supabase.from('vendors').select('*').eq('channel', 'EMAIL').eq('is_active', true).maybeSingle();
+    const vendor = await dispatchRepository.findActiveVendorByChannel('EMAIL');
 
     try {
       const res = await sendEmail({ recipient, subject, body, credentials: vendor?.credentials, isSandbox });

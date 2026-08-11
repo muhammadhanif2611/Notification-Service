@@ -1,10 +1,11 @@
 import { Worker, Queue } from 'bullmq';
-import { supabase } from '@notification-gateway/database';
 import { createLogger } from '@notification-gateway/shared';
 import { sendWhatsApp } from './sender.js';
+import * as dispatchRepository from '../repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
 
+// Worker: proses antrean whatsapp
 export function startWhatsAppWorker(redisConfig) {
   const statusQueue = new Queue('status-queue', { connection: redisConfig });
 
@@ -12,7 +13,7 @@ export function startWhatsAppWorker(redisConfig) {
     const { messageId, projectId, recipient, templateCode, body, isSandbox } = job.data;
     logger.info({ messageId, recipient }, 'WhatsApp job processing');
 
-    const { data: vendor } = await supabase.from('vendors').select('*').eq('channel', 'WHATSAPP').eq('is_active', true).maybeSingle();
+    const vendor = await dispatchRepository.findActiveVendorByChannel('WHATSAPP');
 
     try {
       const res = await sendWhatsApp({ recipient, body, templateCode, credentials: vendor?.credentials, isSandbox });

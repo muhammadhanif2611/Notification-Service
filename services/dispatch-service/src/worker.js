@@ -1,54 +1,23 @@
 import { Worker, Queue } from 'bullmq';
-import dotenv from 'dotenv';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { supabase } from '@notification-gateway/database';
 import { NOTIFICATION_STATUS, CHANNELS, QUEUE_NAMES, createLogger } from '@notification-gateway/shared';
+import { config } from './config/env.js';
 import { sendWhatsAppMessage } from './vendors/whatsapp.js';
 import { sendEmailMessage } from './vendors/email.js';
-
-const findEnv = () => {
-  let dir = path.dirname(fileURLToPath(import.meta.url));
-  while (dir !== path.parse(dir).root) {
-    const envPath = path.join(dir, '.env');
-    if (fs.existsSync(envPath)) return envPath;
-    dir = path.dirname(dir);
-  }
-  return null;
-};
-
-dotenv.config({ path: findEnv() });
+import * as dispatchRepository from './repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
+const webhookQueue = new Queue(QUEUE_NAMES.WEBHOOK_DELIVERY, { connection: config.redis });
 
-const redisConfig = {
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  password: process.env.REDIS_PASSWORD || undefined
-};
-
-const webhookQueue = new Queue(QUEUE_NAMES.WEBHOOK_DELIVERY, { connection: redisConfig });
-
+// Worker: proses pengiriman notifikasi utama via queue BullMQ
 const worker = new Worker(
   QUEUE_NAMES.NOTIFICATION_DISPATCH,
   async (job) => {
     const { messageId, projectId, channel, recipient, templateCode, variables, body, subject } = job.data;
     logger.info({ messageId, channel, recipient }, 'Processing job');
 
-    await supabase
-      .from('notification_logs')
-      .update({ status: NOTIFICATION_STATUS.PROCESSING })
-      .eq('message_id', messageId);
+    await dispatchRepository.updateStatusByMessageId(messageId, { status: NOTIFICATION_STATUS.PROCESSING });
 
-    const { data: vendor } = await supabase
-      .from('vendors')
-      .select('*')
-      .eq('channel', channel)
-      .eq('is_active', true)
-      .order('priority', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const vendor = await dispatchRepository.findActiveVendorByChannel(channel);
 
     try {
       let result;
@@ -60,10 +29,11 @@ const worker = new Worker(
         throw new Error(`Unsupported channel: ${channel}`);
       }
 
-      await supabase
-        .from('notification_logs')
-        .update({ status: NOTIFICATION_STATUS.SENT, sent_at: new Date().toISOString(), vendor_id: vendor?.id || null })
-        .eq('message_id', messageId);
+      await dispatchRepository.updateStatusByMessageId(messageId, {
+        status: NOTIFICATION_STATUS.SENT,
+        sent_at: new Date().toISOString(),
+        vendor_id: vendor?.id || null
+      });
 
       await webhookQueue.add('deliver-webhook', { messageId, projectId, status: NOTIFICATION_STATUS.SENT, timestamp: new Date().toISOString() });
 
@@ -71,17 +41,17 @@ const worker = new Worker(
     } catch (err) {
       logger.error({ messageId, err: err.message }, 'Job failed');
 
-      await supabase
-        .from('notification_logs')
-        .update({ status: NOTIFICATION_STATUS.FAILED, error_message: err.message })
-        .eq('message_id', messageId);
+      await dispatchRepository.updateStatusByMessageId(messageId, {
+        status: NOTIFICATION_STATUS.FAILED,
+        error_message: err.message
+      });
 
       await webhookQueue.add('deliver-webhook', { messageId, projectId, status: NOTIFICATION_STATUS.FAILED, error: err.message, timestamp: new Date().toISOString() });
 
       throw err;
     }
   },
-  { connection: redisConfig, concurrency: 5 }
+  { connection: config.redis, concurrency: 5 }
 );
 
 worker.on('completed', (job) => logger.info({ messageId: job.data.messageId }, 'Job completed'));
