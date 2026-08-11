@@ -1,5 +1,6 @@
 import * as clientService from '../services/clientService.js';
 
+// Controller: mengambil daftar semua project
 export async function getProjects(req, res, next) {
   try {
     const data = await clientService.listProjects();
@@ -7,6 +8,7 @@ export async function getProjects(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mengambil detail project by ID
 export async function getProjectById(req, res, next) {
   try {
     const data = await clientService.getProjectById(req.params.id);
@@ -14,6 +16,7 @@ export async function getProjectById(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: membuat project baru
 export async function createProject(req, res, next) {
   try {
     const data = await clientService.createProject(req.body, req.user?.userId);
@@ -21,6 +24,7 @@ export async function createProject(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: memperbarui data project
 export async function updateProject(req, res, next) {
   try {
     const data = await clientService.updateProject(req.params.id, req.body, req.user?.userId);
@@ -28,6 +32,7 @@ export async function updateProject(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: membuat API Key baru
 export async function generateApiKey(req, res, next) {
   try {
     const data = await clientService.generateApiKey(req.body, req.user?.userId);
@@ -35,6 +40,7 @@ export async function generateApiKey(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: meregenerasi API Key
 export async function regenerateApiKey(req, res, next) {
   try {
     const data = await clientService.regenerateApiKey(req.params.id, req.user?.userId);
@@ -42,6 +48,7 @@ export async function regenerateApiKey(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: menonaktifkan API Key
 export async function deactivateApiKey(req, res, next) {
   try {
     const data = await clientService.deactivateApiKey(req.params.id, req.user?.userId);
@@ -49,6 +56,7 @@ export async function deactivateApiKey(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mengambil daftar template
 export async function getTemplates(req, res, next) {
   try {
     const data = await clientService.listTemplates(req.query.projectId);
@@ -56,6 +64,7 @@ export async function getTemplates(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: membuat template baru
 export async function createTemplate(req, res, next) {
   try {
     const data = await clientService.createTemplate(req.body, req.user?.userId);
@@ -63,6 +72,7 @@ export async function createTemplate(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: memperbarui status template
 export async function updateTemplateStatus(req, res, next) {
   try {
     const data = await clientService.updateTemplateStatus(req.params.id, req.body, req.user?.userId);
@@ -70,6 +80,7 @@ export async function updateTemplateStatus(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mengambil daftar vendor
 export async function getVendors(req, res, next) {
   try {
     const data = await clientService.listVendors();
@@ -77,6 +88,7 @@ export async function getVendors(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mendaftarkan vendor baru
 export async function createVendor(req, res, next) {
   try {
     const data = await clientService.createVendor(req.body, req.user?.userId);

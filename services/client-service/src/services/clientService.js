@@ -1,4 +1,4 @@
-import { supabase, writeAuditLog } from '@notification-gateway/database';
+import { writeAuditLog } from '@notification-gateway/database';
 import {
   generateRawApiKey,
   hashApiKey,
@@ -10,37 +10,43 @@ import {
   createLogger
 } from '@notification-gateway/shared';
 import { AppError } from '../middlewares/errorHandler.js';
+import * as projectRepository from '../repositories/projectRepository.js';
+import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
+import * as templateRepository from '../repositories/templateRepository.js';
+import * as vendorRepository from '../repositories/vendorRepository.js';
 
 const logger = createLogger('client-service');
 
+// Layanan mengambil daftar semua project
 export async function listProjects() {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  return data;
+  try {
+    return await projectRepository.findAll();
+  } catch (error) {
+    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
+// Layanan mengambil detail project berdasarkan ID
 export async function getProjectById(projectId) {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('*, api_keys(id, name, key_prefix, key_preview, environment, last_used_at, is_active, created_at)')
-    .eq('id', projectId)
-    .maybeSingle();
-  if (error || !data) throw new AppError('Project not found', 404, 'NOT_FOUND');
-  return data;
+  try {
+    const data = await projectRepository.findByIdWithApiKeys(projectId);
+    if (!data) throw new AppError('Project not found', 404, 'NOT_FOUND');
+    return data;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('Project not found', 404, 'NOT_FOUND');
+  }
 }
 
+// Layanan membuat project baru
 export async function createProject(payload, userId = null) {
   const parse = createProjectSchema.safeParse(payload);
   if (!parse.success) {
     throw new AppError('Invalid project creation payload', 400, 'VALIDATION_ERROR', parse.error.errors);
   }
 
-  const { data, error } = await supabase
-    .from('projects')
-    .insert({
+  try {
+    const data = await projectRepository.insert({
       name: parse.data.name,
       slug: parse.data.slug.toLowerCase().trim(),
       description: parse.data.description,
@@ -48,49 +54,43 @@ export async function createProject(payload, userId = null) {
       daily_quota: parse.data.dailyQuota,
       webhook_url: parse.data.webhookUrl,
       webhook_secret: parse.data.webhookSecret
-    })
-    .select()
-    .single();
+    });
 
-  if (error) {
+    logger.info({ projectId: data.id, slug: data.slug }, 'Project created');
+    writeAuditLog({ userId, action: 'CREATE_PROJECT', targetEntity: 'projects', detail: `Created project '${parse.data.name}'` });
+    return data;
+  } catch (error) {
     if (error.code === '23505') throw new AppError('Project slug already exists', 409, 'SLUG_EXISTS');
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
-
-  logger.info({ projectId: data.id, slug: data.slug }, 'Project created');
-  writeAuditLog({ userId, action: 'CREATE_PROJECT', targetEntity: 'projects', detail: `Created project '${parse.data.name}'` });
-  return data;
 }
 
+// Layanan memperbarui data project
 export async function updateProject(projectId, updateData, userId = null) {
-  const { data, error } = await supabase
-    .from('projects')
-    .update({ ...updateData, updated_at: new Date().toISOString() })
-    .eq('id', projectId)
-    .select()
-    .single();
-  if (error) throw new AppError(`Failed to update project: ${error.message}`, 500, 'DATABASE_ERROR');
+  try {
+    const data = await projectRepository.updateById(projectId, updateData);
 
-  logger.info({ projectId }, 'Project updated');
-  writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
-  return data;
+    logger.info({ projectId }, 'Project updated');
+    writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
+    return data;
+  } catch (error) {
+    throw new AppError(`Failed to update project: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
-/**
- * Raw key ditampilkan SEKALI SAJA — tidak pernah disimpan plain.
- * key_preview: 8 karakter terakhir untuk tampilan dashboard.
- */
+// Layanan membuat API Key baru untuk project
 export async function generateApiKey(payload, userId = null) {
   const parse = createApiKeySchema.safeParse(payload);
   if (!parse.success) {
     throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', parse.error.errors);
   }
 
-  const { data: project } = await supabase
-    .from('projects')
-    .select('slug, name')
-    .eq('id', parse.data.projectId)
-    .single();
+  let project;
+  try {
+    project = await projectRepository.findSlugAndNameById(parse.data.projectId);
+  } catch {
+    throw new AppError('Associated project not found', 404, 'NOT_FOUND');
+  }
   if (!project) throw new AppError('Associated project not found', 404, 'NOT_FOUND');
 
   const envPrefix = parse.data.environment === 'production' ? 'prod' : 'sand';
@@ -101,24 +101,32 @@ export async function generateApiKey(payload, userId = null) {
     envPrefix === 'prod' ? 'ngw_prod_' : 'ngw_sand_'
   ];
 
-  const { data, error } = await supabase
-    .from('api_keys')
-    .insert({ project_id: parse.data.projectId, name: parse.data.name, key_prefix: keyPrefix, key_hash: keyHash, key_preview: keyPreview, environment: parse.data.environment })
-    .select('id, project_id, name, key_prefix, key_preview, environment, is_active, created_at')
-    .single();
-  if (error) throw new AppError(`Failed to generate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  try {
+    const data = await apiKeyRepository.insert({
+      project_id: parse.data.projectId,
+      name: parse.data.name,
+      key_prefix: keyPrefix,
+      key_hash: keyHash,
+      key_preview: keyPreview,
+      environment: parse.data.environment
+    });
 
-  logger.info({ keyId: data.id, projectId: parse.data.projectId }, 'API Key generated');
-  writeAuditLog({ userId, action: 'GENERATE_API_KEY', targetEntity: 'api_keys', detail: `Generated key '${parse.data.name}' for project '${project.name}'` });
-  return { rawApiKey: rawKey, apiKeyInfo: data };
+    logger.info({ keyId: data.id, projectId: parse.data.projectId }, 'API Key generated');
+    writeAuditLog({ userId, action: 'GENERATE_API_KEY', targetEntity: 'api_keys', detail: `Generated key '${parse.data.name}' for project '${project.name}'` });
+    return { rawApiKey: rawKey, apiKeyInfo: data };
+  } catch (error) {
+    throw new AppError(`Failed to generate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
+// Layanan meregenerasi API Key yang sudah ada
 export async function regenerateApiKey(keyId, userId = null) {
-  const { data: existing } = await supabase
-    .from('api_keys')
-    .select('*, projects(slug, name)')
-    .eq('id', keyId)
-    .single();
+  let existing;
+  try {
+    existing = await apiKeyRepository.findByIdWithProject(keyId);
+  } catch {
+    throw new AppError('API Key not found', 404, 'NOT_FOUND');
+  }
   if (!existing) throw new AppError('API Key not found', 404, 'NOT_FOUND');
 
   const envPrefix = existing.environment === 'production' ? 'prod' : 'sand';
@@ -126,50 +134,53 @@ export async function regenerateApiKey(keyId, userId = null) {
   const keyHash = await hashApiKey(rawKey);
   const keyPreview = extractKeyPreview(rawKey);
 
-  const { data, error } = await supabase
-    .from('api_keys')
-    .update({ key_hash: keyHash, key_preview: keyPreview, last_used_at: null, is_active: true })
-    .eq('id', keyId)
-    .select('id, name, key_prefix, key_preview, environment, is_active, created_at')
-    .single();
-  if (error) throw new AppError(`Failed to regenerate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  try {
+    const data = await apiKeyRepository.updateById(keyId, {
+      key_hash: keyHash,
+      key_preview: keyPreview,
+      last_used_at: null,
+      is_active: true
+    });
 
-  logger.info({ keyId }, 'API Key regenerated');
-  writeAuditLog({ userId, action: 'REGENERATE_API_KEY', targetEntity: 'api_keys', detail: `Regenerated key '${existing.name}'` });
-  return { rawApiKey: rawKey, apiKeyInfo: data };
+    logger.info({ keyId }, 'API Key regenerated');
+    writeAuditLog({ userId, action: 'REGENERATE_API_KEY', targetEntity: 'api_keys', detail: `Regenerated key '${existing.name}'` });
+    return { rawApiKey: rawKey, apiKeyInfo: data };
+  } catch (error) {
+    throw new AppError(`Failed to regenerate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
+// Layanan menonaktifkan API Key
 export async function deactivateApiKey(keyId, userId = null) {
-  const { data, error } = await supabase
-    .from('api_keys')
-    .update({ is_active: false })
-    .eq('id', keyId)
-    .select()
-    .single();
-  if (error) throw new AppError(`Failed to deactivate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  try {
+    const data = await apiKeyRepository.updateById(keyId, { is_active: false }, '*');
 
-  logger.info({ keyId }, 'API Key deactivated');
-  writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
-  return data;
+    logger.info({ keyId }, 'API Key deactivated');
+    writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
+    return data;
+  } catch (error) {
+    throw new AppError(`Failed to deactivate API Key: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
+// Layanan mengambil daftar template pesan
 export async function listTemplates(projectId = null) {
-  let query = supabase.from('templates').select('*, projects(name)');
-  if (projectId) query = query.eq('project_id', projectId);
-  const { data, error } = await query;
-  if (error) throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  return data;
+  try {
+    return await templateRepository.findAll(projectId);
+  } catch (error) {
+    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
+// Layanan membuat template pesan baru
 export async function createTemplate(payload, userId = null) {
   const parse = createTemplateSchema.safeParse(payload);
   if (!parse.success) {
     throw new AppError('Invalid template payload', 400, 'VALIDATION_ERROR', parse.error.errors);
   }
 
-  const { data, error } = await supabase
-    .from('templates')
-    .insert({
+  try {
+    const data = await templateRepository.insert({
       project_id: parse.data.projectId,
       name: parse.data.name,
       code: parse.data.code.toLowerCase().trim(),
@@ -178,50 +189,49 @@ export async function createTemplate(payload, userId = null) {
       body: parse.data.body,
       variables: parse.data.variables || [],
       status: 'PENDING'
-    })
-    .select()
-    .single();
+    });
 
-  if (error) {
+    logger.info({ templateId: data.id, code: data.code }, 'Template created');
+    writeAuditLog({ userId, action: 'CREATE_TEMPLATE', targetEntity: 'templates', detail: `Created template '${parse.data.name}'` });
+    return data;
+  } catch (error) {
     if (error.code === '23505') throw new AppError('Template code already exists', 409, 'TEMPLATE_CODE_EXISTS');
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
-
-  logger.info({ templateId: data.id, code: data.code }, 'Template created');
-  writeAuditLog({ userId, action: 'CREATE_TEMPLATE', targetEntity: 'templates', detail: `Created template '${parse.data.name}'` });
-  return data;
 }
 
+// Layanan memperbarui status persetujuan template
 export async function updateTemplateStatus(templateId, { status, rejectionReason }, userId = null) {
   const VALID_STATUSES = ['APPROVED', 'REJECTED'];
   if (!VALID_STATUSES.includes(status)) {
     throw new AppError("Status must be 'APPROVED' or 'REJECTED'", 400, 'INVALID_STATUS');
   }
 
-  const { data, error } = await supabase
-    .from('templates')
-    .update({ status, rejection_reason: status === 'REJECTED' ? rejectionReason : null, updated_at: new Date().toISOString() })
-    .eq('id', templateId)
-    .select()
-    .single();
-  if (error) throw new AppError(`Failed to update template status: ${error.message}`, 500, 'DATABASE_ERROR');
+  try {
+    const data = await templateRepository.updateStatusById(templateId, {
+      status,
+      rejection_reason: status === 'REJECTED' ? rejectionReason : null,
+      updated_at: new Date().toISOString()
+    });
 
-  logger.info({ templateId, status }, 'Template status updated');
-  writeAuditLog({ userId, action: `TEMPLATE_${status}`, targetEntity: 'templates', detail: `Template ID ${templateId} set to ${status}` });
-  return data;
+    logger.info({ templateId, status }, 'Template status updated');
+    writeAuditLog({ userId, action: `TEMPLATE_${status}`, targetEntity: 'templates', detail: `Template ID ${templateId} set to ${status}` });
+    return data;
+  } catch (error) {
+    throw new AppError(`Failed to update template status: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
-/** Credentials tidak pernah dikembalikan — hanya metadata. */
+// Layanan mengambil daftar metadata vendor
 export async function listVendors() {
-  const { data, error } = await supabase
-    .from('vendors')
-    .select('id, name, channel, priority, is_active, created_at')
-    .order('priority', { ascending: true });
-  if (error) throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  return data;
+  try {
+    return await vendorRepository.findAllOrderedByPriority();
+  } catch (error) {
+    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
 
-/** Credentials dienkripsi AES-256-GCM sebelum disimpan ke DB. */
+// Layanan mendaftarkan vendor baru dengan enkripsi credentials
 export async function createVendor(payload, userId = null) {
   const { name, channel, credentials, priority = 1 } = payload;
   if (!name || !channel || !credentials) {
@@ -230,14 +240,20 @@ export async function createVendor(payload, userId = null) {
 
   const { encryptedData, iv, authTag } = encryptAES(JSON.stringify(credentials));
 
-  const { data, error } = await supabase
-    .from('vendors')
-    .insert({ name, channel: channel.toUpperCase(), credential_encrypted: encryptedData, credential_iv: iv, credential_auth_tag: authTag, priority })
-    .select('id, name, channel, priority, is_active, created_at')
-    .single();
-  if (error) throw new AppError(`Failed to register vendor: ${error.message}`, 500, 'DATABASE_ERROR');
+  try {
+    const data = await vendorRepository.insert({
+      name,
+      channel: channel.toUpperCase(),
+      credential_encrypted: encryptedData,
+      credential_iv: iv,
+      credential_auth_tag: authTag,
+      priority
+    });
 
-  logger.info({ vendorId: data.id, channel: data.channel }, 'Vendor registered');
-  writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
-  return data;
+    logger.info({ vendorId: data.id, channel: data.channel }, 'Vendor registered');
+    writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
+    return data;
+  } catch (error) {
+    throw new AppError(`Failed to register vendor: ${error.message}`, 500, 'DATABASE_ERROR');
+  }
 }
