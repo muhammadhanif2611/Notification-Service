@@ -1,5 +1,6 @@
 import * as authService from '../services/authService.js';
 
+// Controller: registrasi user baru
 export async function register(req, res, next) {
   try {
     const data = await authService.registerUser(req.body);
@@ -7,6 +8,7 @@ export async function register(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: login user
 export async function login(req, res, next) {
   try {
     const data = await authService.loginUser(req.body);
