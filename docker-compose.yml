@@ -1,15 +1,70 @@
-version: '3.8'
+# =============================================================================
+# NOTIFICATION GATEWAY — DOCKER COMPOSE
+# =============================================================================
+# Jalankan SEMUA service sekaligus (1 perintah):
+#   docker compose up -d --build
+#
+# Melihat log:
+#   docker compose logs -f
+#   docker compose logs -f gateway-service
+#
+# Stop semua:
+#   docker compose down
+# =============================================================================
+
+x-common-env: &common-env
+  SUPABASE_URL: ${SUPABASE_URL}
+  SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+  JWT_SECRET: ${JWT_SECRET}
+  AES_ENCRYPTION_KEY: ${AES_ENCRYPTION_KEY}
+  NODE_ENV: production
+
+x-redis-env: &redis-env
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
+x-depends-redis: &depends-redis
+  redis:
+    condition: service_healthy
 
 services:
+  # ──────────────────────────────────────────────
   # Redis Queue & Caching Layer
+  # ──────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: ngw-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: always
 
+  # ──────────────────────────────────────────────
+  # Frontend Dashboard Next.js (Port 3000)
+  # ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # URL gateway yang dipakai browser untuk call API
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:3001}
+    container_name: ngw-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway-service
+    restart: always
+
+  # ──────────────────────────────────────────────
   # Service 1: API Gateway (Port 3001)
+  # ──────────────────────────────────────────────
   gateway-service:
     build:
       context: .
@@ -18,18 +73,27 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - PORT=3001
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - AUTH_SERVICE_URL=http://auth-service:3002
-      - CLIENT_SERVICE_URL=http://client-service:3003
-      - NOTIFICATION_SERVICE_URL=http://notification-service:3004
-      - CALLBACK_LOG_SERVICE_URL=http://callback-log-service:3005
+      <<: [*common-env, *redis-env]
+      PORT: 3001
+      AUTH_SERVICE_URL: http://auth-service:3002
+      CLIENT_SERVICE_URL: http://client-service:3003
+      NOTIFICATION_SERVICE_URL: http://notification-service:3004
+      CALLBACK_LOG_SERVICE_URL: http://callback-log-service:3005
     depends_on:
-      - redis
+      <<: *depends-redis
+      auth-service:
+        condition: service_started
+      client-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      callback-log-service:
+        condition: service_started
     restart: always
 
+  # ──────────────────────────────────────────────
   # Service 2: Auth Service (Port 3002)
+  # ──────────────────────────────────────────────
   auth-service:
     build:
       context: .
@@ -38,12 +102,13 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - PORT=3002
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      <<: *common-env
+      PORT: 3002
     restart: always
 
+  # ──────────────────────────────────────────────
   # Service 3: Client Service (Port 3003)
+  # ──────────────────────────────────────────────
   client-service:
     build:
       context: .
@@ -52,12 +117,13 @@ services:
     ports:
       - "3003:3003"
     environment:
-      - PORT=3003
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      <<: *common-env
+      PORT: 3003
     restart: always
 
+  # ──────────────────────────────────────────────
   # Service 4: Notification Ingestion Service (Port 3004)
+  # ──────────────────────────────────────────────
   notification-service:
     build:
       context: .
@@ -66,31 +132,27 @@ services:
     ports:
       - "3004:3004"
     environment:
-      - PORT=3004
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-    depends_on:
-      - redis
+      <<: [*common-env, *redis-env]
+      PORT: 3004
+    depends_on: *depends-redis
     restart: always
 
-  # Service 5: Dispatch Processing Worker Service
+  # ──────────────────────────────────────────────
+  # Service 5: Dispatch Processing Worker
+  # ──────────────────────────────────────────────
   dispatch-service:
     build:
       context: .
       dockerfile: services/dispatch-service/Dockerfile
     container_name: ngw-dispatch-service
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-    depends_on:
-      - redis
+      <<: [*common-env, *redis-env]
+    depends_on: *depends-redis
     restart: always
 
+  # ──────────────────────────────────────────────
   # Service 6: Callback & Log Worker Service (Port 3005)
+  # ──────────────────────────────────────────────
   callback-log-service:
     build:
       context: .
@@ -99,11 +161,10 @@ services:
     ports:
       - "3005:3005"
     environment:
-      - PORT=3005
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-    depends_on:
-      - redis
+      <<: [*common-env, *redis-env]
+      PORT: 3005
+    depends_on: *depends-redis
     restart: always
+
+volumes:
+  redis-data:

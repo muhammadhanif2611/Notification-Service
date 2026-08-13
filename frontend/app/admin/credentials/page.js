@@ -1,21 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Eye, EyeOff, Copy, Check, Lock } from "lucide-react";
+import { Shield, Eye, EyeOff, Copy, Check, Lock, RefreshCw } from "lucide-react";
 import DataTable from "@/components/admin/DataTable";
+import { useAdminData } from "@/hooks/useAdminData";
 
 /**
  * Credentials Page — Manajemen API Secret Key vendor.
  * DESIGN.md 6B.2: Masked credentials, copy/reveal toggle, AES-256-GCM indicator.
  */
-
-const MOCK_CREDENTIALS = [
-  { id: "1", vendor: "Meta WhatsApp Cloud", channel: "WHATSAPP", key_preview: "...8f2a", encrypted: true, updated_at: "2026-08-10T14:30:00Z" },
-  { id: "2", vendor: "Twilio WhatsApp", channel: "WHATSAPP", key_preview: "...c91d", encrypted: true, updated_at: "2026-08-09T10:15:00Z" },
-  { id: "3", vendor: "SendGrid", channel: "EMAIL", key_preview: "...4b7e", encrypted: true, updated_at: "2026-08-11T08:45:00Z" },
-  { id: "4", vendor: "Amazon SES", channel: "EMAIL", key_preview: "...a3f0", encrypted: true, updated_at: "2026-08-08T16:20:00Z" },
-  { id: "5", vendor: "Telkomsel SMS", channel: "SMS", key_preview: "...d5c2", encrypted: true, updated_at: "2026-08-07T12:00:00Z" },
-];
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -38,6 +31,7 @@ function CopyButton({ text }) {
 }
 
 export default function CredentialsPage() {
+  const { vendors, loading, refetch } = useAdminData();
   const [revealedIds, setRevealedIds] = useState(new Set());
 
   const toggleReveal = (id) => {
@@ -51,7 +45,7 @@ export default function CredentialsPage() {
 
   const columns = [
     {
-      key: "vendor",
+      key: "name",
       label: "Vendor",
       render: (val, row) => (
         <div className="flex items-center gap-2">
@@ -70,41 +64,51 @@ export default function CredentialsPage() {
       ),
     },
     {
-      key: "key_preview",
-      label: "Secret Key",
-      render: (val, row) => (
-        <div className="flex items-center gap-2">
-          <code className="px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-[var(--text-primary)]">
-            {revealedIds.has(row.id) ? `sk_live_8f9a2b4c7d1e6f...${val.slice(3)}` : `••••••••••••${val}`}
-          </code>
+      key: "priority",
+      label: "Priority",
+      mono: true,
+      render: (val) => (
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 text-xs font-mono font-semibold">
+          {val}
+        </span>
+      ),
+    },
+    {
+      key: "is_active",
+      label: "Status",
+      render: (val) => (
+        <span className="inline-flex items-center gap-1.5">
+          {val ? (
+            <span className="text-xs text-emerald-700 dark:text-emerald-400">Active</span>
+          ) : (
+            <span className="text-xs text-[var(--text-muted)]">Inactive</span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Created At",
+      mono: true,
+      render: (val) => (
+        <span className="text-xs">
+          {new Date(val).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (_, row) => (
+        <div className="flex items-center gap-1">
           <button
             onClick={() => toggleReveal(row.id)}
             className="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
           >
             {revealedIds.has(row.id) ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
-          <CopyButton text={val} />
+          <CopyButton text={JSON.stringify(row, null, 2)} />
         </div>
-      ),
-    },
-    {
-      key: "encrypted",
-      label: "Encryption",
-      render: (val) => (
-        <span className="inline-flex items-center gap-1.5 text-xs">
-          <Lock size={12} className="text-emerald-500" />
-          <span className="text-emerald-700 dark:text-emerald-400 font-mono">AES-256-GCM</span>
-        </span>
-      ),
-    },
-    {
-      key: "updated_at",
-      label: "Last Updated",
-      mono: true,
-      render: (val) => (
-        <span className="text-xs">
-          {new Date(val).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
-        </span>
       ),
     },
   ];
@@ -135,7 +139,8 @@ export default function CredentialsPage() {
 
       <DataTable
         columns={columns}
-        data={MOCK_CREDENTIALS}
+        data={vendors}
+        loading={loading}
         emptyTitle="Belum ada kredensial vendor"
         emptyDescription="Kredensial akan muncul setelah vendor ditambahkan."
       />

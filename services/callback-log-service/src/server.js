@@ -9,6 +9,12 @@ const logger = createLogger('callback-log-service');
 const app = express();
 
 app.use(express.json());
+
+// Endpoint health check
+app.get('/health', (_req, res) =>
+  res.json({ status: 'ok', service: 'callback-log-service', timestamp: new Date().toISOString() })
+);
+
 app.use('/', callbackLogRoutes);
 
 // Worker: memproses pembaruan status log & pengiriman webhook callback

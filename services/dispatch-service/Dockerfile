@@ -40,7 +40,7 @@ USER nodejs
 # No port exposed (worker service)
 
 # Health check - check if process is running
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=15s --start-period=25s --retries=3 \
   CMD pgrep -f "node.*worker.js" || exit 1
 
 # Start worker

@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Search, Bell } from "lucide-react";
+import { Search, Bell, LogOut } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 import { ADMIN_MENU_ITEMS } from "@/constants/menuItems";
+import { useAuth } from "@/lib/auth-context";
 
 /**
  * AdminHeader — Top header bar untuk Platform Admin.
@@ -12,6 +13,7 @@ import { ADMIN_MENU_ITEMS } from "@/constants/menuItems";
  */
 export default function AdminHeader() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
 
   // Resolve current page title from menu items
   const currentItem = ADMIN_MENU_ITEMS.find(
@@ -61,9 +63,19 @@ export default function AdminHeader() {
         </button>
 
         {/* User Avatar */}
-        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--primary)] text-[var(--on-primary)] text-xs font-semibold cursor-pointer">
-          A
+        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-[var(--primary)] text-[var(--on-primary)] text-xs font-semibold">
+          {user?.name?.[0]?.toUpperCase() || "A"}
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={logout}
+          className="flex items-center justify-center w-9 h-9 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-surface)] text-[var(--text-secondary)] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+          aria-label="Logout"
+          title="Logout"
+        >
+          <LogOut size={16} />
+        </button>
       </div>
     </header>
   );

@@ -1,23 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { UserX, Upload, Trash2, Filter } from "lucide-react";
+import { UserX, Upload, Trash2, Filter, RefreshCw } from "lucide-react";
 import DataTable from "@/components/admin/DataTable";
-import EmptyState from "@/components/admin/EmptyState";
 import MetricCard from "@/components/admin/MetricCard";
+import { useAdminData } from "@/hooks/useAdminData";
 
 /**
  * Suppression List Page — Manajemen blokir otomatis.
  * DESIGN.md 6B.6: Hard Bounce, Spam Complaint, Unsubscribe. Bulk import/remove.
  */
-
-const MOCK_SUPPRESSIONS = [
-  { id: "1", contact: "08123456789", channel: "WHATSAPP", reason: "HARD_BOUNCE", source: "Auto-detected", created_at: "2026-08-12T10:30:00Z" },
-  { id: "2", contact: "user@example.com", channel: "EMAIL", reason: "SPAM_COMPLAINT", source: "SendGrid Webhook", created_at: "2026-08-11T14:15:00Z" },
-  { id: "3", contact: "08198765432", channel: "SMS", reason: "HARD_BOUNCE", source: "Telkomsel API", created_at: "2026-08-10T09:00:00Z" },
-  { id: "4", contact: "test@blocked.com", channel: "EMAIL", reason: "UNSUBSCRIBE", source: "User Request", created_at: "2026-08-09T16:45:00Z" },
-  { id: "5", contact: "spam@domain.com", channel: "EMAIL", reason: "SPAM_COMPLAINT", source: "Amazon SES", created_at: "2026-08-08T11:20:00Z" },
-];
 
 const REASON_BADGE = {
   HARD_BOUNCE: { label: "Hard Bounce", className: "bg-red-500/10 text-red-700 dark:text-red-400" },
@@ -26,15 +18,19 @@ const REASON_BADGE = {
 };
 
 export default function SuppressionListPage() {
+  const { logs, loading, refetch } = useAdminData();
   const [filter, setFilter] = useState("ALL");
 
+  // Filter logs yang statusnya FAILED (ini bisa dianggap sebagai "suppressed")
+  const failedLogs = logs.filter(log => log.status === "FAILED");
+  
   const filteredData = filter === "ALL"
-    ? MOCK_SUPPRESSIONS
-    : MOCK_SUPPRESSIONS.filter((s) => s.reason === filter);
+    ? failedLogs
+    : failedLogs.filter((log) => log.error_message?.includes(filter) || log.channel === filter);
 
   const columns = [
     {
-      key: "contact",
+      key: "recipient",
       label: "Contact",
       mono: true,
       render: (val) => <span className="font-mono text-xs">{val}</span>,
@@ -49,10 +45,10 @@ export default function SuppressionListPage() {
       ),
     },
     {
-      key: "reason",
-      label: "Reason",
+      key: "status",
+      label: "Status",
       render: (val) => {
-        const config = REASON_BADGE[val] || { label: val, className: "" };
+        const config = val === "FAILED" ? { label: "Failed", className: "bg-red-500/10 text-red-700 dark:text-red-400" } : { label: val, className: "" };
         return (
           <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold ${config.className}`}>
             {config.label}
@@ -60,10 +56,14 @@ export default function SuppressionListPage() {
         );
       },
     },
-    { key: "source", label: "Source" },
+    {
+      key: "error_message",
+      label: "Error Message",
+      render: (val) => <span className="text-xs text-[var(--text-muted)]">{val || "-"}</span>,
+    },
     {
       key: "created_at",
-      label: "Date Added",
+      label: "Date",
       mono: true,
       render: (val) => (
         <span className="text-xs">
@@ -74,8 +74,12 @@ export default function SuppressionListPage() {
     {
       key: "actions",
       label: "",
-      render: () => (
-        <button className="p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 text-[var(--text-muted)] hover:text-red-600 transition-colors" title="Remove from list">
+      render: (_, row) => (
+        <button 
+          onClick={() => alert(`Detail log ${row.id}: ${row.error_message || "No error"}`)}
+          className="p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 text-[var(--text-muted)] hover:text-red-600 transition-colors" 
+          title="View details"
+        >
           <Trash2 size={14} />
         </button>
       ),
@@ -88,12 +92,16 @@ export default function SuppressionListPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Suppression List</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Manajemen blokir otomatis untuk melindungi reputasi pengirim.
+            Daftar notifikasi yang gagal terkirim (auto-blocked).
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--neutral-border)] text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
-          <Upload size={16} />
-          Import CSV
+        <button
+          onClick={() => refetch()}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
         </button>
       </div>
 
@@ -101,26 +109,26 @@ export default function SuppressionListPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           icon={<UserX size={16} className="text-red-500" />}
-          label="Hard Bounces"
-          value="2"
+          label="Total Failed"
+          value={loading ? "..." : failedLogs.length}
           subtitle="Auto-blocked contacts"
         />
         <MetricCard
-          label="Spam Complaints"
-          value="2"
-          subtitle="Reported by providers"
+          label="Email Failed"
+          value={loading ? "..." : failedLogs.filter(l => l.channel === "EMAIL").length}
+          subtitle="Email channel failures"
         />
         <MetricCard
-          label="Unsubscribes"
-          value="1"
-          subtitle="User opt-out requests"
+          label="WhatsApp Failed"
+          value={loading ? "..." : failedLogs.filter(l => l.channel === "WHATSAPP").length}
+          subtitle="WhatsApp channel failures"
         />
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-2">
         <Filter size={14} className="text-[var(--text-muted)]" />
-        {["ALL", "HARD_BOUNCE", "SPAM_COMPLAINT", "UNSUBSCRIBE"].map((f) => (
+        {["ALL", "EMAIL", "WHATSAPP"].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -130,7 +138,7 @@ export default function SuppressionListPage() {
                 : "border border-[var(--neutral-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800"
             }`}
           >
-            {f === "ALL" ? "Semua" : REASON_BADGE[f]?.label || f}
+            {f === "ALL" ? "Semua" : f}
           </button>
         ))}
       </div>
@@ -138,8 +146,9 @@ export default function SuppressionListPage() {
       <DataTable
         columns={columns}
         data={filteredData}
-        emptyTitle="Tidak ada kontak tersuppresi"
-        emptyDescription="Daftar supresi masih kosong. Kontak akan otomatis ditambahkan saat terjadi hard bounce, spam complaint, atau unsubscribe."
+        loading={loading}
+        emptyTitle="Tidak ada notifikasi gagal"
+        emptyDescription="Daftar gagal kirim masih kosong. Log akan otomatis muncul saat ada kegagalan pengiriman."
       />
     </>
   );

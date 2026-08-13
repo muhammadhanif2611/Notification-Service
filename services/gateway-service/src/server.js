@@ -61,6 +61,12 @@ async function proxyRequest(targetUrl, req, res) {
 app.post('/v1/auth/login', (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/login`, req, res));
 app.post('/v1/auth/register', (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/register`, req, res));
 
+// Proxy rute Manajemen User oleh Admin (akun client dibuat oleh admin)
+app.get('/v1/auth/users', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users`, req, res));
+app.post('/v1/auth/users', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users`, req, res));
+app.put('/v1/auth/users/:id/status', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users/${req.params.id}/status`, req, res));
+app.delete('/v1/auth/users/:id', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users/${req.params.id}`, req, res));
+
 // Proxy rute Client Service (Projects, API Keys, Templates, Vendors)
 app.get('/v1/clients/projects', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
 app.get('/v1/clients/projects/:id', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
@@ -85,6 +91,32 @@ app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) => proxyRequest(`
 // Proxy rute Callback Log Service
 app.get('/v1/logs', (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/logs`, req, res));
 app.get('/v1/statistics', (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/statistics`, req, res));
+
+// ── Admin: Tambahan Endpoint ───────────────────────────────────────────────
+// GET /v1/admin/vendors — list vendors (termasuk credential preview untuk admin)
+app.get('/v1/admin/vendors', jwtAuth, roleCheck(['admin']), async (req, res) => {
+  try {
+    const response = await fetch(`${SERVICES.CLIENT}/clients/vendors`);
+    const data = await response.json();
+    return res.status(response.status).json(data);
+  } catch (err) {
+    logger.error({ err: err.message }, 'Failed to fetch vendors');
+    return res.status(502).json({ success: false, error: { message: 'Client service unavailable' } });
+  }
+});
+
+// ── Bull Board (Queue Monitoring UI) ───────────────────────────────────────
+const serverAdapter = new ExpressAdapter();
+serverAdapter.setBasePath('/admin/queues');
+
+createBullBoard({
+  queues: [
+    new BullMQAdapter(new Queue('notification-dispatch-queue', { connection: config.redis })),
+    new BullMQAdapter(new Queue('webhook-delivery-queue', { connection: config.redis })),
+  ],
+  serverAdapter,
+});
+app.use('/admin/queues', serverAdapter.getRouter());
 
 app.listen(config.port, () => {
   logger.info(`Gateway Service running on http://localhost:${config.port}`);

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Bell, BellOff, Settings, Clock } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, Settings, Clock, RefreshCw } from "lucide-react";
+import { useAdminData } from "@/hooks/useAdminData";
 
 /**
  * Threshold Alert Page — Sistem peringatan ambang batas.
@@ -84,6 +85,7 @@ const MOCK_HISTORY = [
 ];
 
 export default function ThresholdAlertPage() {
+  const { statistics, loading, refetch } = useAdminData();
   const [rules, setRules] = useState(MOCK_RULES);
 
   const toggleRule = (id) => {
@@ -94,11 +96,21 @@ export default function ThresholdAlertPage() {
 
   return (
     <>
-      <div>
-        <h2 className="text-xl font-semibold text-[var(--text-primary)]">Threshold Alerts</h2>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Aturan alert otomatis untuk memantau anomali sistem.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Threshold Alerts</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
+            Aturan alert otomatis untuk memantau anomali sistem.
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
       </div>
 
       {/* Alert Rules */}

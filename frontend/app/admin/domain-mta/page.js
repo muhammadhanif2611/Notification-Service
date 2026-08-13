@@ -1,5 +1,8 @@
-import { Mail, CheckCircle, XCircle, AlertTriangle, Globe, Server } from "lucide-react";
+"use client";
+
+import { Mail, CheckCircle, XCircle, AlertTriangle, Globe, RefreshCw } from "lucide-react";
 import MetricCard from "@/components/admin/MetricCard";
+import { useAdminData } from "@/hooks/useAdminData";
 
 /**
  * Domain MTA Page — Outbound Email Routing management.
@@ -27,13 +30,30 @@ function StatusIcon({ status }) {
 }
 
 export default function DomainMtaPage() {
+  const { statistics, loading, refetch } = useAdminData();
+
+  const totalEmails = statistics?.email || 0;
+  const sentEmails = statistics?.sent || 0;
+  const failedEmails = statistics?.failed || 0;
+  const bounceRate = totalEmails > 0 ? ((failedEmails / totalEmails) * 100).toFixed(1) : "0.0";
+
   return (
     <>
-      <div>
-        <h2 className="text-xl font-semibold text-[var(--text-primary)]">Domain & MTA</h2>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Pengaturan domain pengirim email, verifikasi DNS, dan alokasi IP.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Domain & MTA</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
+            Pengaturan domain pengirim email, verifikasi DNS, dan alokasi IP.
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
       </div>
 
       {/* Domain Info */}
@@ -53,9 +73,27 @@ export default function DomainMtaPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <MetricCard label="IP Reputation" value="92/100" subtitle="Sender Score" trend="+2" trendDirection="up" />
-          <MetricCard label="Bounce Rate" value="0.8%" subtitle="Last 30 days" trend="-0.2%" trendDirection="up" />
-          <MetricCard label="Daily Volume" value="23,400" subtitle="Emails sent today" trend="+5.1%" trendDirection="up" />
+          <MetricCard 
+            label="IP Reputation" 
+            value={loading ? "..." : "92/100"} 
+            subtitle="Sender Score" 
+            trend="+2" 
+            trendDirection="up" 
+          />
+          <MetricCard 
+            label="Bounce Rate" 
+            value={loading ? "..." : `${bounceRate}%`} 
+            subtitle="Last 30 days" 
+            trend={bounceRate === "0.0" ? "-0.2%" : `+${bounceRate}%`}
+            trendDirection={bounceRate === "0.0" ? "up" : "down"} 
+          />
+          <MetricCard 
+            label="Daily Volume" 
+            value={loading ? "..." : totalEmails.toLocaleString("id-ID")} 
+            subtitle={`${sentEmails.toLocaleString("id-ID")} sent · ${failedEmails.toLocaleString("id-ID")} failed`} 
+            trend="+5.1%" 
+            trendDirection="up" 
+          />
         </div>
       </div>
 

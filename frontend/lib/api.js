@@ -8,7 +8,9 @@
 //   const result = await apiPost("/api/notifications", { channel: "WHATSAPP", ... });
 // =============================================================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+// PENTING: Gunakan 127.0.0.1 (bukan "localhost") — Docker Desktop di Windows
+// me-resolve "localhost" ke IPv6 ::1 sehingga request hang ~15 detik.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 
 /**
  * buildHeaders — Membangun headers untuk request, termasuk JWT jika tersedia.

@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Loader2 } from "lucide-react";
 
+// Deteksi client-side mount tanpa setState di effect (menghindari hydration mismatch)
+const subscribe = () => () => {};
+const useMounted = () => useSyncExternalStore(subscribe, () => true, () => false);
+
 /**
  * AuthGuard — Melindungi route yang membutuhkan autentikasi.
  * Redirect ke /login jika belum login, atau ke halaman sesuai role jika role tidak cocok.
- * isMounted digunakan untuk menghindari hydration mismatch antara SSR dan client.
  * @param {object} props
  * @param {React.ReactNode} props.children
  * @param {"admin"|"user"} [props.requiredRole] - Role yang dibutuhkan (opsional)
@@ -17,11 +20,7 @@ import { Loader2 } from "lucide-react";
 export default function AuthGuard({ children, requiredRole }) {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useMounted();
 
   useEffect(() => {
     if (!mounted || loading) return;
@@ -31,6 +30,9 @@ export default function AuthGuard({ children, requiredRole }) {
     }
     if (requiredRole === "admin" && user.role !== "admin") {
       router.replace("/client");
+    }
+    if (requiredRole === "user" && user.role === "admin") {
+      router.replace("/admin/control-center");
     }
   }, [user, loading, requiredRole, router, mounted]);
 
@@ -44,6 +46,7 @@ export default function AuthGuard({ children, requiredRole }) {
 
   if (!user) return null;
   if (requiredRole === "admin" && user.role !== "admin") return null;
+  if (requiredRole === "user" && user.role === "admin") return null;
 
   return children;
 }

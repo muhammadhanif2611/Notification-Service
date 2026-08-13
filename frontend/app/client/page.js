@@ -66,10 +66,10 @@ export default function ClientDashboardPage() {
           <p className="text-sm text-[var(--text-secondary)] mt-1">Ringkasan pengiriman notifikasi Anda.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/api-keys" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+          <Link href="/client/api-keys" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
             <Key size={14} /> Buat API Key
           </Link>
-          <Link href="/webhook" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors">
+          <Link href="/client/webhook" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors">
             <Zap size={14} /> Test Broadcast
           </Link>
         </div>
@@ -128,7 +128,7 @@ export default function ClientDashboardPage() {
       <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--neutral-border)]">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">Aktivitas Terakhir</h3>
-          <Link href="/riwayat" className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+          <Link href="/client/riwayat" className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
             Lihat Semua <ArrowRight size={12} />
           </Link>
         </div>

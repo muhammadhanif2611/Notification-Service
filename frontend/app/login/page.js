@@ -118,6 +118,11 @@ export default function LoginPage() {
               {loading ? "Memproses..." : "Masuk"}
             </button>
           </form>
+
+          {/* Info: akun dibuat oleh admin */}
+          <p className="text-center text-[11px] text-[var(--text-muted)] leading-relaxed px-2">
+            Belum punya akun? Hubungi admin platform untuk dibuatkan kredensial login.
+          </p>
         </div>
 
         {/* Footer */}

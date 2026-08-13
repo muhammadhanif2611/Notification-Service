@@ -1,23 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, MoreHorizontal, Wifi, WifiOff } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Wifi, WifiOff, Copy, RefreshCw } from "lucide-react";
 import DataTable from "@/components/admin/DataTable";
 import Modal from "@/components/admin/Modal";
+import { useAdminData } from "@/hooks/useAdminData";
+import { apiPost } from "@/lib/api";
 
 /**
  * Vendors Page — Manajemen integrasi vendor provider.
  * DESIGN.md 6B.2: WhatsApp, Email, SMS providers. Rate limit TPS, fallback routing, API key management.
  */
-
-const MOCK_VENDORS = [
-  { id: "1", name: "Meta WhatsApp Cloud", channel: "WHATSAPP", tps: 80, priority: 1, is_active: true, fallback_weight: 100 },
-  { id: "2", name: "Twilio WhatsApp", channel: "WHATSAPP", tps: 50, priority: 2, is_active: true, fallback_weight: 0 },
-  { id: "3", name: "SendGrid", channel: "EMAIL", tps: 200, priority: 1, is_active: true, fallback_weight: 70 },
-  { id: "4", name: "Amazon SES", channel: "EMAIL", tps: 500, priority: 2, is_active: true, fallback_weight: 30 },
-  { id: "5", name: "Postmark", channel: "EMAIL", tps: 100, priority: 3, is_active: false, fallback_weight: 0 },
-  { id: "6", name: "Telkomsel SMS", channel: "SMS", tps: 30, priority: 1, is_active: true, fallback_weight: 100 },
-];
 
 const CHANNEL_BADGE = {
   WHATSAPP: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
@@ -26,10 +19,54 @@ const CHANNEL_BADGE = {
 };
 
 export default function VendorsPage() {
+  const { vendors, loading, refetch } = useAdminData();
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    channel: "WHATSAPP",
+    priority: 1,
+    credentials: "{}",
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => refetch(), 30000);
+    return () => clearInterval(interval);
+  }, [refetch]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await apiPost("/v1/clients/vendors", {
+        name: formData.name,
+        channel: formData.channel,
+        priority: parseInt(formData.priority),
+        credentials: JSON.parse(formData.credentials),
+      });
+      await refetch();
+      setShowModal(false);
+      setFormData({ name: "", channel: "WHATSAPP", priority: 1, credentials: "{}" });
+    } catch (err) {
+      alert("Gagal menambahkan vendor: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const columns = [
-    { key: "name", label: "Vendor Name" },
+    {
+      key: "name",
+      label: "Vendor Name",
+      render: (val) => <span className="font-medium">{val}</span>,
+    },
     {
       key: "channel",
       label: "Channel",
@@ -40,12 +77,6 @@ export default function VendorsPage() {
       ),
     },
     {
-      key: "tps",
-      label: "Rate Limit (TPS)",
-      mono: true,
-      render: (val) => <span>{val} req/s</span>,
-    },
-    {
       key: "priority",
       label: "Priority",
       mono: true,
@@ -53,22 +84,6 @@ export default function VendorsPage() {
         <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 text-xs font-mono font-semibold">
           {val}
         </span>
-      ),
-    },
-    {
-      key: "fallback_weight",
-      label: "Fallback Weight",
-      mono: true,
-      render: (val) => (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 max-w-[80px]">
-            <div
-              className="h-full rounded-full bg-[var(--primary)]"
-              style={{ width: `${val}%` }}
-            />
-          </div>
-          <span className="text-xs">{val}%</span>
-        </div>
       ),
     },
     {
@@ -93,9 +108,13 @@ export default function VendorsPage() {
     {
       key: "actions",
       label: "",
-      render: () => (
-        <button className="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <MoreHorizontal size={16} />
+      render: (_, row) => (
+        <button
+          onClick={() => copyToClipboard(JSON.stringify(row, null, 2), row.id)}
+          className="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          title="Copy vendor JSON"
+        >
+          {copiedId === row.id ? <RefreshCw size={14} className="animate-spin" /> : <Copy size={14} />}
         </button>
       ),
     },
@@ -121,61 +140,65 @@ export default function VendorsPage() {
 
       <DataTable
         columns={columns}
-        data={MOCK_VENDORS}
+        data={vendors}
+        loading={loading}
         emptyTitle="Belum ada vendor terdaftar"
         emptyDescription="Tambahkan vendor provider untuk mulai mengirim notifikasi."
       />
 
       {/* Add Vendor Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Tambah Vendor Baru">
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Vendor</label>
             <input
               type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. Meta WhatsApp Cloud"
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              required
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Channel</label>
-              <select className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]">
+              <select
+                value={formData.channel}
+                onChange={(e) => setFormData({ ...formData, channel: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
+              >
                 <option value="WHATSAPP">WhatsApp</option>
                 <option value="EMAIL">Email</option>
                 <option value="SMS">SMS</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Rate Limit (TPS)</label>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Priority (1-10)</label>
               <input
                 type="number"
-                placeholder="100"
-                className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Priority</label>
-              <input
-                type="number"
-                placeholder="1"
+                value={formData.priority}
+                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                 min="1"
                 max="10"
                 className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
+                required
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Fallback Weight (%)</label>
-              <input
-                type="number"
-                placeholder="100"
-                min="0"
-                max="100"
-                className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
-              />
-            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Credentials (JSON)</label>
+            <textarea
+              value={formData.credentials}
+              onChange={(e) => setFormData({ ...formData, credentials: e.target.value })}
+              rows={4}
+              placeholder='{"apiKey": "sk_live_...", "endpoint": "https://..."}'
+              className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              required
+            />
+            <p className="text-[10px] text-[var(--text-muted)] mt-1">
+              Masukkan credentials dalam format JSON. Contoh: {"{\"apiKey\": \"sk_live_123\", \"endpoint\": \"https://api.vendor.com\"}"}
+            </p>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
             <button
@@ -187,9 +210,10 @@ export default function VendorsPage() {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
+              disabled={saving}
+              className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
             >
-              Simpan
+              {saving ? "Menyimpan..." : "Simpan"}
             </button>
           </div>
         </form>

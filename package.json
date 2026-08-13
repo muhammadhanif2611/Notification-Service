@@ -10,13 +10,21 @@
     "frontend"
   ],
   "scripts": {
+    "dev": "concurrently -n frontend,gateway,auth,client,notif,dispatch,callback -c blue,green,yellow,cyan,magenta,red,gray \"npm run dev:frontend\" \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:client\" \"npm run dev:notification\" \"npm run dev:dispatch\" \"npm run dev:callback\"",
+    "dev:backend": "concurrently -n gateway,auth,client,notif,dispatch,callback -c green,yellow,cyan,magenta,red,gray \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:client\" \"npm run dev:notification\" \"npm run dev:dispatch\" \"npm run dev:callback\"",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:gateway": "npm run dev --workspace=services/gateway-service",
     "dev:auth": "npm run dev --workspace=services/auth-service",
     "dev:client": "npm run dev --workspace=services/client-service",
     "dev:notification": "npm run dev --workspace=services/notification-service",
     "dev:dispatch": "npm run dev --workspace=services/dispatch-service",
-    "dev:callback": "npm run dev --workspace=services/callback-log-service"
+    "dev:callback": "npm run dev --workspace=services/callback-log-service",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
   },
   "keywords": [
     "notification-service",

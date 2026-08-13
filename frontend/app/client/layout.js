@@ -9,7 +9,7 @@ import ClientHeader from "@/components/client/ClientHeader";
  */
 export default function DashboardLayout({ children }) {
   return (
-    <AuthGuard>
+    <AuthGuard requiredRole="user">
       <div className="flex min-h-screen bg-[var(--neutral-bg)]">
         <ClientSidebar />
         <div className="flex-1 flex flex-col min-w-0">
