@@ -481,7 +481,7 @@ export default function ApiKeysPage() {
             </div>
 
             <p className="text-xs text-gray-600 dark:text-gray-300 mt-3">
-              API Key dengan label <span className="font-semibold text-gray-900 dark:text-white">"{keyToDeactivate.label}"</span> akan ditolak oleh sistem untuk semua request selanjutnya.
+              API Key dengan label <span className="font-semibold text-gray-900 dark:text-white">&quot;{keyToDeactivate.label}&quot;</span> akan ditolak oleh sistem untuk semua request selanjutnya.
             </p>
 
             <div className="flex items-center justify-end gap-2.5 mt-5">

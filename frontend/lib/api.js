@@ -11,30 +11,41 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 /**
+ * buildHeaders — Membangun headers untuk request, termasuk JWT jika tersedia.
+ * @param {object} [options] - Opsi tambahan
+ * @param {string} [options.apiKey] - API Key untuk autentikasi
+ * @returns {Record<string, string>} Headers object
+ */
+function buildHeaders(options = {}) {
+  const headers = { "Content-Type": "application/json" };
+
+  // JWT dari localStorage untuk request dashboard
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("ngw_token");
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  if (options.apiKey) headers["x-api-key"] = options.apiKey;
+  return headers;
+}
+
+/**
  * GET request ke backend API.
- * @param {string} path - Path endpoint (misal: "/api/messages")
+ * @param {string} path - Path endpoint (misal: "/v1/logs")
  * @param {object} [options] - Opsi tambahan
  * @param {string} [options.apiKey] - API Key untuk autentikasi
  * @returns {Promise<any>} Response JSON
  */
 export async function apiGet(path, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  if (options.apiKey) {
-    headers["x-api-key"] = options.apiKey;
-  }
-
   const res = await fetch(`${API_URL}${path}`, {
     method: "GET",
-    headers,
+    headers: buildHeaders(options),
     credentials: "include",
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || `HTTP ${res.status}`);
+    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
   }
 
   return res.json();
@@ -49,24 +60,16 @@ export async function apiGet(path, options = {}) {
  * @returns {Promise<any>} Response JSON
  */
 export async function apiPost(path, body, options = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  if (options.apiKey) {
-    headers["x-api-key"] = options.apiKey;
-  }
-
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers,
+    headers: buildHeaders(options),
     credentials: "include",
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || `HTTP ${res.status}`);
+    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
   }
 
   return res.json();
@@ -76,19 +79,16 @@ export async function apiPost(path, body, options = {}) {
  * PUT request ke backend API.
  */
 export async function apiPut(path, body, options = {}) {
-  const headers = { "Content-Type": "application/json" };
-  if (options.apiKey) headers["x-api-key"] = options.apiKey;
-
   const res = await fetch(`${API_URL}${path}`, {
     method: "PUT",
-    headers,
+    headers: buildHeaders(options),
     credentials: "include",
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || `HTTP ${res.status}`);
+    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
   }
 
   return res.json();
@@ -98,18 +98,15 @@ export async function apiPut(path, body, options = {}) {
  * DELETE request ke backend API.
  */
 export async function apiDelete(path, options = {}) {
-  const headers = { "Content-Type": "application/json" };
-  if (options.apiKey) headers["x-api-key"] = options.apiKey;
-
   const res = await fetch(`${API_URL}${path}`, {
     method: "DELETE",
-    headers,
+    headers: buildHeaders(options),
     credentials: "include",
   });
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || `HTTP ${res.status}`);
+    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
   }
 
   return res.json();

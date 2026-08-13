@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
+/* =============================================================================
+   DESIGN SYSTEM — Notification Gateway Platform
+   Token warna, tipografi, dan utilitas sesuai DESIGN.md
+   ============================================================================= */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Base Neutral (Light Mode) */
+  --neutral-bg: #FAFAFA;
+  --neutral-surface: #FFFFFF;
+  --neutral-border: #E4E4E7;
+  --text-primary: #09090B;
+  --text-secondary: #71717A;
+  --text-muted: #A1A1AA;
+
+  /* Brand & Primary Action */
+  --primary: #09090B;
+  --on-primary: #FFFFFF;
+  --primary-hover: #27272A;
+
+  /* Role Accents */
+  --client-badge-bg: #ECFDF5;
+  --client-badge-text: #065F46;
+  --admin-badge-bg: #18181B;
+  --admin-badge-text: #FBBF24;
+
+  /* Status Indicators */
+  --status-delivered-bg: #DCFCE7;
+  --status-delivered-text: #166534;
+  --status-queued-bg: #FEF3C7;
+  --status-queued-text: #92400E;
+  --status-failed-bg: #FEE2E2;
+  --status-failed-text: #991B1B;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
+.dark {
+  /* Base Neutral (Dark Mode) */
+  --neutral-bg: #09090B;
+  --neutral-surface: #18181B;
+  --neutral-border: #27272A;
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+
+  /* Brand & Primary Action (Inverted) */
+  --primary: #FAFAFA;
+  --on-primary: #09090B;
+  --primary-hover: #E4E4E7;
+
+  /* Role Accents (Dark) */
+  --client-badge-bg: #022C22;
+  --client-badge-text: #6EE7B7;
+  --admin-badge-bg: #27272A;
+  --admin-badge-text: #FCD34D;
+
+  /* Status Indicators (Dark) */
+  --status-delivered-bg: #052E16;
+  --status-delivered-text: #86EFAC;
+  --status-queued-bg: #451A03;
+  --status-queued-text: #FCD34D;
+  --status-failed-bg: #450A0A;
+  --status-failed-text: #FCA5A5;
+}
+
+/* Tailwind v4 Theme Integration */
+/* stylelint-disable-next-line at-rule-no-unknown */
+/* eslint-disable-next-line */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-neutral-bg: var(--neutral-bg);
+  --color-neutral-surface: var(--neutral-surface);
+  --color-neutral-border: var(--neutral-border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-hover: var(--primary-hover);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base Styles */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--neutral-bg);
+  color: var(--text-primary);
+  font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.011em;
+}
+
+/* Tabular Nums for Mono Data */
+.font-mono, [class*="font-mono"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neutral-border);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #3F3F46;
+}
+
+/* Focus Ring Utility */
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

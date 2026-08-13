@@ -23,7 +23,11 @@ export function useStatistics(dateRange = {}) {
   }, [dateRange]);
 
   useEffect(() => {
-    fetchStats();
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchStats();
+    })();
+    return () => { cancelled = true; };
   }, [fetchStats]);
 
   return { stats, loading, error, refetch: fetchStats };

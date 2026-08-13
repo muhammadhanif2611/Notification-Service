@@ -50,7 +50,11 @@ export function useApiKeys() {
   };
 
   useEffect(() => {
-    fetchKeys();
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchKeys();
+    })();
+    return () => { cancelled = true; };
   }, [fetchKeys]);
 
   return { keys, loading, error, createKey, deactivateKey, refetch: fetchKeys };

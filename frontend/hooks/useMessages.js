@@ -25,7 +25,11 @@ export function useMessages(initialFilters = {}) {
   }, [initialFilters]);
 
   useEffect(() => {
-    fetchMessages();
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchMessages();
+    })();
+    return () => { cancelled = true; };
   }, [fetchMessages]);
 
   return { messages, total, loading, error, refetch: fetchMessages };
