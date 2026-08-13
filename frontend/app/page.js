@@ -8,8 +8,8 @@ import { Loader2 } from "lucide-react";
 /**
  * HomePage — Root page. Redirect berdasarkan auth state:
  * - Belum login → /login
- * - Admin → /admin/control-center
- * - User → /dashboard
+ * - Admin → /control-center
+ * - User → /client
  * @returns {JSX.Element}
  */
 export default function HomePage() {
@@ -23,7 +23,7 @@ export default function HomePage() {
     } else if (user.role === "admin") {
       router.replace("/admin/control-center");
     } else {
-      router.replace("/dashboard");
+      router.replace("/client");
     }
   }, [user, loading, router]);
 

@@ -5,12 +5,12 @@
 export const ROUTES = Object.freeze({
   HOME: "/",
   LOGIN: "/login",
-  DASHBOARD: {
-    OVERVIEW: "/dashboard",
-    RIWAYAT: "/riwayat",
-    STATISTIK: "/statistik",
-    API_KEYS: "/api-keys",
-    WEBHOOK: "/webhook",
+  CLIENT: {
+    OVERVIEW: "/client",
+    RIWAYAT: "/client/riwayat",
+    STATISTIK: "/client/statistik",
+    API_KEYS: "/client/api-keys",
+    WEBHOOK: "/client/webhook",
   },
   ADMIN: {
     CONTROL_CENTER: "/admin/control-center",

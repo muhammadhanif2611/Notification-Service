@@ -6,11 +6,11 @@
 import { ROUTES } from "./routes";
 
 export const CLIENT_MENU_ITEMS = [
-  { label: "Dashboard", href: ROUTES.DASHBOARD.OVERVIEW, icon: "LayoutDashboard" },
-  { label: "Riwayat Pesan", href: ROUTES.DASHBOARD.RIWAYAT, icon: "Clock" },
-  { label: "Statistik", href: ROUTES.DASHBOARD.STATISTIK, icon: "BarChart2" },
-  { label: "API Key", href: ROUTES.DASHBOARD.API_KEYS, icon: "Key" },
-  { label: "Webhook", href: ROUTES.DASHBOARD.WEBHOOK, icon: "Webhook" },
+  { label: "Dashboard", href: ROUTES.CLIENT.OVERVIEW, icon: "LayoutDashboard" },
+  { label: "Riwayat Pesan", href: ROUTES.CLIENT.RIWAYAT, icon: "Clock" },
+  { label: "Statistik", href: ROUTES.CLIENT.STATISTIK, icon: "BarChart2" },
+  { label: "API Key", href: ROUTES.CLIENT.API_KEYS, icon: "Key" },
+  { label: "Webhook", href: ROUTES.CLIENT.WEBHOOK, icon: "Webhook" },
 ];
 
 export const ADMIN_MENU_ITEMS = [

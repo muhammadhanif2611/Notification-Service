@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
     setSession({ token: jwt, user: userData });
 
     // Redirect berdasarkan role
-    const target = userData?.role === "admin" ? "/admin/control-center" : "/dashboard";
+    const target = userData?.role === "admin" ? "/admin/control-center" : "/client";
     router.push(target);
     return userData;
   }, [router]);

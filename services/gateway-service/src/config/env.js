@@ -17,7 +17,7 @@ dotenv.config({ path: findEnv() });
 
 // Konfigurasi lingkungan dan server gateway-service
 export const config = {
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 3001,
   environment: process.env.NODE_ENV || 'development',
   redis: {
     host: process.env.REDIS_HOST || '127.0.0.1',
