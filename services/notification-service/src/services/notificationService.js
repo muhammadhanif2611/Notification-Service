@@ -1,5 +1,6 @@
-import { CHANNELS, NOTIFICATION_STATUS, sendNotificationSchema } from '@notification-gateway/shared';
+import { CHANNELS, NOTIFICATION_STATUS, sendNotificationSchema, checkRateLimit } from '@notification-gateway/shared';
 import { whatsappQueue, emailQueue } from '../config/queue.js';
+import { config } from '../config/env.js';
 import { AppError } from '../middlewares/errorHandler.js';
 import { randomBytes } from 'node:crypto';
 import * as templateRepository from '../repositories/templateRepository.js';
@@ -52,6 +53,23 @@ async function checkProjectThreshold(projectId) {
   const todayCount = await notificationLogRepository.countTodayByProject(projectId);
   if (todayCount >= project.daily_quota) {
     throw new AppError(`Daily quota of ${project.daily_quota} has been reached.`, 429, 'DAILY_QUOTA_EXCEEDED');
+  }
+
+  // Real-time rate limit per menit (Redis Sliding Window) berdasarkan rate_limit_per_min project
+  const perMinuteLimit = project.rate_limit_per_min ?? 100;
+  const rateResult = await checkRateLimit({
+    key: `ratelimit:project:${projectId}`,
+    limit: perMinuteLimit,
+    windowMs: 60000,
+    redisConfig: config.redis
+  });
+  if (!rateResult.allowed) {
+    const retryAfterSec = Math.ceil(rateResult.retryAfterMs / 1000);
+    throw new AppError(
+      `Rate limit ${perMinuteLimit} request/menit terlampaui. Coba lagi dalam ${retryAfterSec} detik.`,
+      429,
+      'RATE_LIMIT_EXCEEDED'
+    );
   }
 
   return project;

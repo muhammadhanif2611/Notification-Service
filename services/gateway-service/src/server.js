@@ -1,5 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import { Queue } from 'bullmq';
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter.js';
+import { ExpressAdapter } from '@bull-board/express';
 import { createLogger } from '@notification-gateway/shared';
 import { config } from './config/env.js';
 import { apiKeyAuth, jwtAuth, roleCheck } from './middlewares/auth.js';
