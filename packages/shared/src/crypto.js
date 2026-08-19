@@ -2,7 +2,11 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'notification_gateway_secret_key_2026';
+// Lazy getter — agar JWT_SECRET dibaca saat dipanggil, bukan saat module load
+// (menghindari race condition ESM dimana dotenv belum terpanggil saat import)
+function getJwtSecret() {
+  return process.env.JWT_SECRET || 'notification_gateway_secret_key_2026';
+}
 
 // Helper mengambil kunci enkripsi AES
 function getAesKey() {
@@ -69,13 +73,13 @@ export function extractKeyPreview(rawApiKey) {
 
 // Membuat JWT Token autentikasi pengguna
 export function generateAuthToken(payload, expiresIn = '8h') {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn });
 }
 
 // Verifikasi keabsahan JWT Token autentikasi
 export function verifyAuthToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   } catch {
     return null;
   }
