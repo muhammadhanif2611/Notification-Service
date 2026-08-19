@@ -4,15 +4,36 @@ let sharedRedisClient = null;
 
 /**
  * Mendapatkan (atau membuat) koneksi Redis bersama untuk rate limiter.
- * @param {object} [redisConfig] - { host, port, password }
+ * @param {object} [redisConfig] - { host, port, password, tls } opsional
  * @returns {Redis} Instance ioredis
  */
 function getRedisClient(redisConfig = {}) {
   if (!sharedRedisClient) {
+    let connectionOpts;
+
+    if (process.env.REDIS_URL) {
+      // Parse REDIS_URL (format Upstash TCP: rediss://default:<pw>@host:port)
+      const url = new URL(process.env.REDIS_URL);
+      connectionOpts = {
+        host: url.hostname,
+        port: parseInt(url.port || '6379', 10),
+        password: url.password || undefined,
+        ...(url.protocol === 'rediss:' ? { tls: {} } : {})
+      };
+    } else {
+      const isTLS = redisConfig.tls !== undefined
+        ? !!redisConfig.tls
+        : process.env.REDIS_TLS === 'true';
+      connectionOpts = {
+        host: redisConfig.host || process.env.REDIS_HOST || '127.0.0.1',
+        port: parseInt(redisConfig.port || process.env.REDIS_PORT || '6379', 10),
+        password: redisConfig.password || process.env.REDIS_PASSWORD || undefined,
+        ...(isTLS ? { tls: {} } : {})
+      };
+    }
+
     sharedRedisClient = new Redis({
-      host: redisConfig.host || process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(redisConfig.port || process.env.REDIS_PORT || '6379', 10),
-      password: redisConfig.password || process.env.REDIS_PASSWORD || undefined,
+      ...connectionOpts,
       lazyConnect: false,
       maxRetriesPerRequest: 2
     });

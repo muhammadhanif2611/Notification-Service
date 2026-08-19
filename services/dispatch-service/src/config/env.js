@@ -15,11 +15,31 @@ const findEnv = () => {
 
 dotenv.config({ path: findEnv() });
 
-// Konfigurasi lingkungan dan redis dispatch-service
-export const config = {
-  redis: {
+/**
+ * Membangun konfigurasi koneksi Redis.
+ * - Jika REDIS_URL diset (format Upstash: rediss://default:<pw>@host:port),
+ *   URL akan di-parse otomatis termasuk TLS.
+ * - Jika tidak, gunakan REDIS_HOST / REDIS_PORT / REDIS_PASSWORD / REDIS_TLS.
+ */
+function buildRedisConfig() {
+  if (process.env.REDIS_URL) {
+    const url = new URL(process.env.REDIS_URL);
+    return {
+      host: url.hostname,
+      port: parseInt(url.port || '6379', 10),
+      password: url.password || undefined,
+      ...(url.protocol === 'rediss:' ? { tls: {} } : {})
+    };
+  }
+  return {
     host: process.env.REDIS_HOST || '127.0.0.1',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    password: process.env.REDIS_PASSWORD || undefined
-  }
+    password: process.env.REDIS_PASSWORD || undefined,
+    ...(process.env.REDIS_TLS === 'true' ? { tls: {} } : {})
+  };
+}
+
+// Konfigurasi lingkungan dan redis dispatch-service
+export const config = {
+  redis: buildRedisConfig()
 };
