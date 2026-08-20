@@ -18,6 +18,19 @@ export const API_KEY_PREFIX = {
   SANDBOX: 'ngw_sand_'
 };
 
+// Provider vendor yang dikelola — saat ini hanya Nodemailer (Email).
+// WhatsApp memakai Baileys dan tidak tercatat sebagai vendor credentials.
+export const VENDOR_PROVIDERS = {
+  NODEMAILER: 'NODEMAILER'
+};
+
+export const WHATSAPP_SESSION_STATUS = {
+  CONNECTING: 'CONNECTING',
+  WAITING_QR: 'WAITING_QR',
+  CONNECTED: 'CONNECTED',
+  DISCONNECTED: 'DISCONNECTED'
+};
+
 export const VENDOR_CREDENTIALS = {
   COLUMN: 'credential_encrypted',
   IV_COLUMN: 'credential_iv',

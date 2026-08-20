@@ -71,6 +71,12 @@ export function extractKeyPreview(rawApiKey) {
   return rawApiKey.slice(-8);
 }
 
+// Menormalisasi nomor WhatsApp ke format internasional digit-only (contoh: 0812... -> 62812...)
+export function normalizeWhatsAppNumber(rawNumber) {
+  const digitsOnly = String(rawNumber).replace(/\D/g, '');
+  return digitsOnly.startsWith('0') ? `62${digitsOnly.slice(1)}` : digitsOnly;
+}
+
 // Membuat JWT Token autentikasi pengguna
 export function generateAuthToken(payload, expiresIn = '8h') {
   return jwt.sign(payload, getJwtSecret(), { expiresIn });

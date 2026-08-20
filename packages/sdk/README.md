@@ -1,6 +1,12 @@
 # 📦 @notification-gateway/sdk (Pure JavaScript)
 
-Developer Client SDK resmi berbasis **100% Pure JavaScript (Node.js)** untuk mempermudah integrasi pengiriman notifikasi multi-channel (WhatsApp & Email) pada aplikasi internal perusahaan.
+Developer Client SDK resmi berbasis **100% Pure JavaScript (Node.js)** untuk mempermudah integrasi pengiriman notifikasi multi-channel pada aplikasi internal perusahaan.
+
+> **Provider pengiriman** (dikelola di sisi gateway, transparan untuk SDK):
+> - **WhatsApp** → [Baileys](https://github.com/WhiskeySockets/Baileys) (WhatsApp Web multi-device)
+> - **Email** → [Nodemailer](https://nodemailer.com) (SMTP)
+>
+> Client tidak perlu tahu provider — cukup panggil `client.whatsapp.send()` / `client.email.send()`.
 
 ---
 

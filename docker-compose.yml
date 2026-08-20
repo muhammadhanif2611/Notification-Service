@@ -19,9 +19,14 @@ x-common-env: &common-env
   AES_ENCRYPTION_KEY: ${AES_ENCRYPTION_KEY}
   NODE_ENV: production
 
+# Redis connection untuk container.
+# - DEFAULT (produksi/deploy): pakai Redis lokal container (`redis` service di bawah).
+# - OVERRIDE ke Upstash (opsional): set REDIS_URL di .env — kode memprioritaskan
+#   REDIS_URL di atas REDIS_HOST/PORT, jadi container akan otomatis pakai Upstash.
 x-redis-env: &redis-env
-  REDIS_HOST: redis
-  REDIS_PORT: 6379
+  REDIS_URL: ${REDIS_URL:-}          # jika di-set -> pakai Upstash; jika kosong -> fallback lokal
+  REDIS_HOST: ${REDIS_HOST_OVERRIDE:-redis}
+  REDIS_PORT: ${REDIS_PORT_OVERRIDE:-6379}
 
 x-depends-redis: &depends-redis
   redis:
@@ -147,6 +152,10 @@ services:
     container_name: ngw-dispatch-service
     environment:
       <<: [*common-env, *redis-env]
+      WA_SESSION_PATH: /app/wa-sessions
+    volumes:
+      # Sesi WhatsApp (Baileys) persisten — QR hanya perlu di-scan sekali
+      - wa-sessions-data:/app/wa-sessions
     depends_on: *depends-redis
     restart: always
 
@@ -168,3 +177,4 @@ services:
 
 volumes:
   redis-data:
+  wa-sessions-data:
