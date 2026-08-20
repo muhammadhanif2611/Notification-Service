@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Eye, EyeOff, RefreshCw, Copy, Check, UserCheck, UserX, Trash2, Loader2, KeyRound } from "lucide-react";
+import { Plus, Eye, EyeOff, RefreshCw, Copy, Check, UserCheck, UserX, Trash2, Loader2, KeyRound, Edit } from "lucide-react";
 import DataTable from "@/components/admin/DataTable";
 import Modal from "@/components/admin/Modal";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -13,7 +13,7 @@ const EMPTY_FORM = { name: "", email: "", password: "", role: "user", project_na
 /** UsersPage — Kelola Pengguna: admin membuat akun login untuk client (DESIGN.md 6B.5). */
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
-  const { users, loading, error, createUser, setUserStatus, deleteUser, refetch } = useUsers();
+  const { users, loading, error, createUser, setUserStatus, deleteUser, updateUser, refetch } = useUsers();
 
   // Create modal state
   const [showModal, setShowModal] = useState(false);
@@ -21,6 +21,11 @@ export default function UsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState(EMPTY_FORM);
+  const [editingUserId, setEditingUserId] = useState(null);
 
   // Credentials modal (setelah akun berhasil dibuat)
   const [createdCreds, setCreatedCreds] = useState(null);
@@ -31,6 +36,7 @@ export default function UsersPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const setEdit = (key) => (e) => setEditForm((f) => ({ ...f, [key]: e.target.value }));
 
   const generatePassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
@@ -43,6 +49,53 @@ export default function UsersPage() {
     setForm(EMPTY_FORM);
     setFormError(null);
     setShowPassword(false);
+  };
+
+  const resetEditForm = () => {
+    setEditForm(EMPTY_FORM);
+    setEditingUserId(null);
+    setFormError(null);
+  };
+
+  const handleEdit = (user) => {
+    setEditingUserId(user.id);
+    setEditForm({
+      name: user.name || "",
+      email: user.email || "",
+      password: "", // Password tidak diisi, biarkan kosong jika tidak ingin diubah
+      role: user.role || "user",
+      project_name: user.project_name || "",
+      quota_daily: user.quota_daily || "",
+      rate_limit: user.rate_limit || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        role: editForm.role,
+        project_name: editForm.project_name.trim() || null,
+        quota_daily: editForm.quota_daily ? Number(editForm.quota_daily) : null,
+        rate_limit: editForm.rate_limit ? Number(editForm.rate_limit) : null,
+      };
+      // Password hanya diupdate jika diisi
+      if (editForm.password) {
+        payload.password = editForm.password;
+      }
+      await updateUser(editingUserId, payload);
+      setShowEditModal(false);
+      resetEditForm();
+    } catch (err) {
+      setFormError(err.message || "Gagal mengupdate akun.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCreate = async (e) => {
@@ -116,6 +169,13 @@ export default function UsersPage() {
         const isSelf = row.id === currentUser?.id;
         return (
           <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => handleEdit(row)}
+              title="Edit akun"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <Edit size={14} />
+            </button>
             <button
               disabled={isSelf}
               onClick={() => setConfirmAction({ type: row.is_active ? "suspend" : "activate", user: row })}
@@ -240,19 +300,19 @@ export default function UsersPage() {
               </select>
             </div>
             <div>
-              <label className={labelCls} htmlFor="cu-project">Project (opsional)</label>
-              <input id="cu-project" type="text" value={form.project_name} onChange={set("project_name")} placeholder="e.g. kasir-pos" className={`${inputCls} font-mono`} />
+              <label className={labelCls} htmlFor="cu-project">Project <span className="text-red-500">*</span></label>
+              <input id="cu-project" type="text" required value={form.project_name} onChange={set("project_name")} placeholder="e.g. kasir-pos" className={`${inputCls} font-mono`} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls} htmlFor="cu-quota">Kuota Harian (opsional)</label>
-              <input id="cu-quota" type="number" min="0" value={form.quota_daily} onChange={set("quota_daily")} placeholder="25000" className={`${inputCls} font-mono`} />
+              <label className={labelCls} htmlFor="cu-quota">Kuota Harian <span className="text-red-500">*</span></label>
+              <input id="cu-quota" type="number" required min="0" value={form.quota_daily} onChange={set("quota_daily")} placeholder="25000" className={`${inputCls} font-mono`} />
             </div>
             <div>
-              <label className={labelCls} htmlFor="cu-rate">Rate Limit/menit (opsional)</label>
-              <input id="cu-rate" type="number" min="0" value={form.rate_limit} onChange={set("rate_limit")} placeholder="60" className={`${inputCls} font-mono`} />
+              <label className={labelCls} htmlFor="cu-rate">Rate Limit/menit <span className="text-red-500">*</span></label>
+              <input id="cu-rate" type="number" required min="0" value={form.rate_limit} onChange={set("rate_limit")} placeholder="60" className={`${inputCls} font-mono`} />
             </div>
           </div>
 
@@ -265,6 +325,76 @@ export default function UsersPage() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
               {submitting && <Loader2 size={14} className="animate-spin" />}
               {submitting ? "Membuat..." : "Buat Akun"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Edit Akun */}
+      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); resetEditForm(); }} title="Edit Akun Pengguna" maxWidth="max-w-lg">
+        <form onSubmit={handleUpdate} className="space-y-4">
+          {formError && (
+            <div className="px-3 py-2.5 rounded-lg bg-[var(--status-failed-bg)] text-[var(--status-failed-text)] text-xs">
+              {formError}
+            </div>
+          )}
+
+          <div>
+            <label className={labelCls} htmlFor="eu-name">Nama Lengkap</label>
+            <input id="eu-name" type="text" required value={editForm.name} onChange={setEdit("name")} placeholder="e.g. Budi Santoso" className={inputCls} />
+          </div>
+
+          <div>
+            <label className={labelCls} htmlFor="eu-email">Email</label>
+            <input id="eu-email" type="email" required value={editForm.email} onChange={setEdit("email")} placeholder="client@perusahaan.co.id" className={inputCls} />
+          </div>
+
+          <div>
+            <label className={labelCls} htmlFor="eu-password">Password Baru (kosongkan jika tidak ingin mengubah)</label>
+            <div className="relative">
+              <input id="eu-password" type={showPassword ? "text" : "password"} value={editForm.password} onChange={setEdit("password")} placeholder="Biarkan kosong untuk tidak mengubah" className={`${inputCls} pr-16`} />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <button type="button" onClick={() => setShowPassword(!showPassword)} title={showPassword ? "Sembunyikan" : "Tampilkan"} className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="eu-role">Role</label>
+              <select id="eu-role" value={editForm.role} onChange={setEdit("role")} className={inputCls}>
+                <option value="user">Client (User)</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="eu-project">Project <span className="text-red-500">*</span></label>
+              <input id="eu-project" type="text" required value={editForm.project_name} onChange={setEdit("project_name")} placeholder="e.g. kasir-pos" className={`${inputCls} font-mono`} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="eu-quota">Kuota Harian <span className="text-red-500">*</span></label>
+              <input id="eu-quota" type="number" required min="0" value={editForm.quota_daily} onChange={setEdit("quota_daily")} placeholder="25000" className={`${inputCls} font-mono`} />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="eu-rate">Rate Limit/menit <span className="text-red-500">*</span></label>
+              <input id="eu-rate" type="number" required min="0" value={editForm.rate_limit} onChange={setEdit("rate_limit")} placeholder="60" className={`${inputCls} font-mono`} />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
+            <button type="button" onClick={() => { setShowEditModal(false); resetEditForm(); }}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+              Batal
+            </button>
+            <button type="submit" disabled={submitting}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
+              {submitting && <Loader2 size={14} className="animate-spin" />}
+              {submitting ? "Mengupdate..." : "Update Akun"}
             </button>
           </div>
         </form>

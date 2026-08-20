@@ -3,7 +3,15 @@ import { hashApiKey, verifyApiKey, generateAuthToken } from '@notification-gatew
 import { AppError } from '../middlewares/errorHandler.js';
 import * as profileRepository from '../repositories/profileRepository.js';
 
-// Layanan pendaftaran pengguna baru
+/**
+ * Service layer untuk business logic authentication dan user management.
+ */
+
+/**
+ * Register user baru.
+ * @param {Object} params - { email, password, name, role }
+ * @returns {Promise<Object>} Created profile
+ */
 export async function registerUser({ email, password, name, role = 'user' }) {
   if (!email || !password || !name) {
     throw new AppError('Email, password, and name are required.', 400, 'VALIDATION_ERROR');
@@ -25,11 +33,21 @@ export async function registerUser({ email, password, name, role = 'user' }) {
     role: formattedRole
   });
 
-  writeAuditLog({ userId: registeredProfile.id, action: 'REGISTER_USER', targetEntity: 'profiles', detail: `Registered ${cleanEmail} as ${formattedRole}` });
+  writeAuditLog({ 
+    userId: registeredProfile.id, 
+    action: 'REGISTER_USER', 
+    targetEntity: 'profiles', 
+    detail: `Registered ${cleanEmail} as ${formattedRole}` 
+  });
+  
   return registeredProfile;
 }
 
-// Layanan autentikasi login pengguna
+/**
+ * Login user.
+ * @param {Object} params - { email, password }
+ * @returns {Promise<Object>} { token, user }
+ */
 export async function loginUser({ email, password }) {
   if (!email || !password) {
     throw new AppError('Email and password are required.', 400, 'VALIDATION_ERROR');
@@ -37,6 +55,7 @@ export async function loginUser({ email, password }) {
 
   const cleanEmail = email.toLowerCase().trim();
   const userProfile = await profileRepository.findActiveByEmail(cleanEmail);
+  
   if (!userProfile) {
     throw new AppError('Invalid email or password.', 401, 'INVALID_CREDENTIALS');
   }
@@ -54,20 +73,37 @@ export async function loginUser({ email, password }) {
   });
 
   profileRepository.updateLastLogin(userProfile.id);
-  writeAuditLog({ userId: userProfile.id, action: 'LOGIN', targetEntity: 'profiles', detail: `${cleanEmail} logged in` });
+  writeAuditLog({ 
+    userId: userProfile.id, 
+    action: 'LOGIN', 
+    targetEntity: 'profiles', 
+    detail: `${cleanEmail} logged in` 
+  });
 
   return {
     token,
-    user: { id: userProfile.id, email: userProfile.email, name: userProfile.name, role: userProfile.role }
+    user: { 
+      id: userProfile.id, 
+      email: userProfile.email, 
+      name: userProfile.name, 
+      role: userProfile.role 
+    }
   };
 }
 
-// Layanan: mengambil daftar semua user (untuk admin)
+/**
+ * Ambil daftar semua user (untuk admin).
+ * @returns {Promise<Array>} Array of users
+ */
 export async function listUsers() {
   return profileRepository.findAll();
 }
 
-// Layanan: membuat akun user/client baru (dibuat oleh admin)
+/**
+ * Buat akun user/client baru (oleh admin).
+ * @param {Object} params - { email, password, name, role, project_name, quota_daily, rate_limit }
+ * @returns {Promise<Object>} Created profile dengan metadata
+ */
 export async function createUserByAdmin({ email, password, name, role = 'user', project_name, quota_daily, rate_limit }) {
   if (!email || !password || !name) {
     throw new AppError('Email, password, and name are required.', 400, 'VALIDATION_ERROR');
@@ -99,21 +135,63 @@ export async function createUserByAdmin({ email, password, name, role = 'user', 
   return { ...newProfile, project_name, quota_daily, rate_limit };
 }
 
-// Layanan: mengubah status aktif user (suspend/activate)
+/**
+ * Update status aktif user (suspend/activate).
+ * @param {string} id - User ID
+ * @param {boolean} isActive - Status aktif
+ * @returns {Promise<Object>} Updated profile
+ */
 export async function setUserActive(id, isActive) {
   const updated = await profileRepository.setActive(id, isActive);
+  
   writeAuditLog({
     userId: id,
     action: isActive ? 'ADMIN_ACTIVATE_USER' : 'ADMIN_SUSPEND_USER',
     targetEntity: 'profiles',
     detail: `User ${updated.email} ${isActive ? 'activated' : 'suspended'}`
   });
+  
   return updated;
 }
 
-// Layanan: menghapus user
+/**
+ * Hapus user.
+ * @param {string} id - User ID
+ * @returns {Promise<boolean>} Success status
+ */
 export async function deleteUser(id) {
   await profileRepository.remove(id);
-  writeAuditLog({ userId: id, action: 'ADMIN_DELETE_USER', targetEntity: 'profiles', detail: `User ${id} deleted` });
+  
+  writeAuditLog({ 
+    userId: id, 
+    action: 'ADMIN_DELETE_USER', 
+    targetEntity: 'profiles', 
+    detail: `User ${id} deleted` 
+  });
+  
   return true;
+}
+
+/**
+ * Update user (untuk admin edit).
+ * @param {string} id - User ID
+ * @param {Object} params - { name, email, role, project_name, quota_daily, rate_limit }
+ * @returns {Promise<Object>} Updated profile dengan metadata
+ */
+export async function updateUser(id, { name, email, role, project_name, quota_daily, rate_limit }) {
+  const updateData = {};
+  if (name) updateData.name = name;
+  if (email) updateData.email = email.toLowerCase().trim();
+  if (role) updateData.role = role.toLowerCase() === 'admin' ? 'admin' : 'user';
+  
+  const updated = await profileRepository.update(id, updateData);
+  
+  writeAuditLog({
+    userId: id,
+    action: 'ADMIN_UPDATE_USER',
+    targetEntity: 'profiles',
+    detail: `User ${updated.email} updated${project_name ? ` (project: ${project_name})` : ''}`
+  });
+  
+  return { ...updated, project_name, quota_daily, rate_limit };
 }
