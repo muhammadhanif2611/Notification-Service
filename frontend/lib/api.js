@@ -32,6 +32,31 @@ function buildHeaders(options = {}) {
 }
 
 /**
+ * handleErrorResponse — Memproses response non-OK dari backend.
+ * Jika 401 (token invalid/kedaluwarsa): hapus sesi & arahkan ke halaman login,
+ * agar user tidak terjebak di halaman dengan token mati.
+ * @param {Response} res - Fetch response
+ * @throws {Error} Selalu melempar error dengan pesan yang jelas
+ */
+async function handleErrorResponse(res) {
+  const error = await res.json().catch(() => ({}));
+  const message =
+    error.error?.message || error.message || `Request gagal (HTTP ${res.status})`;
+
+  // Token kedaluwarsa/invalid → bersihkan sesi dan paksa login ulang
+  if (res.status === 401 && typeof window !== "undefined") {
+    const isLoginPage = window.location.pathname.startsWith("/login");
+    if (!isLoginPage) {
+      localStorage.removeItem("ngw_token");
+      localStorage.removeItem("ngw_user");
+      window.location.href = "/login?expired=1";
+    }
+  }
+
+  throw new Error(message);
+}
+
+/**
  * GET request ke backend API.
  * @param {string} path - Path endpoint (misal: "/v1/logs")
  * @param {object} [options] - Opsi tambahan
@@ -45,11 +70,7 @@ export async function apiGet(path, options = {}) {
     credentials: "include",
   });
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
-  }
-
+  if (!res.ok) await handleErrorResponse(res);
   return res.json();
 }
 
@@ -69,11 +90,7 @@ export async function apiPost(path, body, options = {}) {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
-  }
-
+  if (!res.ok) await handleErrorResponse(res);
   return res.json();
 }
 
@@ -88,11 +105,7 @@ export async function apiPut(path, body, options = {}) {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
-  }
-
+  if (!res.ok) await handleErrorResponse(res);
   return res.json();
 }
 
@@ -106,10 +119,6 @@ export async function apiDelete(path, options = {}) {
     credentials: "include",
   });
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Request gagal" }));
-    throw new Error(error.message || error.error?.message || `HTTP ${res.status}`);
-  }
-
+  if (!res.ok) await handleErrorResponse(res);
   return res.json();
 }

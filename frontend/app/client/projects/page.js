@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { FolderKanban, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import Modal from "@/components/admin/Modal";
+import Alert from "@/components/shared/Alert";
 import { useProjectContext } from "@/lib/project-context";
 import { apiPost, apiPut, apiDelete } from "@/lib/api";
 
@@ -77,11 +78,7 @@ export default function ProjectsPage() {
 
   const formFields = (
     <>
-      {error && (
-        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-xs text-red-700 dark:text-red-300">
-          {error}
-        </div>
-      )}
+      {error && <Alert variant="error">{error}</Alert>}
       <div>
         <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Project</label>
         <input type="text" required value={form.name} onChange={(e) => handleNameChange(e.target.value)}
@@ -214,9 +211,7 @@ export default function ProjectsPage() {
             Yakin ingin menghapus project <span className="font-semibold text-[var(--text-primary)]">{deleting?.name}</span>?
             Semua API Key dan Template di dalamnya akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.
           </p>
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-xs text-red-700 dark:text-red-300">{error}</div>
-          )}
+          {error && <Alert variant="error">{error}</Alert>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setDeleting(null)}
               className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--neutral-bg)]">

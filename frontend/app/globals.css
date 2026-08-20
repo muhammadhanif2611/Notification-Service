@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Dark mode berbasis class (.dark pada <html>) agar Theme Toggle bisa mengontrol
+   secara manual, bukan mengikuti prefers-color-scheme dari OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* =============================================================================
    DESIGN SYSTEM — Notification Gateway Platform
    Token warna, tipografi, dan utilitas sesuai DESIGN.md

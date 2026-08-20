@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileText, Plus, Copy, Check, Pencil, Trash2 } from "lucide-react";
 import DataTable from "@/components/admin/DataTable";
 import Modal from "@/components/admin/Modal";
+import Alert from "@/components/shared/Alert";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useProjectContext } from "@/lib/project-context";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -271,9 +272,9 @@ export default function TemplatesPage() {
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]" />
           </div>
-          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+          <Alert variant="warning">
             Setelah diedit, status template kembali PENDING dan perlu di-approve ulang oleh admin.
-          </p>
+          </Alert>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setEditing(null)}
               className="px-4 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--neutral-bg)]">Batal</button>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Send, AlertTriangle, Plus, X, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
+import { Send, Plus, X, Eye, EyeOff } from "lucide-react";
+import Alert from "@/components/shared/Alert";
 import { useTemplates } from "@/hooks/useTemplates";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
@@ -84,14 +85,9 @@ export default function BroadcastPage() {
       </div>
 
       {/* Security notice */}
-      <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-        <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-          <strong>Perhatian keamanan:</strong> Broadcast memakai API Key (bukan sesi login). API Key hanya disimpan
-          di <code className="font-mono">sessionStorage</code> tab ini dan tidak dikirim ke server lain. Untuk produksi,
-          panggil endpoint broadcast dari <strong>backend aplikasi Anda</strong> menggunakan SDK, bukan dari browser.
-        </div>
-      </div>
+      <Alert variant="warning" title="Perhatian keamanan">
+        Broadcast memakai API Key (bukan sesi login). API Key hanya disimpan di <code className="font-mono">sessionStorage</code> tab ini dan tidak dikirim ke server lain. Untuk produksi, panggil endpoint broadcast dari <strong>backend aplikasi Anda</strong> menggunakan SDK, bukan dari browser.
+      </Alert>
 
       <form onSubmit={handleSend} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Kolom kiri: konfigurasi */}
@@ -205,31 +201,18 @@ export default function BroadcastPage() {
           </button>
 
           {result && (
-            <div className={`flex items-start gap-3 p-4 rounded-lg border ${
-              result.ok
-                ? "bg-emerald-500/10 border-emerald-500/20"
-                : "bg-red-500/10 border-red-500/20"
-            }`}>
-              {result.ok
-                ? <CheckCircle size={18} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                : <XCircle size={18} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />}
-              <div className="text-xs leading-relaxed">
-                {result.ok ? (
-                  <>
-                    <p className="font-semibold text-emerald-700 dark:text-emerald-300">Broadcast masuk antrean</p>
-                    <p className="text-[var(--text-secondary)] mt-1 font-mono">
-                      broadcastId: {result.data?.data?.broadcastId || "-"}<br />
-                      totalQueued: {result.data?.data?.totalQueued ?? "-"}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-semibold text-red-700 dark:text-red-300">Gagal mengirim</p>
-                    <p className="text-[var(--text-secondary)] mt-1">{result.data?.error?.message || "Terjadi kesalahan"}</p>
-                  </>
-                )}
-              </div>
-            </div>
+            result.ok ? (
+              <Alert variant="success" title="Broadcast masuk antrean">
+                <span className="font-mono">
+                  broadcastId: {result.data?.data?.broadcastId || "-"}<br />
+                  totalQueued: {result.data?.data?.totalQueued ?? "-"}
+                </span>
+              </Alert>
+            ) : (
+              <Alert variant="error" title="Gagal mengirim">
+                {result.data?.error?.message || "Terjadi kesalahan"}
+              </Alert>
+            )
           )}
         </div>
       </form>

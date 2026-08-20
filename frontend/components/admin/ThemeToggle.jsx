@@ -1,19 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
-
-function subscribe() {
-  return () => {};
-}
-
-function getSnapshot() {
-  return document.documentElement.classList.contains("dark");
-}
-
-function getServerSnapshot() {
-  return false;
-}
 
 /**
  * Theme toggle component — switches between Light and Dark mode.
@@ -21,13 +9,24 @@ function getServerSnapshot() {
  * @returns {JSX.Element}
  */
 export default function ThemeToggle() {
-  const isDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  // null = belum ter-hydrate (menunggu baca kondisi DOM di client)
+  const [isDark, setIsDark] = useState(null);
+
+  // Baca kondisi awal dari class pada <html> (di-set oleh inline script di layout.js)
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
 
   const toggle = () => {
     const root = document.documentElement;
-    const next = !isDark;
-    root.classList.toggle("dark", next);
+    const next = !(isDark === true);
+    if (next) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
     localStorage.setItem("theme", next ? "dark" : "light");
+    setIsDark(next);
   };
 
   return (
