@@ -2,6 +2,7 @@ import { createLogger } from '@notification-gateway/shared';
 import { config } from './config/env.js';
 import { startWhatsAppWorker } from './whatsapp/worker.js';
 import { startEmailWorker } from './email/worker.js';
+import { ensureWhatsAppConnection } from './whatsapp/session.js';
 
 const logger = createLogger('dispatch-service');
 
@@ -9,4 +10,9 @@ const logger = createLogger('dispatch-service');
 startWhatsAppWorker(config.redis);
 startEmailWorker(config.redis);
 
-logger.info('Dispatch Service started (WhatsApp & Email workers running)');
+// Koneksi sesi WhatsApp (Baileys) diinisiasi saat startup — QR muncul di log jika belum pairing
+ensureWhatsAppConnection().catch((err) => {
+  logger.error({ err: err.message }, 'Failed to initialize WhatsApp session');
+});
+
+logger.info('Dispatch Service started (WhatsApp Baileys & Email Nodemailer workers running)');

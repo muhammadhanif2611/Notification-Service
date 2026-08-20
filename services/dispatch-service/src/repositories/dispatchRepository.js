@@ -10,6 +10,7 @@ export async function updateStatusByMessageId(messageId, statusData) {
   if (error) throw error;
 }
 
+// Hanya dipakai channel EMAIL — WhatsApp (Baileys) tidak memakai vendor credentials.
 export async function findActiveVendorByChannel(channel) {
   const { data, error } = await supabase
     .from('vendors')

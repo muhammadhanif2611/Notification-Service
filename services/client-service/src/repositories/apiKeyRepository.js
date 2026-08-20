@@ -14,6 +14,15 @@ export async function findByIdWithProject(keyId) {
   return data;
 }
 
+export async function findAll() {
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select(`${API_KEY_SELECT}, projects(name, slug)`)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function insert(keyData) {
   const { data, error } = await supabase
     .from('api_keys')
@@ -33,4 +42,12 @@ export async function updateById(keyId, updateData, selectFields = API_KEY_SELEC
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function deleteById(keyId) {
+  const { error } = await supabase
+    .from('api_keys')
+    .delete()
+    .eq('id', keyId);
+  if (error) throw error;
 }

@@ -12,6 +12,7 @@ import {
   Users,
   UserX,
   AlertTriangle,
+  MessageSquare,
   Zap,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ const ICON_MAP = {
   Users: Users,
   UserX: UserX,
   AlertTriangle: AlertTriangle,
+  MessageSquare: MessageSquare,
 };
 
 /**

@@ -72,17 +72,27 @@ app.get('/v1/clients/projects', (req, res) => proxyRequest(`${SERVICES.CLIENT}/c
 app.get('/v1/clients/projects/:id', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
 app.post('/v1/clients/projects', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
 app.put('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
+app.delete('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
 
+app.get('/v1/clients/api-keys', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys`, req, res));
 app.post('/v1/clients/api-keys', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys`, req, res));
 app.post('/v1/clients/api-keys/:id/regenerate', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}/regenerate`, req, res));
 app.put('/v1/clients/api-keys/:id/deactivate', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}/deactivate`, req, res));
+app.put('/v1/clients/api-keys/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}`, req, res));
+app.delete('/v1/clients/api-keys/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}`, req, res));
 
 app.get('/v1/clients/templates', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
 app.post('/v1/clients/templates', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
 app.put('/v1/clients/templates/:id/status', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}/status`, req, res));
+app.put('/v1/clients/templates/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}`, req, res));
+app.delete('/v1/clients/templates/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}`, req, res));
 
 app.get('/v1/clients/vendors', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res));
 app.post('/v1/clients/vendors', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res));
+
+// Manajemen sesi WhatsApp (Baileys) — QR pairing & reset (admin only)
+app.get('/v1/clients/wa-session', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/wa-session`, req, res));
+app.post('/v1/clients/wa-session/reset', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/wa-session/reset`, req, res));
 
 // Proxy rute Notification Service
 app.post('/v1/notifications/send', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/process`, req, res));

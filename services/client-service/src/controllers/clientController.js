@@ -32,6 +32,22 @@ export async function updateProject(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: menghapus project beserta data terkait
+export async function deleteProject(req, res, next) {
+  try {
+    const data = await clientService.deleteProject(req.params.id, req.user?.userId);
+    return res.json({ success: true, message: 'Project deleted successfully', data });
+  } catch (err) { next(err); }
+}
+
+// Controller: mengambil daftar semua API Key
+export async function listApiKeys(req, res, next) {
+  try {
+    const data = await clientService.listApiKeys();
+    return res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
 // Controller: membuat API Key baru
 export async function generateApiKey(req, res, next) {
   try {
@@ -53,6 +69,22 @@ export async function deactivateApiKey(req, res, next) {
   try {
     const data = await clientService.deactivateApiKey(req.params.id, req.user?.userId);
     return res.json({ success: true, message: 'API Key deactivated successfully', data });
+  } catch (err) { next(err); }
+}
+
+// Controller: mengganti nama/label API Key
+export async function updateApiKey(req, res, next) {
+  try {
+    const data = await clientService.updateApiKey(req.params.id, req.body, req.user?.userId);
+    return res.json({ success: true, message: 'API Key updated successfully', data });
+  } catch (err) { next(err); }
+}
+
+// Controller: menghapus API Key secara permanen
+export async function deleteApiKey(req, res, next) {
+  try {
+    const data = await clientService.deleteApiKey(req.params.id, req.user?.userId);
+    return res.json({ success: true, message: 'API Key deleted successfully', data });
   } catch (err) { next(err); }
 }
 
@@ -80,6 +112,22 @@ export async function updateTemplateStatus(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: mengedit isi template
+export async function updateTemplate(req, res, next) {
+  try {
+    const data = await clientService.updateTemplate(req.params.id, req.body, req.user?.userId);
+    return res.json({ success: true, message: 'Template updated successfully', data });
+  } catch (err) { next(err); }
+}
+
+// Controller: menghapus template
+export async function deleteTemplate(req, res, next) {
+  try {
+    const data = await clientService.deleteTemplate(req.params.id, req.user?.userId);
+    return res.json({ success: true, message: 'Template deleted successfully', data });
+  } catch (err) { next(err); }
+}
+
 // Controller: mengambil daftar vendor
 export async function getVendors(req, res, next) {
   try {
@@ -93,5 +141,21 @@ export async function createVendor(req, res, next) {
   try {
     const data = await clientService.createVendor(req.body, req.user?.userId);
     return res.status(201).json({ success: true, message: 'Vendor registered successfully', data });
+  } catch (err) { next(err); }
+}
+
+// Controller: mengambil status sesi WhatsApp (Baileys) — termasuk QR string saat pairing
+export async function getWhatsAppSession(req, res, next) {
+  try {
+    const data = clientService.getWhatsAppSessionStatus();
+    return res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+// Controller: reset sesi WhatsApp (logout + hapus auth state + generate QR baru)
+export async function resetWhatsAppSession(req, res, next) {
+  try {
+    const data = await clientService.resetWhatsAppSession(req.user?.userId);
+    return res.json({ success: true, message: 'WhatsApp session reset. Scan the new QR code.', data });
   } catch (err) { next(err); }
 }

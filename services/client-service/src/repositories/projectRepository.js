@@ -51,3 +51,11 @@ export async function updateById(projectId, updateData) {
   if (error) throw error;
   return data;
 }
+
+export async function deleteById(projectId) {
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+  if (error) throw error;
+}

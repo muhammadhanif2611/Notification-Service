@@ -39,9 +39,13 @@ USER nodejs
 
 # No port exposed (worker service)
 
+# Folder penyimpanan sesi WhatsApp (Baileys) — mount volume agar persisten
+ENV WA_SESSION_PATH=/app/wa-sessions
+RUN mkdir -p /app/wa-sessions && chown -R nodejs:nodejs /app/wa-sessions
+
 # Health check - check if process is running
 HEALTHCHECK --interval=30s --timeout=15s --start-period=25s --retries=3 \
-  CMD pgrep -f "node.*worker.js" || exit 1
+  CMD pgrep -f "node.*index.js" || exit 1
 
 # Start worker
-CMD ["node", "services/dispatch-service/src/worker.js"]
+CMD ["node", "services/dispatch-service/src/index.js"]

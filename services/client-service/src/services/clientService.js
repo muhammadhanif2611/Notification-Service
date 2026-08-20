@@ -5,11 +5,15 @@ import {
   extractKeyPreview,
   encryptAES,
   createProjectSchema,
+  updateProjectSchema,
   createApiKeySchema,
+  updateApiKeySchema,
   createTemplateSchema,
+  updateTemplateSchema,
   createVendorSchema,
   createLogger
 } from '@notification-gateway/shared';
+import { whatsappSession } from '@notification-gateway/dispatch-service/src/whatsapp/session.js';
 import { AppError } from '../middlewares/errorHandler.js';
 import * as projectRepository from '../repositories/projectRepository.js';
 import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
@@ -64,7 +68,12 @@ export async function createProject(payload, userId = null) {
 
 // Layanan memperbarui data project
 export async function updateProject(projectId, updateData, userId = null) {
-  const updatedProject = await projectRepository.updateById(projectId, updateData);
+  const validation = updateProjectSchema.safeParse(updateData);
+  if (!validation.success) {
+    throw new AppError('Invalid project payload', 400, 'VALIDATION_ERROR', validation.error.errors);
+  }
+
+  const updatedProject = await projectRepository.updateById(projectId, validation.data);
   if (!updatedProject) {
     throw new AppError('Project not found or update failed', 404, 'NOT_FOUND');
   }
@@ -72,6 +81,11 @@ export async function updateProject(projectId, updateData, userId = null) {
   logger.info({ projectId }, 'Project updated');
   writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
   return updatedProject;
+}
+
+// Layanan mengambil daftar semua API Key (metadata, tanpa hash)
+export async function listApiKeys() {
+  return await apiKeyRepository.findAll();
 }
 
 // Layanan membuat API Key baru untuk project
@@ -142,6 +156,85 @@ export async function deactivateApiKey(keyId, userId = null) {
   logger.info({ keyId }, 'API Key deactivated');
   writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
   return deactivatedKey;
+}
+
+// Layanan mengganti nama/label API Key
+export async function updateApiKey(keyId, payload, userId = null) {
+  const validation = updateApiKeySchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', validation.error.errors);
+  }
+
+  const updatedKey = await apiKeyRepository.updateById(keyId, { name: validation.data.name });
+  if (!updatedKey) {
+    throw new AppError('API Key not found', 404, 'NOT_FOUND');
+  }
+
+  logger.info({ keyId }, 'API Key renamed');
+  writeAuditLog({ userId, action: 'UPDATE_API_KEY', targetEntity: 'api_keys', detail: `Renamed key ID ${keyId} to '${validation.data.name}'` });
+  return updatedKey;
+}
+
+// Layanan menghapus API Key secara permanen
+export async function deleteApiKey(keyId, userId = null) {
+  const existing = await apiKeyRepository.findByIdWithProject(keyId);
+  if (!existing) {
+    throw new AppError('API Key not found', 404, 'NOT_FOUND');
+  }
+
+  await apiKeyRepository.deleteById(keyId);
+  logger.info({ keyId }, 'API Key deleted');
+  writeAuditLog({ userId, action: 'DELETE_API_KEY', targetEntity: 'api_keys', detail: `Deleted key '${existing.name}' (ID ${keyId})` });
+  return { deleted: true };
+}
+
+// Layanan menghapus project beserta seluruh data terkait (API key, template, dst.)
+export async function deleteProject(projectId, userId = null) {
+  const existing = await projectRepository.findSlugAndNameById(projectId);
+  if (!existing) {
+    throw new AppError('Project not found', 404, 'NOT_FOUND');
+  }
+
+  await projectRepository.deleteById(projectId);
+  logger.info({ projectId }, 'Project deleted');
+  writeAuditLog({ userId, action: 'DELETE_PROJECT', targetEntity: 'projects', detail: `Deleted project '${existing.name}' (ID ${projectId})` });
+  return { deleted: true };
+}
+
+// Layanan mengedit isi template pesan (reset status ke PENDING untuk ditinjau ulang)
+export async function updateTemplate(templateId, payload, userId = null) {
+  const validation = updateTemplateSchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid template payload', 400, 'VALIDATION_ERROR', validation.error.errors);
+  }
+
+  const existing = await templateRepository.findById(templateId);
+  if (!existing) {
+    throw new AppError('Template not found', 404, 'NOT_FOUND');
+  }
+
+  const updatedTemplate = await templateRepository.updateById(templateId, {
+    ...validation.data,
+    status: 'PENDING',
+    rejection_reason: null
+  });
+
+  logger.info({ templateId }, 'Template updated');
+  writeAuditLog({ userId, action: 'UPDATE_TEMPLATE', targetEntity: 'templates', detail: `Updated template ID ${templateId}` });
+  return updatedTemplate;
+}
+
+// Layanan menghapus template pesan
+export async function deleteTemplate(templateId, userId = null) {
+  const existing = await templateRepository.findById(templateId);
+  if (!existing) {
+    throw new AppError('Template not found', 404, 'NOT_FOUND');
+  }
+
+  await templateRepository.deleteById(templateId);
+  logger.info({ templateId }, 'Template deleted');
+  writeAuditLog({ userId, action: 'DELETE_TEMPLATE', targetEntity: 'templates', detail: `Deleted template '${existing.name}' (ID ${templateId})` });
+  return { deleted: true };
 }
 
 // Layanan mengambil daftar template pesan
@@ -215,11 +308,12 @@ export async function createVendor(payload, userId = null) {
     throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
-  const { name, channel, credentials, priority } = validation.data;
+  const { provider, name, channel, credentials, priority } = validation.data;
   const { encryptedData, iv, authTag } = encryptAES(JSON.stringify(credentials));
 
   const registeredVendor = await vendorRepository.insert({
     name,
+    provider,
     channel: channel.toUpperCase(),
     credential_encrypted: encryptedData,
     credential_iv: iv,
@@ -230,4 +324,17 @@ export async function createVendor(payload, userId = null) {
   logger.info({ vendorId: registeredVendor.id, channel: registeredVendor.channel }, 'Vendor registered');
   writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
   return registeredVendor;
+}
+
+// Layanan mengambil status sesi WhatsApp (Baileys) — status koneksi & QR pairing
+export function getWhatsAppSessionStatus() {
+  return whatsappSession.getStatus();
+}
+
+// Layanan reset sesi WhatsApp (logout, hapus auth state, generate QR baru)
+export async function resetWhatsAppSession(userId = null) {
+  const result = await whatsappSession.reset();
+  logger.info({ userId }, 'WhatsApp session reset');
+  writeAuditLog({ userId, action: 'RESET_WA_SESSION', targetEntity: 'wa_session', detail: 'WhatsApp Baileys session reset via admin' });
+  return result;
 }

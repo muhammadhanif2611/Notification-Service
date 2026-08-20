@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useApiKeys } from "@/hooks/useApiKeys";
+import { useProjectContext } from "@/lib/project-context";
 import {
   Key,
   Plus,
@@ -15,10 +16,13 @@ import {
   X,
   Trash2,
   Lock,
+  Pencil,
 } from "lucide-react";
 
 export default function ApiKeysPage() {
-  const { keys, loading, error, createKey, deactivateKey } = useApiKeys();
+  const { activeProject } = useProjectContext();
+  const projectId = activeProject?.id || "";
+  const { keys, loading, error, createKey, deactivateKey, updateKey, deleteKey } = useApiKeys(projectId);
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,8 +31,13 @@ export default function ApiKeysPage() {
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [labelInput, setLabelInput] = useState("");
-  const [modeInput, setModeInput] = useState("PRODUCTION");
+  const [modeInput, setModeInput] = useState("production"); // backend: "production" | "sandbox"
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit / Delete states
+  const [editingKey, setEditingKey] = useState(null); // { id, name }
+  const [editName, setEditName] = useState("");
+  const [keyToDelete, setKeyToDelete] = useState(null);
 
   // Secret Key Revealed modal state
   const [createdSecretKey, setCreatedSecretKey] = useState(null);
@@ -40,18 +49,18 @@ export default function ApiKeysPage() {
   // Handle Create API Key submit
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!labelInput.trim()) return;
+    if (!labelInput.trim() || !projectId) return;
 
     setIsSubmitting(true);
     try {
-      const result = await createKey(labelInput.trim(), modeInput);
+      const result = await createKey(projectId, labelInput.trim(), modeInput);
       setIsCreateModalOpen(false);
       setLabelInput("");
-      setModeInput("PRODUCTION");
+      setModeInput("production");
 
-      // Show secret key modal
-      if (result && result.rawKey) {
-        setCreatedSecretKey(result.rawKey);
+      // Tampilkan secret key (hanya muncul 1x dari backend: rawApiKey)
+      if (result && result.rawApiKey) {
+        setCreatedSecretKey(result.rawApiKey);
       }
     } catch (err) {
       console.error("Gagal membuat API Key:", err);
@@ -79,14 +88,43 @@ export default function ApiKeysPage() {
     }
   };
 
+  // Buka modal edit
+  const openEdit = (key) => {
+    setEditingKey(key);
+    setEditName(key.name);
+  };
+
+  // Simpan perubahan nama API Key
+  const handleConfirmEdit = async (e) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    try {
+      await updateKey(editingKey.id, editName.trim());
+      setEditingKey(null);
+    } catch (err) {
+      console.error("Gagal mengedit API Key:", err);
+    }
+  };
+
+  // Hapus API Key permanen
+  const handleConfirmDelete = async () => {
+    if (!keyToDelete) return;
+    try {
+      await deleteKey(keyToDelete.id);
+      setKeyToDelete(null);
+    } catch (err) {
+      console.error("Gagal menghapus API Key:", err);
+    }
+  };
+
   // Filter keys
   const filteredKeys = keys.filter((key) => {
     const matchesSearch =
-      (key.label || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (key.displayKey || "").toLowerCase().includes(searchTerm.toLowerCase());
+      (key.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (key.key_preview || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesMode =
-      modeFilter === "ALL" || key.mode === modeFilter;
+      modeFilter === "ALL" || (key.environment || "").toUpperCase() === modeFilter;
 
     return matchesSearch && matchesMode;
   });
@@ -216,21 +254,22 @@ export default function ApiKeysPage() {
                       <div className="flex items-center gap-2">
                         <span
                           className={`w-2 h-2 rounded-full ${
-                            item.isActive ? "bg-emerald-500" : "bg-gray-400"
+                            item.is_active ? "bg-emerald-500" : "bg-gray-400"
                           }`}
                         />
-                        <span>{item.label}</span>
+                        <span>{item.name}</span>
                       </div>
                     </td>
 
                     {/* Masked Key */}
                     <td className="px-6 py-4 font-mono text-xs text-gray-600 dark:text-gray-300">
-                      {item.displayKey}
+                      {item.key_prefix}
+                      {item.key_preview}
                     </td>
 
                     {/* Mode Badge */}
                     <td className="px-6 py-4">
-                      {item.mode === "SANDBOX" ? (
+                      {item.environment === "sandbox" ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
                           <Shield className="w-3 h-3" />
                           SANDBOX
@@ -247,7 +286,7 @@ export default function ApiKeysPage() {
                     <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        {new Date(item.createdAt).toLocaleDateString("id-ID", {
+                        {new Date(item.created_at).toLocaleDateString("id-ID", {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
@@ -257,7 +296,7 @@ export default function ApiKeysPage() {
 
                     {/* Status */}
                     <td className="px-6 py-4">
-                      {item.isActive ? (
+                      {item.is_active ? (
                         <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300">
                           Aktif
                         </span>
@@ -270,18 +309,31 @@ export default function ApiKeysPage() {
 
                     {/* Actions */}
                     <td className="px-6 py-4 text-right">
-                      {item.isActive ? (
+                      <div className="inline-flex items-center justify-end gap-1">
                         <button
-                          onClick={() => setKeyToDeactivate(item)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors"
-                          title="Nonaktifkan API Key"
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                          title="Edit nama API Key"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        {item.is_active && (
+                          <button
+                            onClick={() => setKeyToDeactivate(item)}
+                            className="p-1.5 text-amber-600 hover:text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-md transition-colors"
+                            title="Nonaktifkan API Key"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setKeyToDelete(item)}
+                          className="p-1.5 text-red-600 hover:text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors"
+                          title="Hapus API Key permanen"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Nonaktifkan
                         </button>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">No action</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -311,6 +363,11 @@ export default function ApiKeysPage() {
             </div>
 
             <form onSubmit={handleCreateSubmit} className="mt-4 space-y-4">
+              <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
+                <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Project</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{activeProject?.name || "-"}</p>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                   Nama / Label API Key
@@ -332,16 +389,16 @@ export default function ApiKeysPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setModeInput("PRODUCTION")}
+                    onClick={() => setModeInput("production")}
                     className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                      modeInput === "PRODUCTION"
+                      modeInput === "production"
                         ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20"
                         : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300"
                     }`}
                   >
                     <div className="font-semibold text-xs flex items-center justify-between w-full">
                       <span>PRODUCTION</span>
-                      {modeInput === "PRODUCTION" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                      {modeInput === "production" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                       Prefiks <code className="font-mono">ngw_prod_</code> untuk pengiriman sungguhan.
@@ -350,16 +407,16 @@ export default function ApiKeysPage() {
 
                   <button
                     type="button"
-                    onClick={() => setModeInput("SANDBOX")}
+                    onClick={() => setModeInput("sandbox")}
                     className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
-                      modeInput === "SANDBOX"
+                      modeInput === "sandbox"
                         ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20"
                         : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300"
                     }`}
                   >
                     <div className="font-semibold text-xs flex items-center justify-between w-full">
                       <span>SANDBOX</span>
-                      {modeInput === "SANDBOX" && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                      {modeInput === "sandbox" && <Check className="w-3.5 h-3.5 text-amber-600" />}
                     </div>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                       Prefiks <code className="font-mono">ngw_sand_</code> untuk pengujian aman (mock).
@@ -378,7 +435,7 @@ export default function ApiKeysPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !labelInput.trim()}
+                  disabled={isSubmitting || !labelInput.trim() || !projectId}
                   className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center gap-1.5"
                 >
                   {isSubmitting ? (
@@ -496,6 +553,64 @@ export default function ApiKeysPage() {
                 className="px-3.5 py-2 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
               >
                 Ya, Nonaktifkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit API Key */}
+      {editingKey && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-gray-800">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">Edit API Key</h3>
+              <button onClick={() => setEditingKey(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmEdit} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Nama / Label API Key</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3.5 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setEditingKey(null)}
+                  className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                  Batal
+                </button>
+                <button type="submit" disabled={!editName.trim()}
+                  className="px-4 py-2 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors">
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Hapus API Key */}
+      {keyToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-base font-bold text-gray-900 dark:text-white pb-4 border-b border-gray-100 dark:border-gray-800">Hapus API Key</h3>
+            <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+              Yakin ingin menghapus API Key <span className="font-semibold text-gray-900 dark:text-white">{keyToDelete.name}</span> secara permanen? Aplikasi yang memakai key ini akan berhenti berfungsi. Tindakan ini tidak dapat dibatalkan.
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-6">
+              <button type="button" onClick={() => setKeyToDelete(null)}
+                className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                Batal
+              </button>
+              <button type="button" onClick={handleConfirmDelete}
+                className="px-4 py-2 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                Ya, Hapus Permanen
               </button>
             </div>
           </div>

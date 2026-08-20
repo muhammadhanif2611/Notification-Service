@@ -1,6 +1,7 @@
 import AuthGuard from "@/components/AuthGuard";
 import ClientSidebar from "@/components/client/ClientSidebar";
 import ClientHeader from "@/components/client/ClientHeader";
+import { ProjectProvider } from "@/lib/project-context";
 
 /**
  * DashboardLayout — Layout wrapper untuk Client User (Developer Portal).
@@ -10,15 +11,17 @@ import ClientHeader from "@/components/client/ClientHeader";
 export default function DashboardLayout({ children }) {
   return (
     <AuthGuard requiredRole="user">
-      <div className="flex min-h-screen bg-[var(--neutral-bg)]">
-        <ClientSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <ClientHeader />
-          <main className="flex-1 p-6">
-            <div className="max-w-7xl mx-auto space-y-6">{children}</div>
-          </main>
+      <ProjectProvider>
+        <div className="flex min-h-screen bg-[var(--neutral-bg)]">
+          <ClientSidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <ClientHeader />
+            <main className="flex-1 p-6">
+              <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+            </main>
+          </div>
         </div>
-      </div>
+      </ProjectProvider>
     </AuthGuard>
   );
 }

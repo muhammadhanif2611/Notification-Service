@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@notification-gateway/database": "*",
+    "@notification-gateway/dispatch-service": "^1.0.0",
     "@notification-gateway/shared": "*",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

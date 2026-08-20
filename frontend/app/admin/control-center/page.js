@@ -25,8 +25,7 @@ export default function ControlCenterPage() {
   const failedMessages = statistics?.failed || 0;
   const successRate = totalMessages > 0 ? ((sentMessages / totalMessages) * 100).toFixed(1) : "0.0";
   
-  const activeVendors = vendors.filter(v => v.is_active).length;
-  const whatsappVendors = vendors.filter(v => v.channel === "WHATSAPP" && v.is_active).length;
+  // Vendor saat ini hanya untuk Email (SMTP). WhatsApp memakai Baileys tanpa vendor.
   const emailVendors = vendors.filter(v => v.channel === "EMAIL" && v.is_active).length;
 
   const recentActivity = logs.slice(0, 5).map(log => ({
@@ -72,9 +71,9 @@ export default function ControlCenterPage() {
         />
         <MetricCard
           icon={<Server size={16} />}
-          label="Active Vendors"
-          value={loading ? "..." : activeVendors}
-          subtitle={loading ? "..." : `${whatsappVendors} WhatsApp · ${emailVendors} Email`}
+          label="Email SMTP Vendors"
+          value={loading ? "..." : emailVendors}
+          subtitle={loading ? "..." : "WhatsApp via Baileys (tanpa vendor)"}
         />
         <MetricCard
           icon={<Clock size={16} />}

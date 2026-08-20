@@ -25,7 +25,7 @@ export default function VendorsPage() {
   const [copiedId, setCopiedId] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
-    channel: "WHATSAPP",
+    channel: "EMAIL",
     priority: 1,
     credentials: "{}",
   });
@@ -40,14 +40,15 @@ export default function VendorsPage() {
     setSaving(true);
     try {
       await apiPost("/v1/clients/vendors", {
+        provider: "NODEMAILER",
         name: formData.name,
-        channel: formData.channel,
+        channel: "EMAIL",
         priority: parseInt(formData.priority),
         credentials: JSON.parse(formData.credentials),
       });
       await refetch();
       setShowModal(false);
-      setFormData({ name: "", channel: "WHATSAPP", priority: 1, credentials: "{}" });
+      setFormData({ name: "", channel: "EMAIL", priority: 1, credentials: "{}" });
     } catch (err) {
       alert("Gagal menambahkan vendor: " + err.message);
     } finally {
@@ -126,7 +127,7 @@ export default function VendorsPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Vendor Providers</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Manajemen integrasi penyedia layanan WhatsApp, Email, dan SMS.
+            Manajemen kredensial SMTP untuk pengiriman Email. WhatsApp memakai Baileys dan tidak butuh vendor.
           </p>
         </div>
         <button
@@ -155,7 +156,7 @@ export default function VendorsPage() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Meta WhatsApp Cloud"
+              placeholder="e.g. Baileys WhatsApp / Gmail SMTP"
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               required
             />
@@ -163,15 +164,9 @@ export default function VendorsPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Channel</label>
-              <select
-                value={formData.channel}
-                onChange={(e) => setFormData({ ...formData, channel: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
-              >
-                <option value="WHATSAPP">WhatsApp</option>
-                <option value="EMAIL">Email</option>
-                <option value="SMS">SMS</option>
-              </select>
+              <div className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-zinc-100 dark:bg-zinc-800 text-sm text-[var(--text-secondary)]">
+                Email (Nodemailer SMTP)
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Priority (1-10)</label>
@@ -192,7 +187,7 @@ export default function VendorsPage() {
               value={formData.credentials}
               onChange={(e) => setFormData({ ...formData, credentials: e.target.value })}
               rows={4}
-              placeholder='{"apiKey": "sk_live_...", "endpoint": "https://..."}'
+              placeholder='{"host": "smtp.gmail.com", "port": 587, "secure": false, "user": "you@gmail.com", "pass": "app-password", "from": "..."}'
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               required
             />

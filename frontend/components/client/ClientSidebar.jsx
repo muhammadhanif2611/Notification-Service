@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CLIENT_MENU_ITEMS } from "@/constants/menuItems";
-import { LayoutDashboard, Clock, BarChart2, Key, Webhook, Zap, LogOut } from "lucide-react";
+import { LayoutDashboard, Clock, BarChart2, Key, Webhook, Zap, LogOut, FileText, Send, Code2, FolderKanban, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useProjectContext } from "@/lib/project-context";
 
 const ICON_MAP = {
-  LayoutDashboard, Clock, BarChart2, Key, Webhook,
+  LayoutDashboard, Clock, BarChart2, Key, Webhook, FileText, Send, Code2, FolderKanban,
 };
 
 /**
@@ -18,6 +19,7 @@ const ICON_MAP = {
 export default function ClientSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { projects, activeProjectId, selectProject, loading } = useProjectContext();
 
   return (
     <aside className="w-60 shrink-0 sticky top-0 h-screen flex flex-col border-r border-[var(--neutral-border)] bg-[var(--neutral-surface)]">
@@ -36,6 +38,31 @@ export default function ClientSidebar() {
           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[var(--client-badge-bg)] text-[var(--client-badge-text)]">
             Client
           </span>
+        </div>
+      </div>
+
+      {/* Project Switcher — konteks global untuk semua halaman client */}
+      <div className="px-4 pt-4 pb-2">
+        <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+          Project Aktif
+        </label>
+        <div className="relative">
+          <select
+            value={activeProjectId}
+            onChange={(e) => selectProject(e.target.value)}
+            disabled={loading || projects.length === 0}
+            className="w-full appearance-none px-3 py-2 pr-8 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-xs font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] disabled:opacity-50"
+          >
+            {projects.length === 0 && (
+              <option value="">{loading ? "Memuat..." : "Belum ada project"}</option>
+            )}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
         </div>
       </div>
 

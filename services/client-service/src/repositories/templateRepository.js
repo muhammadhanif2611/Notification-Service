@@ -20,6 +20,16 @@ export async function insert(templateData) {
   return data;
 }
 
+export async function findById(templateId) {
+  const { data, error } = await supabase
+    .from('templates')
+    .select('*')
+    .eq('id', templateId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function updateStatusById(templateId, statusData) {
   const { data, error } = await supabase
     .from('templates')
@@ -29,4 +39,23 @@ export async function updateStatusById(templateId, statusData) {
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function updateById(templateId, updateData) {
+  const { data, error } = await supabase
+    .from('templates')
+    .update({ ...updateData, updated_at: new Date().toISOString() })
+    .eq('id', templateId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteById(templateId) {
+  const { error } = await supabase
+    .from('templates')
+    .delete()
+    .eq('id', templateId);
+  if (error) throw error;
 }
