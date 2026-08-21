@@ -11,6 +11,7 @@ import MetricCard from "@/components/admin/MetricCard";
 import StatusBadge from "@/components/shared/StatusBadge";
 import EmptyState from "@/components/admin/EmptyState";
 import { apiGet } from "@/lib/api";
+import { useProjectContext } from "@/lib/project-context";
 
 const CHANNEL_COLORS = { WHATSAPP: "#10B981", EMAIL: "#3B82F6", SMS: "#8B5CF6" };
 
@@ -19,16 +20,18 @@ const CHANNEL_COLORS = { WHATSAPP: "#10B981", EMAIL: "#3B82F6", SMS: "#8B5CF6" }
  * Data dari GET /v1/statistics dan GET /v1/logs lewat gateway.
  */
 export default function ClientDashboardPage() {
+  const { activeProject } = useProjectContext();
   const [stats, setStats] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
+    if (!activeProject?.id) { setLoading(false); return; }
     setLoading(true);
     try {
       const [statsRes, logsRes] = await Promise.allSettled([
-        apiGet("/v1/statistics"),
-        apiGet("/v1/logs?limit=5"),
+        apiGet(`/v1/statistics?projectId=${activeProject.id}`),
+        apiGet(`/v1/logs?projectId=${activeProject.id}&limit=5`),
       ]);
       if (statsRes.status === "fulfilled") setStats(statsRes.value?.data || null);
       if (logsRes.status === "fulfilled") {
@@ -40,7 +43,7 @@ export default function ClientDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeProject?.id]);
 
   useEffect(() => {
     let cancelled = false;

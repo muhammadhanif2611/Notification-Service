@@ -36,14 +36,27 @@ app.get('/health', (_req, res) =>
 );
 
 // Helper proxy permintaan HTTP ke microservice tujuan
+// GET requests: forward query params + user info via headers
+// POST/PUT/DELETE: inject user info ke body
 async function proxyRequest(targetUrl, req, res) {
   try {
-    const response = await fetch(targetUrl, {
+    // Build URL dengan query params untuk GET requests
+    let url = targetUrl;
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      const queryString = new URLSearchParams(req.query).toString();
+      if (queryString) url += `?${queryString}`;
+    }
+
+    const response = await fetch(url, {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
         ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
-        ...(req.headers['x-api-key'] ? { 'x-api-key': req.headers['x-api-key'] } : {})
+        ...(req.headers['x-api-key'] ? { 'x-api-key': req.headers['x-api-key'] } : {}),
+        // Forward user info via headers untuk GET requests (client-service baca dari sini)
+        ...(req.user ? { 'x-user-id': req.user.userId, 'x-user-role': req.user.role } : {}),
+        ...(req.project ? { 'x-project-id': req.project.id } : {}),
+        ...(req.environment ? { 'x-environment': req.environment } : {})
       },
       ...(req.method !== 'GET' && req.method !== 'HEAD'
         ? { body: JSON.stringify({ ...req.body, user: req.user, project: req.project, environment: req.environment }) }
@@ -68,8 +81,9 @@ app.put('/v1/auth/users/:id/status', jwtAuth, roleCheck(['admin']), (req, res) =
 app.delete('/v1/auth/users/:id', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users/${req.params.id}`, req, res));
 
 // Proxy rute Client Service (Projects, API Keys, Templates, Vendors)
-app.get('/v1/clients/projects', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
-app.get('/v1/clients/projects/:id', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
+// Semua route GET juga pakai jwtAuth agar user info ter-forward
+app.get('/v1/clients/projects', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
+app.get('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
 app.post('/v1/clients/projects', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
 app.put('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
 app.delete('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
@@ -81,7 +95,7 @@ app.put('/v1/clients/api-keys/:id/deactivate', jwtAuth, (req, res) => proxyReque
 app.put('/v1/clients/api-keys/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}`, req, res));
 app.delete('/v1/clients/api-keys/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}`, req, res));
 
-app.get('/v1/clients/templates', (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
+app.get('/v1/clients/templates', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
 app.post('/v1/clients/templates', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
 app.put('/v1/clients/templates/:id/status', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}/status`, req, res));
 app.put('/v1/clients/templates/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}`, req, res));
@@ -98,9 +112,9 @@ app.post('/v1/clients/wa-session/reset', jwtAuth, roleCheck(['admin']), (req, re
 app.post('/v1/notifications/send', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/process`, req, res));
 app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/broadcast`, req, res));
 
-// Proxy rute Callback Log Service
-app.get('/v1/logs', (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/logs`, req, res));
-app.get('/v1/statistics', (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/statistics`, req, res));
+// Proxy rute Callback Log Service (dengan auth untuk scoping)
+app.get('/v1/logs', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/logs`, req, res));
+app.get('/v1/statistics', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/statistics`, req, res));
 
 // ── Admin: Tambahan Endpoint ───────────────────────────────────────────────
 // GET /v1/admin/vendors — list vendors (termasuk credential preview untuk admin)

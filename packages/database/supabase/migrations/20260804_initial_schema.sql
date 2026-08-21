@@ -26,8 +26,10 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 );
 
 -- 2. Table: projects (Katalog Aplikasi / Project Internal Perusahaan)
+-- owner_id: menghubungkan project ke user (client) pemiliknya
 CREATE TABLE IF NOT EXISTS public.projects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,

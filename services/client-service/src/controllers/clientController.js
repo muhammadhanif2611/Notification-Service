@@ -1,9 +1,15 @@
 import * as clientService from '../services/clientService.js';
 
-// Controller: mengambil daftar semua project
+// Controller: mengambil daftar project berdasarkan owner (client) atau semua (admin)
+// User info diterima dari header (x-user-id, x-user-role) yang di-set gateway untuk GET requests
+// atau dari req.body.user untuk POST/PUT/DELETE requests
 export async function getProjects(req, res, next) {
   try {
-    const data = await clientService.listProjects();
+    const user = req.user || {
+      userId: req.headers['x-user-id'],
+      role: req.headers['x-user-role']
+    };
+    const data = await clientService.listProjects(user);
     return res.json({ success: true, data });
   } catch (err) { next(err); }
 }

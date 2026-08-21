@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Webhook, Copy, Check, Send, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { useProjectContext } from "@/lib/project-context";
+import { apiGet, apiPut } from "@/lib/api";
+import Alert from "@/components/shared/Alert";
 
 const EVENT_OPTIONS = [
   { id: "message.delivered", label: "message.delivered", desc: "Pesan berhasil terkirim" },
@@ -12,6 +15,7 @@ const EVENT_OPTIONS = [
 
 /** WebhookPage â€” Konfigurasi webhook (DESIGN.md 6A.5): URL, HMAC secret, event trigger, test ping. */
 export default function WebhookPage() {
+  const { activeProject } = useProjectContext();
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("whsec_9f8e7d6c5b4a3210");
   const [showSecret, setShowSecret] = useState(false);
@@ -20,6 +24,17 @@ export default function WebhookPage() {
   const [pingResult, setPingResult] = useState(null);
   const [pinging, setPinging] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (activeProject) {
+      setUrl(activeProject.webhook_url || "");
+      setSecret(activeProject.webhook_secret || "");
+      setLoading(false);
+    }
+  }, [activeProject]);
 
   const toggleEvent = (id) =>
     setEvents((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
@@ -30,20 +45,38 @@ export default function WebhookPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    if (!activeProject?.id) { setError("Pilih project terlebih dahulu."); return; }
+    setSaving(true); setError(null);
+    try {
+      await apiPut("/v1/clients/projects/" + activeProject.id, { webhook_url: url || null, webhook_secret: secret || null });
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
 
   const handlePing = async () => {
-    setPinging(true);
-    setPingResult(null);
-    // Simulasi test ping webhook
-    await new Promise((r) => setTimeout(r, 900));
-    setPingResult({ status: 200, latency: 184, body: "{ \"received\": true }" });
-    setPinging(false);
+    if (!url) return;
+    setPinging(true); setPingResult(null);
+    const startTime = Date.now();
+    try {
+      const testPayload = { event: "notification.status_update", messageId: "msg_test_" + Date.now(), status: "SENT", timestamp: new Date().toISOString(), _test: true };
+      let signature = "";
+      if (secret) {
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(JSON.stringify(testPayload)));
+        signature = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+      }
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...(signature ? { "X-Gateway-Signature": signature } : {}) }, body: JSON.stringify(testPayload), signal: AbortSignal.timeout(5000) });
+      const latency = Date.now() - startTime;
+      const body = await response.text();
+      setPingResult({ status: response.status, latency, body: body.slice(0, 200) });
+    } catch (err) { setPingResult({ status: 0, latency: Date.now() - startTime, body: err.message }); } finally { setPinging(false); }
   };
+
+  if (loading) return <div className="text-sm text-[var(--text-muted)]">Memuat konfigurasi webhook...</div>;
+  if (!activeProject) return <Alert variant="warning" title="Project belum dipilih">Silakan pilih project di menu Projects terlebih dahulu.</Alert>;
 
   return (
     <>
@@ -55,6 +88,8 @@ export default function WebhookPage() {
       </div>
 
       <form onSubmit={handleSave} className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-5">
+        {error && <Alert variant="error">{error}</Alert>}
+        {saved && <Alert variant="success">Konfigurasi webhook berhasil disimpan!</Alert>}
         {/* Endpoint URL */}
         <div>
           <label htmlFor="webhook-url" className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
@@ -82,7 +117,8 @@ export default function WebhookPage() {
             <input
               id="webhook-secret"
               type={showSecret ? "text" : "password"}
-              readOnly
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
               value={secret}
               className="w-full px-3 py-2.5 pr-20 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] focus:outline-none"
             />

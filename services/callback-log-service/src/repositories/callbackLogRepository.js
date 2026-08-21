@@ -20,20 +20,34 @@ export async function findProjectWebhook(projectId) {
   return data;
 }
 
-export async function findRecentLogs(limit = 100) {
-  const { data, error } = await supabase
+export async function findRecentLogs({ projectId = null, limit = 100, page = 1 } = {}) {
+  let query = supabase
     .from('notification_logs')
-    .select('*, projects(name)')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .select('*, projects(name, slug)')
+    .order('created_at', { ascending: false });
+
+  if (projectId) {
+    query = query.eq('project_id', projectId);
+  }
+
+  const offset = (page - 1) * limit;
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
 
-export async function findAllLogStats() {
-  const { data, error } = await supabase
+export async function findAllLogStats(projectId = null) {
+  let query = supabase
     .from('notification_logs')
     .select('status, channel');
+
+  if (projectId) {
+    query = query.eq('project_id', projectId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }

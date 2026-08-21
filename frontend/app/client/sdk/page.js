@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Code2, Copy, Check, Package, KeyRound, MessageSquare, Mail, Radio, ShieldCheck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Code2, Copy, Check, Package, KeyRound, MessageSquare, Mail, Radio, ShieldCheck, AlertCircle } from "lucide-react";
+import { useProjectContext } from "@/lib/project-context";
+import { apiGet } from "@/lib/api";
 
 function CodeBlock({ title, code }) {
   const [copied, setCopied] = useState(false);
@@ -32,9 +34,10 @@ const SNIPPETS = {
 # npm install git+https://github.com/perusahaan/notification-service.git#main:packages/sdk`,
   init: `import { NotificationClient } from '@notification-gateway/sdk';
 
+// Inisialisasi dengan API Key dari dashboard
 const client = new NotificationClient({
   apiKey: process.env.NGW_API_KEY,   // ngw_prod_... atau ngw_sand_...
-  baseUrl: 'https://gateway.perusahaan.com',
+  baseUrl: 'http://localhost:3001',  // URL Gateway (ganti dengan production URL)
   timeout: 10000
 });`,
   whatsapp: `// WhatsApp teks biasa
@@ -82,6 +85,25 @@ const STEPS = [
 ];
 
 export default function SdkPage() {
+  const { activeProject } = useProjectContext();
+  const [apiKeys, setApiKeys] = useState([]);
+  const [loadingKeys, setLoadingKeys] = useState(true);
+
+  useEffect(() => {
+    async function fetchKeys() {
+      if (!activeProject?.id) { setLoadingKeys(false); return; }
+      try {
+        const res = await apiGet("/v1/clients/api-keys");
+        const allKeys = res?.data || [];
+        setApiKeys(allKeys.filter(k => k.project_id === activeProject.id));
+      } catch { setApiKeys([]); }
+      finally { setLoadingKeys(false); }
+    }
+    fetchKeys();
+  }, [activeProject?.id]);
+
+  const activeKey = apiKeys.find(k => k.is_active);
+
   return (
     <>
       <div>
@@ -90,6 +112,38 @@ export default function SdkPage() {
           Hubungkan aplikasi Anda ke Notification Gateway dalam hitungan menit menggunakan SDK resmi.
         </p>
       </div>
+
+      {/* API Key Info */}
+      {activeProject && (
+        <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <KeyRound size={16} className="text-[var(--text-secondary)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">API Key untuk Project: {activeProject.name}</h3>
+          </div>
+          {loadingKeys ? (
+            <p className="text-xs text-[var(--text-muted)]">Memuat API Key...</p>
+          ) : activeKey ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-[var(--text-primary)]">
+                  {activeKey.key_prefix}••••••••{activeKey.key_preview}
+                </code>
+                <span className={"text-[10px] px-2 py-1 rounded-full font-medium " + (activeKey.environment === "production" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400")}>
+                  {activeKey.environment}
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                Gunakan API Key lengkap yang Anda simpan saat membuat key. Jika hilang, regenerate di menu API Keys.
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <AlertCircle size={14} />
+              <p className="text-xs">Belum ada API Key aktif. <a href="/client/api-keys" className="underline">Buat API Key</a> terlebih dahulu.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Langkah integrasi */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -5,7 +5,18 @@ import { supabase } from '@notification-gateway/database';
 export async function findAll() {
   const { data, error } = await supabase
     .from('projects')
+    .select('*, profiles(name, email)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function findByOwnerId(ownerId) {
+  if (!ownerId) return [];
+  const { data, error } = await supabase
+    .from('projects')
     .select('*')
+    .eq('owner_id', ownerId)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;

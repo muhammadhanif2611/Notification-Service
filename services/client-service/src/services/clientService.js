@@ -22,9 +22,12 @@ import * as vendorRepository from '../repositories/vendorRepository.js';
 
 const logger = createLogger('client-service');
 
-// Layanan mengambil daftar semua project
-export async function listProjects() {
-  return await projectRepository.findAll();
+// Layanan mengambil daftar project berdasarkan owner (client) atau semua (admin)
+export async function listProjects(user = null) {
+  if (user?.role === 'admin') {
+    return await projectRepository.findAll();
+  }
+  return await projectRepository.findByOwnerId(user?.userId);
 }
 
 // Layanan mengambil detail project berdasarkan ID
@@ -37,6 +40,7 @@ export async function getProjectById(projectId) {
 }
 
 // Layanan membuat project baru dengan validasi skema
+// owner_id di-set dari user yang membuat (client self-service)
 export async function createProject(payload, userId = null) {
   const validation = createProjectSchema.safeParse(payload);
   if (!validation.success) {
@@ -52,10 +56,11 @@ export async function createProject(payload, userId = null) {
       rate_limit_per_min: rateLimitPerMin,
       daily_quota: dailyQuota,
       webhook_url: webhookUrl,
-      webhook_secret: webhookSecret
+      webhook_secret: webhookSecret,
+      owner_id: userId  // Set owner ke user yang membuat
     });
 
-    logger.info({ projectId: createdProject.id, slug: createdProject.slug }, 'Project created');
+    logger.info({ projectId: createdProject.id, slug: createdProject.slug, ownerId: userId }, 'Project created');
     writeAuditLog({ userId, action: 'CREATE_PROJECT', targetEntity: 'projects', detail: `Created project '${name}'` });
     return createdProject;
   } catch (error) {

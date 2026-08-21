@@ -26,20 +26,23 @@ export async function receiveProviderWebhook(req, res) {
   }
 }
 
-// Controller: mengambil 100 log notifikasi terbaru
-export async function getLogs(_req, res) {
+// Controller: mengambil log notifikasi terbaru (scoped per project/user)
+// Query params: projectId (dari client), limit, page
+export async function getLogs(req, res) {
   try {
-    const data = await callbackLogService.getRecentLogs();
+    const { projectId, limit = 100, page = 1 } = req.query;
+    const data = await callbackLogService.getRecentLogs({ projectId, limit: parseInt(limit), page: parseInt(page) });
     return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
 
-// Controller: mengambil statistik ringkasan notifikasi
-export async function getStatistics(_req, res) {
+// Controller: mengambil statistik ringkasan notifikasi (scoped per project)
+export async function getStatistics(req, res) {
   try {
-    const stats = await callbackLogService.getLogStatistics();
+    const { projectId } = req.query;
+    const stats = await callbackLogService.getLogStatistics(projectId);
     return res.json({ success: true, stats });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

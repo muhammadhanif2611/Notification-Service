@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { X, RefreshCw } from "lucide-react";
 import DataTable from "@/components/admin/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { useProjectContext } from "@/lib/project-context";
 import { apiGet } from "@/lib/api";
 
 const CHANNELS = ["ALL", "WHATSAPP", "EMAIL", "SMS"];
@@ -11,6 +12,7 @@ const STATUSES = ["ALL", "DELIVERED", "QUEUED", "FAILED"];
 
 /** RiwayatPage â€” Log transaksi pesan dengan filter + drawer detail (DESIGN.md 6A.6). */
 export default function RiwayatPage() {
+  const { activeProject } = useProjectContext();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [channel, setChannel] = useState("ALL");
@@ -18,9 +20,11 @@ export default function RiwayatPage() {
   const [selected, setSelected] = useState(null);
 
   const fetchLogs = useCallback(async () => {
+    if (!activeProject?.id) { setLogs([]); setLoading(false); return; }
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("projectId", activeProject.id);
       if (channel !== "ALL") params.set("channel", channel);
       if (status !== "ALL") params.set("status", status);
       params.set("limit", "50");
@@ -28,7 +32,7 @@ export default function RiwayatPage() {
       const d = res?.data;
       setLogs(Array.isArray(d) ? d : d?.data || []);
     } catch { setLogs([]); } finally { setLoading(false); }
-  }, [channel, status]);
+  }, [channel, status, activeProject?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +86,13 @@ export default function RiwayatPage() {
           ))}
         </div>
       </div>
+
+      {/* Info Project Aktif */}
+      {activeProject && (
+        <div className="text-xs text-[var(--text-muted)]">
+          Menampilkan log untuk project: <span className="font-medium text-[var(--text-primary)]">{activeProject.name}</span>
+        </div>
+      )}
 
       {/* Table */}
       {loading ? (

@@ -48,4 +48,10 @@ AGENTS.md
 **/AGENTS.md
 **/.agents/
 
+# local documentation — hanya untuk development, tidak perlu di-push
+CLIENT_INTEGRATION_GUIDE.md
+CLIENT_SIDE_SUMMARY.md
+SETUP_GUIDE.md
+scripts/README.md
+
 wa-sessions/

@@ -21,7 +21,10 @@
     "dev:callback": "npm run dev --workspace=services/callback-log-service",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:logs": "docker compose logs -f",
+    "migrate": "node scripts/run-migration.js",
+    "setup:smtp": "node scripts/setup-smtp-vendor.js",
+    "test:email": "node scripts/test-email-send.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.4"

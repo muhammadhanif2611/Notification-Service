@@ -1,13 +1,13 @@
 import * as callbackLogRepository from '../repositories/callbackLogRepository.js';
 
-// Layanan mengambil daftar 100 log notifikasi terbaru
-export async function getRecentLogs() {
-  return await callbackLogRepository.findRecentLogs(100);
+// Layanan mengambil daftar log notifikasi terbaru (scoped per project)
+export async function getRecentLogs({ projectId = null, limit = 100, page = 1 } = {}) {
+  return await callbackLogRepository.findRecentLogs({ projectId, limit, page });
 }
 
-// Layanan mengkalkulasi statistik ringkasan status notifikasi
-export async function getLogStatistics() {
-  const notificationLogs = await callbackLogRepository.findAllLogStats();
+// Layanan mengkalkulasi statistik ringkasan status notifikasi (scoped per project)
+export async function getLogStatistics(projectId = null) {
+  const notificationLogs = await callbackLogRepository.findAllLogStats(projectId);
   return {
     total: notificationLogs.length,
     sent: notificationLogs.filter(log => log.status === 'SENT').length,

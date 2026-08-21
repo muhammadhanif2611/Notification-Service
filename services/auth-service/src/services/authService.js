@@ -1,4 +1,4 @@
-import { writeAuditLog } from '@notification-gateway/database';
+import { writeAuditLog, supabase } from '@notification-gateway/database';
 import { hashApiKey, verifyApiKey, generateAuthToken } from '@notification-gateway/shared';
 import { AppError } from '../middlewares/errorHandler.js';
 import * as profileRepository from '../repositories/profileRepository.js';
@@ -12,7 +12,7 @@ import * as profileRepository from '../repositories/profileRepository.js';
  * @param {Object} params - { email, password, name, role }
  * @returns {Promise<Object>} Created profile
  */
-export async function registerUser({ email, password, name, role = 'user' }) {
+export async function registerUser({ email, password, name, role = 'user', projectName }) {
   if (!email || !password || !name) {
     throw new AppError('Email, password, and name are required.', 400, 'VALIDATION_ERROR');
   }
@@ -32,6 +32,33 @@ export async function registerUser({ email, password, name, role = 'user' }) {
     name,
     role: formattedRole
   });
+
+  // Auto-create default project untuk user baru (client self-service)
+  // Project name default: "Project {name}" atau bisa custom dari frontend
+  if (formattedRole === 'user') {
+    try {
+      const defaultProjectName = projectName || `${name}'s Project`;
+      const defaultSlug = defaultProjectName
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || `project-${Date.now()}`;
+
+      await supabase.from('projects').insert({
+        owner_id: registeredProfile.id,
+        name: defaultProjectName,
+        slug: defaultSlug,
+        description: 'Default project created on registration',
+        rate_limit_per_min: 100,
+        daily_quota: 5000,
+        is_active: true
+      });
+    } catch (projError) {
+      // Jika gagal buat project, tidak masalah — user bisa buat sendiri nanti
+      console.error('Failed to create default project:', projError.message);
+    }
+  }
 
   writeAuditLog({ 
     userId: registeredProfile.id, 
@@ -124,6 +151,32 @@ export async function createUserByAdmin({ email, password, name, role = 'user', 
     name,
     role: formattedRole
   });
+
+  // Buat project untuk client baru (jika role user dan ada project_name)
+  // Project di-assign ke owner_id = user client, bukan admin
+  if (formattedRole === 'user' && project_name) {
+    try {
+      const projectSlug = project_name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || `project-${Date.now()}`;
+
+      await supabase.from('projects').insert({
+        owner_id: newProfile.id,
+        name: project_name,
+        slug: projectSlug,
+        description: `Project for ${name}`,
+        rate_limit_per_min: rate_limit || 100,
+        daily_quota: quota_daily || 5000,
+        is_active: true
+      });
+    } catch (projError) {
+      // Jika gagal buat project (mis. slug duplikat), user tetap terbuat
+      console.error('Failed to create project for new user:', projError.message);
+    }
+  }
 
   writeAuditLog({
     userId: newProfile.id,
