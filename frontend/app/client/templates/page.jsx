@@ -4,14 +4,12 @@ import { useState } from "react";
 import { FileText, Plus, Copy, Check, Pencil, Trash2 } from "lucide-react";
 import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
-import Alert from "@/components/shared/Alert";
-import StatusBadge from "@/components/shared/StatusBadge";
 import { useProjectContext } from "@/lib/project-context";
 import { useTemplates } from "@/hooks/useTemplates";
 
 /**
  * TemplatesPage - Template Pesan per project aktif (konteks global sidebar).
- * Status awal PENDING hingga di-approve admin. Placeholder: {{nama}}, {{otp}}.
+ * Template langsung bisa digunakan tanpa persetujuan admin. Placeholder: {{nama}}, {{otp}}.
  */
 export default function TemplatesPage() {
   const { activeProject } = useProjectContext();
@@ -115,7 +113,6 @@ export default function TemplatesPage() {
         </span>
       ),
     },
-    { key: "status", label: "Status", render: (val) => <StatusBadge status={val} /> },
     {
       key: "actions",
       label: "Aksi",
@@ -156,7 +153,7 @@ export default function TemplatesPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Template Pesan</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Template untuk project <span className="font-semibold text-[var(--text-primary)]">{activeProject.name}</span>. Template baru berstatus PENDING hingga di-approve admin.
+            Template untuk project <span className="font-semibold text-[var(--text-primary)]">{activeProject.name}</span>. Template baru langsung aktif dan bisa digunakan.
           </p>
         </div>
         <button
@@ -272,9 +269,6 @@ export default function TemplatesPage() {
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]" />
           </div>
-          <Alert variant="warning">
-            Setelah diedit, status template kembali PENDING dan perlu di-approve ulang oleh admin.
-          </Alert>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setEditing(null)}
               className="px-4 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--neutral-bg)]">Batal</button>

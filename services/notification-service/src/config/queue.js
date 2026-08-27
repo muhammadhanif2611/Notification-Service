@@ -7,8 +7,10 @@ const defaultJobOptions = {
     type: 'exponential',
     delay: 2000
   },
-  removeOnComplete: { count: 500 },
-  removeOnFail: { count: 1000 }
+  // Batasi riwayat job agar tidak menumpuk di Redis (hemat memori & request pembersihan).
+  // Job sukses: simpan max 100 terakhir ATAU 1 jam. Job gagal: max 500 terakhir ATAU 24 jam.
+  removeOnComplete: { count: 100, age: 3600 },
+  removeOnFail: { count: 500, age: 86400 }
 };
 
 /**

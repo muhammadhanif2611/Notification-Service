@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Send, Plus, X, Eye, EyeOff } from "lucide-react";
+import { useState, useRef } from "react";
+import { Send, Plus, X, Eye, EyeOff, Upload, Download, FileSpreadsheet, Trash2 } from "lucide-react";
+import * as XLSX from "xlsx";
 import Alert from "@/components/shared/Alert";
 import { useTemplates } from "@/hooks/useTemplates";
 
@@ -24,6 +25,8 @@ export default function BroadcastPage() {
   const [recipients, setRecipients] = useState([""]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  const [importInfo, setImportInfo] = useState(null);
+  const fileInputRef = useRef(null);
 
 
   const handleApiKeyChange = (val) => {
@@ -32,9 +35,7 @@ export default function BroadcastPage() {
     else sessionStorage.removeItem(STORAGE_KEY);
   };
 
-  const approvedTemplates = templates.filter(
-    (t) => t.status === "APPROVED" && t.channel === channel
-  );
+  const channelTemplates = templates.filter((t) => t.channel === channel);
 
   const addRecipient = () => setRecipients([...recipients, ""]);
   const removeRecipient = (i) => setRecipients(recipients.filter((_, idx) => idx !== i));
@@ -45,6 +46,65 @@ export default function BroadcastPage() {
   };
 
   const validRecipients = recipients.map((r) => r.trim()).filter(Boolean);
+
+  // Normalisasi nomor HP: "0812-345" / "+62 812" / "812" → "62812..." (khusus WhatsApp)
+  const normalizeRecipient = (raw) => {
+    let val = String(raw ?? "").trim();
+    if (!val) return "";
+    if (channel !== "WHATSAPP") return val;
+    val = val.replace(/[^\d+]/g, "");
+    if (val.startsWith("+")) val = val.slice(1);
+    if (val.startsWith("0")) val = "62" + val.slice(1);
+    else if (val.startsWith("8")) val = "62" + val;
+    return val;
+  };
+
+  // Import Excel/CSV: baca semua sel di kolom pertama, gabungkan dengan input manual (dedupe)
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+
+      const imported = [];
+      for (const row of rows) {
+        const normalized = normalizeRecipient(row[0]);
+        if (normalized && /\d{5,}|@/.test(normalized)) imported.push(normalized);
+      }
+
+      if (imported.length === 0) {
+        setImportInfo({ ok: false, message: "Tidak ada nomor/email valid ditemukan di kolom pertama file." });
+        return;
+      }
+
+      setRecipients((prev) => {
+        const existing = prev.map((r) => r.trim()).filter(Boolean);
+        return [...new Set([...existing, ...imported])];
+      });
+      setImportInfo({ ok: true, message: `${imported.length} penerima diimpor dari "${file.name}" dan digabung dengan daftar manual.` });
+    } catch {
+      setImportInfo({ ok: false, message: "Gagal membaca file. Gunakan format .xlsx, .xls, atau .csv dengan nomor di kolom pertama." });
+    }
+  };
+
+  // Unduh template Excel contoh (header + 1 baris contoh)
+  const handleDownloadSample = () => {
+    const sampleValue = channel === "WHATSAPP" ? "6281234567890" : "user@email.com";
+    const ws = XLSX.utils.aoa_to_sheet([["recipient"], [sampleValue]]);
+    ws["!cols"] = [{ wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Recipients");
+    XLSX.writeFile(wb, "template-penerima-broadcast.xlsx");
+  };
+
+  const clearImported = () => {
+    setRecipients([""]);
+    setImportInfo(null);
+  };
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -126,13 +186,13 @@ export default function BroadcastPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Template (opsional, hanya yang APPROVED)</label>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Template (opsional)</label>
             <select
               value={templateCode} onChange={(e) => setTemplateCode(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
             >
               <option value="">— Tanpa template (isi manual) —</option>
-              {approvedTemplates.map((t) => (
+              {channelTemplates.map((t) => (
                 <option key={t.id} value={t.code}>{t.code}</option>
               ))}
             </select>
@@ -168,13 +228,51 @@ export default function BroadcastPage() {
               <label className="text-xs font-medium text-[var(--text-secondary)]">
                 Penerima ({validRecipients.length})
               </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button" onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  <Upload size={14} /> Import Excel
+                </button>
+                <button
+                  type="button" onClick={addRecipient}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  <Plus size={14} /> Tambah
+                </button>
+              </div>
+            </div>
+
+            {/* Input file tersembunyi + aksi import */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+            <div className="flex items-center justify-between gap-2 mb-3 rounded-lg border border-dashed border-[var(--neutral-border)] bg-[var(--neutral-bg)] px-3 py-2">
+              <p className="text-[11px] text-[var(--text-muted)] inline-flex items-center gap-1.5">
+                <FileSpreadsheet size={13} className="shrink-0" />
+                {channel === "WHATSAPP" ? "Nomor HP" : "Email"} dibaca dari kolom pertama file (.xlsx / .csv). Hasil import digabung dengan isian manual.
+              </p>
               <button
-                type="button" onClick={addRecipient}
-                className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                type="button" onClick={handleDownloadSample}
+                className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
-                <Plus size={14} /> Tambah
+                <Download size={12} /> Template
               </button>
             </div>
+
+            {importInfo && (
+              <div className="mb-3">
+                <Alert variant={importInfo.ok ? "success" : "error"} onClose={() => setImportInfo(null)}>
+                  {importInfo.message}
+                </Alert>
+              </div>
+            )}
+
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {recipients.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -183,14 +281,23 @@ export default function BroadcastPage() {
                     placeholder={channel === "WHATSAPP" ? "6281234567890" : "user@email.com"}
                     className="flex-1 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
                   />
-                  {recipients.length > 1 && (
-                    <button type="button" onClick={() => removeRecipient(i)} className="text-[var(--text-muted)] hover:text-red-500">
-                      <X size={16} />
-                    </button>
-                  )}
+                  <button type="button" onClick={() => removeRecipient(i)} className="text-[var(--text-muted)] hover:text-red-500">
+                    <X size={16} />
+                  </button>
                 </div>
               ))}
             </div>
+
+            {recipients.length > 1 && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button" onClick={clearImported}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)] hover:text-red-500"
+                >
+                  <Trash2 size={12} /> Kosongkan daftar
+                </button>
+              </div>
+            )}
           </div>
 
           <button

@@ -21,7 +21,6 @@ router.delete('/api-keys/:id', clientController.deleteApiKey);
 // Rute manajemen template pesan
 router.get('/templates', clientController.getTemplates);
 router.post('/templates', clientController.createTemplate);
-router.put('/templates/:id/status', clientController.updateTemplateStatus);
 router.put('/templates/:id', clientController.updateTemplate);
 router.delete('/templates/:id', clientController.deleteTemplate);
 

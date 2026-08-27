@@ -30,9 +30,6 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
   if (!template) {
     throw new AppError(`Template '${templateCode}' not found for this project/channel.`, 404, 'TEMPLATE_NOT_FOUND');
   }
-  if (template.status !== 'APPROVED') {
-    throw new AppError(`Template '${templateCode}' is not approved (status: ${template.status}).`, 422, 'TEMPLATE_NOT_APPROVED');
-  }
 
   let resolvedBody = template.body;
   if (variables && typeof variables === 'object') {
@@ -168,6 +165,25 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     const remainingQuota = projectRecord.daily_quota - todayCount;
     if (recipients.length > remainingQuota) {
       throw new AppError(`Broadcast exceeds quota. Remaining: ${remainingQuota}, Requested: ${recipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
+    }
+
+    // Rate limit anti-spam untuk broadcast: N recipient memesan N slot pada jendela 1 menit.
+    // Tanpa ini, satu panggil broadcast bisa melewati rate limit yang berlaku untuk single send.
+    const perMinuteLimit = projectRecord.rate_limit_per_min ?? 100;
+    const rateResult = await checkRateLimit({
+      key: `ratelimit:project:${projectId}`,
+      limit: perMinuteLimit,
+      windowMs: 60000,
+      count: recipients.length,
+      redisConfig: config.redis
+    });
+    if (!rateResult.allowed) {
+      const retryAfterSec = Math.ceil(rateResult.retryAfterMs / 1000);
+      throw new AppError(
+        `Broadcast ${recipients.length} pesan melebihi rate limit ${perMinuteLimit} pesan/menit (sisa ${rateResult.remaining}). Coba lagi dalam ${retryAfterSec} detik atau pecah menjadi batch lebih kecil.`,
+        429,
+        'RATE_LIMIT_EXCEEDED'
+      );
     }
   }
 

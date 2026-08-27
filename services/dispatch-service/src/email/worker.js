@@ -42,10 +42,14 @@ export function startEmailWorker(redisConfig) {
     const { messageId, projectId, recipient, subject, body, isSandbox } = job.data;
     logger.info({ messageId, recipient }, 'Email job processing');
 
-    const vendorRecord = await findCachedVendor('EMAIL');
-    const credentials = resolveVendorCredentials(vendorRecord);
-
+    // Seluruh proses (termasuk dekripsi credentials) di dalam try agar kegagalan
+    // apa pun tercatat ke status-queue — sebelumnya error dekripsi AES di luar try
+    // membuat job gagal diam-diam tanpa update status ke database.
+    let vendorRecord = null;
     try {
+      vendorRecord = await findCachedVendor('EMAIL');
+      const credentials = resolveVendorCredentials(vendorRecord);
+
       const sendResult = await sendEmail({ recipient, subject, body, credentials, isSandbox });
       await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendorRecord?.id });
       return sendResult;
@@ -54,7 +58,17 @@ export function startEmailWorker(redisConfig) {
       await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message });
       throw error;
     }
-  }, { connection: redisConfig, concurrency: 5 });
+  }, {
+    connection: redisConfig,
+    concurrency: 5,
+    // drainDelay: jeda (ms) sebelum worker polling ulang antrean saat kosong.
+    // Default 5 dtk → 30 dtk agar request ke Upstash jauh lebih hemat.
+    drainDelay: 30000,
+    // stalledInterval: seberapa sering BullMQ memeriksa job yang macet.
+    // Default 30 dtk → 5 mnt agar hemat request Upstash (cek ini memakai Lua tiap interval).
+    stalledInterval: 300000,
+    maxStalledCount: 2
+  });
 
   worker.on('completed', (job) => logger.info({ messageId: job.data.messageId }, 'Email sent'));
   worker.on('failed', (job, error) => logger.error({ messageId: job.data.messageId, err: error.message }, 'Email failed permanently'));

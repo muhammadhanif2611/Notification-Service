@@ -21,7 +21,17 @@ export function startWhatsAppWorker(redisConfig) {
       await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message });
       throw error;
     }
-  }, { connection: redisConfig, concurrency: 5 });
+  }, {
+    connection: redisConfig,
+    concurrency: 5,
+    // drainDelay: jeda (ms) sebelum worker polling ulang antrean saat kosong.
+    // Default 5 dtk → 30 dtk agar request ke Upstash jauh lebih hemat.
+    drainDelay: 30000,
+    // stalledInterval: seberapa sering BullMQ memeriksa job yang macet.
+    // Default 30 dtk → 5 mnt agar hemat request Upstash (cek ini memakai Lua tiap interval).
+    stalledInterval: 300000,
+    maxStalledCount: 2
+  });
 
   worker.on('completed', (job) => logger.info({ messageId: job.data.messageId }, 'WhatsApp sent'));
   worker.on('failed', (job, error) => logger.error({ messageId: job.data.messageId, err: error.message }, 'WhatsApp failed permanently'));

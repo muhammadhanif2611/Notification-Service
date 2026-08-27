@@ -103,7 +103,6 @@ const ROUTE_TABLE = [
   // Client Service — Templates
   ['get', '/v1/clients/templates', [], 'CLIENT', '/clients/templates'],
   ['post', '/v1/clients/templates', [], 'CLIENT', '/clients/templates'],
-  ['put', '/v1/clients/templates/:id/status', ['admin'], 'CLIENT', (req) => `/clients/templates/${req.params.id}/status`],
   ['put', '/v1/clients/templates/:id', [], 'CLIENT', (req) => `/clients/templates/${req.params.id}`],
   ['delete', '/v1/clients/templates/:id', [], 'CLIENT', (req) => `/clients/templates/${req.params.id}`],
 
@@ -154,17 +153,24 @@ app.get('/v1/admin/vendors', jwtAuth, roleCheck(['admin']), async (req, res) => 
 });
 
 // ── Bull Board (Queue Monitoring UI) ───────────────────────────────────────
-const serverAdapter = new ExpressAdapter();
-serverAdapter.setBasePath('/admin/queues');
+// Hanya aktif di mode development. Di production Bull Board terus mem-polling
+// semua queue (tiap beberapa detik) sehingga sangat boros request Upstash.
+// Selain itu adapter diarahkan ke queue yang benar-benar dipakai.
+if (process.env.NODE_ENV !== 'production') {
+  const serverAdapter = new ExpressAdapter();
+  serverAdapter.setBasePath('/admin/queues');
 
-createBullBoard({
-  queues: [
-    new BullMQAdapter(new Queue('notification-dispatch-queue', { connection: config.redis })),
-    new BullMQAdapter(new Queue('webhook-delivery-queue', { connection: config.redis })),
-  ],
-  serverAdapter,
-});
-app.use('/admin/queues', jwtAuth, roleCheck(['admin']), serverAdapter.getRouter());
+  createBullBoard({
+    queues: [
+      new BullMQAdapter(new Queue('email-queue', { connection: config.redis })),
+      new BullMQAdapter(new Queue('whatsapp-queue', { connection: config.redis })),
+      new BullMQAdapter(new Queue('status-queue', { connection: config.redis })),
+    ],
+    serverAdapter,
+  });
+  app.use('/admin/queues', jwtAuth, roleCheck(['admin']), serverAdapter.getRouter());
+  logger.info('Bull Board aktif di /admin/queues (mode development)');
+}
 
 app.use(errorHandler);
 

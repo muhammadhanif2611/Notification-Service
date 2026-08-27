@@ -5,7 +5,7 @@ import { supabase } from '@notification-gateway/database';
 export async function findApprovedTemplate(code, channel, projectId) {
   const { data, error } = await supabase
     .from('templates')
-    .select('body, subject, status')
+    .select('body, subject')
     .eq('code', code)
     .eq('channel', channel)
     .eq('project_id', projectId)

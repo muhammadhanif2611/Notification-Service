@@ -109,14 +109,6 @@ export async function createTemplate(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Controller: memperbarui status template
-export async function updateTemplateStatus(req, res, next) {
-  try {
-    const data = await clientService.updateTemplateStatus(req.params.id, req.body, req.user?.userId);
-    return res.json({ success: true, message: `Template ${req.body.status} successfully`, data });
-  } catch (err) { next(err); }
-}
-
 // Controller: mengedit isi template
 export async function updateTemplate(req, res, next) {
   try {

@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.api_keys (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Table: templates (Katalog & Persetujuan Template Pesan)
+-- 4. Table: templates (Katalog Template Pesan)
 CREATE TABLE IF NOT EXISTS public.templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID REFERENCES public.projects(id) ON DELETE SET NULL,
@@ -66,8 +66,6 @@ CREATE TABLE IF NOT EXISTS public.templates (
     body TEXT NOT NULL, -- Mengandung variable {{nama}}, {{otp}}, dll.
     variables JSONB DEFAULT '[]'::jsonb,
     meta_template_name VARCHAR(100),
-    status VARCHAR(50) DEFAULT 'PENDING', -- 'PENDING' | 'APPROVED' | 'REJECTED'
-    rejection_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

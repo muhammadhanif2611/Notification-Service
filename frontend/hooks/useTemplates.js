@@ -5,7 +5,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 
 /**
  * useTemplates — Kelola template pesan (buat + lihat) untuk sebuah project.
- * Pembuatan template lewat dashboard (JWT), status awal PENDING hingga di-approve admin.
+ * Pembuatan template lewat dashboard (JWT), langsung bisa digunakan tanpa persetujuan admin.
  * @param {string|null} projectId - ID project yang dipilih
  */
 export function useTemplates(projectId) {
@@ -35,7 +35,7 @@ export function useTemplates(projectId) {
     return res?.data;
   };
 
-  // Edit isi template (status otomatis kembali PENDING untuk ditinjau ulang)
+  // Edit isi template
   const updateTemplate = async (id, payload) => {
     const res = await apiPut(`/v1/clients/templates/${id}`, payload);
     await fetchTemplates();

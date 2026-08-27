@@ -205,7 +205,7 @@ export async function deleteProject(projectId, userId = null) {
   return { deleted: true };
 }
 
-// Layanan mengedit isi template pesan (reset status ke PENDING untuk ditinjau ulang)
+// Layanan mengedit isi template pesan
 export async function updateTemplate(templateId, payload, userId = null) {
   const validation = updateTemplateSchema.safeParse(payload);
   if (!validation.success) {
@@ -217,11 +217,7 @@ export async function updateTemplate(templateId, payload, userId = null) {
     throw new AppError('Template not found', 404, 'NOT_FOUND');
   }
 
-  const updatedTemplate = await templateRepository.updateById(templateId, {
-    ...validation.data,
-    status: 'PENDING',
-    rejection_reason: null
-  });
+  const updatedTemplate = await templateRepository.updateById(templateId, validation.data);
 
   logger.info({ templateId }, 'Template updated');
   writeAuditLog({ userId, action: 'UPDATE_TEMPLATE', targetEntity: 'templates', detail: `Updated template ID ${templateId}` });
@@ -262,8 +258,7 @@ export async function createTemplate(payload, userId = null) {
       channel: channel.toUpperCase(),
       subject,
       body,
-      variables: variables || [],
-      status: 'PENDING'
+      variables: variables || []
     });
 
     logger.info({ templateId: createdTemplate.id, code: createdTemplate.code }, 'Template created');
@@ -275,28 +270,6 @@ export async function createTemplate(payload, userId = null) {
     }
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
-}
-
-// Layanan memperbarui status persetujuan template
-export async function updateTemplateStatus(templateId, { status, rejectionReason }, userId = null) {
-  const VALID_STATUSES = ['APPROVED', 'REJECTED'];
-  if (!VALID_STATUSES.includes(status)) {
-    throw new AppError("Status must be 'APPROVED' or 'REJECTED'", 400, 'INVALID_STATUS');
-  }
-
-  const updatedTemplate = await templateRepository.updateStatusById(templateId, {
-    status,
-    rejection_reason: status === 'REJECTED' ? rejectionReason : null,
-    updated_at: new Date().toISOString()
-  });
-
-  if (!updatedTemplate) {
-    throw new AppError('Template not found', 404, 'NOT_FOUND');
-  }
-
-  logger.info({ templateId, status }, 'Template status updated');
-  writeAuditLog({ userId, action: `TEMPLATE_${status}`, targetEntity: 'templates', detail: `Template ID ${templateId} set to ${status}` });
-  return updatedTemplate;
 }
 
 // Layanan mengambil daftar metadata vendor

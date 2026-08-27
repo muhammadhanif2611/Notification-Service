@@ -30,17 +30,6 @@ export async function findById(templateId) {
   return data;
 }
 
-export async function updateStatusById(templateId, statusData) {
-  const { data, error } = await supabase
-    .from('templates')
-    .update(statusData)
-    .eq('id', templateId)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
 export async function updateById(templateId, updateData) {
   const { data, error } = await supabase
     .from('templates')

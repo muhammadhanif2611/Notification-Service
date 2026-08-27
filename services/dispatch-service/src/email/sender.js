@@ -41,9 +41,15 @@ function getTransporter(credentials) {
  * @returns {Promise<{ success: boolean, providerMessageId: string }>}
  */
 export async function sendEmail({ recipient, subject, body, credentials, isSandbox }) {
-  if (isSandbox || !credentials?.host) {
+  if (isSandbox) {
     logger.info({ recipient, subject }, '[SANDBOX] Email simulated');
     return { success: true, providerMessageId: `email.sandbox.${Date.now()}` };
+  }
+
+  // Mode produksi TANPA vendor SMTP aktif = error nyata, bukan simulasi diam-diam.
+  // Sebelumnya kondisi ini disimulasikan seolah berhasil sehingga email tidak pernah terkirim.
+  if (!credentials?.host) {
+    throw new Error('No active EMAIL vendor configured. Register SMTP vendor via dashboard admin /vendors or run npm run setup:smtp.');
   }
 
   const transporter = getTransporter(credentials);

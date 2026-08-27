@@ -24,40 +24,44 @@ function getRedisClient(redisConfig = {}) {
 }
 
 /**
- * Mengecek apakah sebuah key masih berada di bawah batas rate limit (Sliding Window Log).
- * Menggunakan Redis Sorted Set. Setiap request dicatat sebagai member dengan skor timestamp (ms).
- * Jendela geser menghapus entri yang lebih tua dari `windowMs`.
+ * Mengecek apakah sebuah key masih berada di bawah batas rate limit (Fixed Window Counter).
+ * Menggunakan Redis INCRBY. Setiap panggil memesan `count` slot pada window aktif;
+ * key kedaluwarsa otomatis via TTL sehingga tidak menumpuk di Redis.
  *
  * @param {object} options
  * @param {string} options.key - Identifier unik (mis. `ratelimit:project:<projectId>`)
- * @param {number} options.limit - Maksimum request yang diizinkan dalam jendela
+ * @param {number} options.limit - Maksimum pesan yang diizinkan dalam jendela (diatur admin via rate_limit_per_min)
  * @param {number} [options.windowMs=60000] - Ukuran jendela waktu dalam milidetik (default 1 menit)
+ * @param {number} [options.count=1] - Jumlah slot yang dipesan (1 untuk single send, N untuk broadcast)
  * @param {object} [options.redisConfig] - Konfigurasi Redis opsional
  * @returns {Promise<{allowed: boolean, remaining: number, retryAfterMs: number}>}
  */
-export async function checkRateLimit({ key, limit, windowMs = 60000, redisConfig } = {}) {
+export async function checkRateLimit({ key, limit, windowMs = 60000, count = 1, redisConfig } = {}) {
   const redis = getRedisClient(redisConfig);
   const now = Date.now();
-  const windowStart = now - windowMs;
-  const member = `${now}:${Math.random().toString(36).slice(2, 10)}`;
+  // Fixed-window counter: INCRBY sebesar `count` per panggil (TTL diset hanya saat window baru).
+  // Jauh lebih hemat request Upstash dibanding sliding-window log (4 command/request).
+  // Trade-off: batas bisa terlampaui hingga 2x tepat di perbatasan dua window —
+  // dapat diterima untuk rate limiting API umum.
+  const windowId = Math.floor(now / windowMs);
+  const windowKey = `${key}:${windowId}`;
 
-  const pipeline = redis.multi();
-  pipeline.zremrangebyscore(key, 0, windowStart); // buang entri kedaluwarsa
-  pipeline.zcard(key); // hitung request aktif
-  pipeline.zadd(key, now, member); // catat request ini
-  pipeline.pexpire(key, windowMs); // TTL agar key tidak menumpuk
-
-  const results = await pipeline.exec();
-  const currentCount = results?.[1]?.[1] ?? 0; // hasil zcard SEBELUM zadd
-
-  if (currentCount >= limit) {
-    // Request melebihi limit: batalkan pencatatan zadd agar tidak dihitung
-    await redis.zrem(key, member);
-    const oldest = await redis.zrange(key, 0, 0, 'WITHSCORES');
-    const oldestScore = oldest?.[1] ? parseInt(oldest[1], 10) : now;
-    const retryAfterMs = Math.max(0, oldestScore + windowMs - now);
-    return { allowed: false, remaining: 0, retryAfterMs };
+  // INCRBY mengembalikan total SETELAH penambahan; dipakai untuk single send (count=1)
+  // sekaligus broadcast (count=N) agar N recipient memesan N slot dalam satu call.
+  const newTotal = await redis.incrby(windowKey, count);
+  if (newTotal === count) {
+    // Window baru — pasang TTL agar key otomatis terhapus setelah windowMs
+    await redis.pexpire(windowKey, windowMs);
   }
 
-  return { allowed: true, remaining: Math.max(0, limit - (currentCount + 1)), retryAfterMs: 0 };
+  const priorCount = newTotal - count; // pemakaian SEBELUM request ini
+
+  if (newTotal > limit) {
+    // Melebihi batas — batalkan penambahan agar window tidak "bocor" oleh request yang ditolak
+    await redis.decrby(windowKey, count);
+    const retryAfterMs = Math.max(0, (windowId + 1) * windowMs - now);
+    return { allowed: false, remaining: Math.max(0, limit - priorCount), retryAfterMs };
+  }
+
+  return { allowed: true, remaining: Math.max(0, limit - newTotal), retryAfterMs: 0 };
 }
