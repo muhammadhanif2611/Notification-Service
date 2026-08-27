@@ -6,8 +6,8 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
-import MetricCard from "@/components/admin/MetricCard";
-import EmptyState from "@/components/admin/EmptyState";
+import MetricCard from "@/components/shared/MetricCard";
+import EmptyState from "@/components/shared/EmptyState";
 import { apiGet } from "@/lib/api";
 
 const CHANNEL_COLORS = { WHATSAPP: "#10B981", EMAIL: "#3B82F6", SMS: "#8B5CF6" };

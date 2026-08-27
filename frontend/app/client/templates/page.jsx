@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { FileText, Plus, Copy, Check, Pencil, Trash2 } from "lucide-react";
-import DataTable from "@/components/admin/DataTable";
-import Modal from "@/components/admin/Modal";
+import DataTable from "@/components/shared/DataTable";
+import Modal from "@/components/shared/Modal";
 import Alert from "@/components/shared/Alert";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useProjectContext } from "@/lib/project-context";

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Wifi, WifiOff, Copy, RefreshCw } from "lucide-react";
-import DataTable from "@/components/admin/DataTable";
-import Modal from "@/components/admin/Modal";
+import DataTable from "@/components/shared/DataTable";
+import Modal from "@/components/shared/Modal";
 import { useAdminData } from "@/hooks/useAdminData";
 import { apiPost } from "@/lib/api";
 

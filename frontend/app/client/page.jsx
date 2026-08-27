@@ -7,9 +7,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import MetricCard from "@/components/admin/MetricCard";
+import MetricCard from "@/components/shared/MetricCard";
 import StatusBadge from "@/components/shared/StatusBadge";
-import EmptyState from "@/components/admin/EmptyState";
+import EmptyState from "@/components/shared/EmptyState";
 import { apiGet } from "@/lib/api";
 import { useProjectContext } from "@/lib/project-context";
 

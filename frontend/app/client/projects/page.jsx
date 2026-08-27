@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import { FolderKanban, Plus, Pencil, Trash2, Check, X } from "lucide-react";
-import Modal from "@/components/admin/Modal";
+import Modal from "@/components/shared/Modal";
 import Alert from "@/components/shared/Alert";
 import { useProjectContext } from "@/lib/project-context";
 import { apiPost, apiPut, apiDelete } from "@/lib/api";

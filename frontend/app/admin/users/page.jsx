@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Plus, Eye, EyeOff, RefreshCw, Copy, Check, UserCheck, UserX, Trash2, Loader2, KeyRound, Edit } from "lucide-react";
-import DataTable from "@/components/admin/DataTable";
-import Modal from "@/components/admin/Modal";
+import DataTable from "@/components/shared/DataTable";
+import Modal from "@/components/shared/Modal";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useUsers } from "@/hooks/useUsers";
 import { useAuth } from "@/lib/auth-context";

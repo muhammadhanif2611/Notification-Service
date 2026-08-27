@@ -3,29 +3,36 @@ import { createLogger } from '@notification-gateway/shared';
 
 const logger = createLogger('dispatch-service');
 
-// Cache transporter per konfigurasi SMTP — transporter dibuat sekali dan dipakai ulang
+// Cache transporter per konfigurasi SMTP — transporter dibuat sekali dan dipakai ulang.
+// TTL 10 menit agar perubahan credentials SMTP oleh admin tidak perlu restart service.
+const TRANSPORTER_TTL_MS = 600000;
 const transporterCache = new Map();
 
 /**
  * Mengambil (atau membuat) transporter Nodemailer untuk kredensial SMTP tertentu.
+ * Entri cache kedaluwarsa setelah TTL dan dibuat ulang secara otomatis.
  * @param {{ host: string, port?: number, secure?: boolean, user: string, pass: string }} credentials
  * @returns {import('nodemailer').Transporter}
  */
 function getTransporter(credentials) {
   const cacheKey = `${credentials.host}:${credentials.port}:${credentials.user}`;
+  const cached = transporterCache.get(cacheKey);
 
-  if (!transporterCache.has(cacheKey)) {
-    transporterCache.set(cacheKey, nodemailer.createTransport({
-      host: credentials.host,
-      port: credentials.port || 587,
-      secure: credentials.secure || false,
-      auth: { user: credentials.user, pass: credentials.pass },
-      pool: true,
-      maxConnections: 3
-    }));
+  if (cached && Date.now() - cached.createdAt < TRANSPORTER_TTL_MS) {
+    return cached.transporter;
   }
 
-  return transporterCache.get(cacheKey);
+  const transporter = nodemailer.createTransport({
+    host: credentials.host,
+    port: credentials.port || 587,
+    secure: credentials.secure || false,
+    auth: { user: credentials.user, pass: credentials.pass },
+    pool: true,
+    maxConnections: 3
+  });
+
+  transporterCache.set(cacheKey, { transporter, createdAt: Date.now() });
+  return transporter;
 }
 
 /**

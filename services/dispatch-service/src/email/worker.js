@@ -15,6 +15,25 @@ function resolveVendorCredentials(vendorRecord) {
   }));
 }
 
+// Cache vendor credentials di memori — vendor jarang berubah, hindari query DB per job
+const VENDOR_CACHE_TTL_MS = 60000;
+const vendorCache = new Map();
+
+/**
+ * Mengambil vendor aktif per channel dengan cache TTL 60 detik.
+ * @param {string} channel
+ * @returns {Promise<object|null>}
+ */
+async function findCachedVendor(channel) {
+  const cached = vendorCache.get(channel);
+  if (cached && Date.now() - cached.fetchedAt < VENDOR_CACHE_TTL_MS) {
+    return cached.record;
+  }
+  const record = await dispatchRepository.findActiveVendorByChannel(channel);
+  vendorCache.set(channel, { record, fetchedAt: Date.now() });
+  return record;
+}
+
 // Worker: memproses pengiriman antrean email
 export function startEmailWorker(redisConfig) {
   const statusQueue = new Queue('status-queue', { connection: redisConfig });
@@ -23,7 +42,7 @@ export function startEmailWorker(redisConfig) {
     const { messageId, projectId, recipient, subject, body, isSandbox } = job.data;
     logger.info({ messageId, recipient }, 'Email job processing');
 
-    const vendorRecord = await dispatchRepository.findActiveVendorByChannel('EMAIL');
+    const vendorRecord = await findCachedVendor('EMAIL');
     const credentials = resolveVendorCredentials(vendorRecord);
 
     try {

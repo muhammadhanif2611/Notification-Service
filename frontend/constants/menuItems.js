@@ -13,6 +13,7 @@ export const CLIENT_MENU_ITEMS = [
   { label: "API Key", href: ROUTES.CLIENT.API_KEYS, icon: "Key" },
   { label: "Template Pesan", href: ROUTES.CLIENT.TEMPLATES, icon: "FileText" },
   { label: "Broadcast", href: ROUTES.CLIENT.BROADCAST, icon: "Send" },
+  { label: "WhatsApp Session", href: ROUTES.CLIENT.WA_SESSION, icon: "MessageSquare" },
   { label: "SDK & Integrasi", href: ROUTES.CLIENT.SDK, icon: "Code2" },
   { label: "Webhook", href: ROUTES.CLIENT.WEBHOOK, icon: "Webhook" },
 ];

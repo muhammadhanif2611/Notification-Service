@@ -1,18 +1,24 @@
-import { writeAuditLog, supabase } from '@notification-gateway/database';
-import { hashApiKey, verifyApiKey, generateAuthToken } from '@notification-gateway/shared';
+import { writeAuditLog } from '@notification-gateway/database';
+import { hashApiKey, verifyApiKey, generateAuthToken, generateSlug, createLogger } from '@notification-gateway/shared';
 import { AppError } from '../middlewares/errorHandler.js';
 import * as profileRepository from '../repositories/profileRepository.js';
+
+const logger = createLogger('auth-service');
+
+// URL internal client-service untuk pembuatan project (bounded context)
+const CLIENT_SERVICE_URL = process.env.CLIENT_SERVICE_URL || 'http://localhost:3003';
 
 /**
  * Service layer untuk business logic authentication dan user management.
  */
 
 /**
- * Register user baru.
- * @param {Object} params - { email, password, name, role }
+ * Membuat profile user baru (dipakai registerUser & createUserByAdmin).
+ * @param {{ email: string, password: string, name: string, role: string }} params
  * @returns {Promise<Object>} Created profile
+ * @throws {AppError} 400 jika input tidak lengkap, 409 jika email sudah terdaftar
  */
-export async function registerUser({ email, password, name, role = 'user', projectName }) {
+async function createProfile({ email, password, name, role = 'user' }) {
   if (!email || !password || !name) {
     throw new AppError('Email, password, and name are required.', 400, 'VALIDATION_ERROR');
   }
@@ -26,47 +32,72 @@ export async function registerUser({ email, password, name, role = 'user', proje
   }
 
   const passwordHash = await hashApiKey(password);
-  const registeredProfile = await profileRepository.insert({
+  return profileRepository.insert({
     email: cleanEmail,
     password_hash: passwordHash,
     name,
     role: formattedRole
   });
+}
+
+/**
+ * Membuat project default untuk user baru via HTTP internal ke client-service.
+ * Tabel projects adalah domain milik client-service — auth-service tidak menulis langsung ke DB.
+ * @param {{ ownerId: string, projectName: string, description: string, rateLimit?: number, dailyQuota?: number }} params
+ * @returns {Promise<void>}
+ */
+async function createDefaultProject({ ownerId, projectName, description, rateLimit = 100, dailyQuota = 5000 }) {
+  try {
+    const response = await fetch(`${CLIENT_SERVICE_URL}/clients/projects`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': ownerId,
+        'x-user-role': 'user'
+      },
+      body: JSON.stringify({
+        name: projectName,
+        slug: generateSlug(projectName),
+        description,
+        rateLimitPerMin: rateLimit,
+        dailyQuota
+      })
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      logger.warn({ ownerId, status: response.status, err: body?.error?.message }, 'Failed to create default project via client-service');
+    }
+  } catch (err) {
+    // Kegagalan pembuatan project tidak boleh menggagalkan registrasi user
+    logger.error({ ownerId, err: err.message }, 'Client-service unreachable when creating default project');
+  }
+}
+
+/**
+ * Register user baru.
+ * @param {Object} params - { email, password, name, role, projectName }
+ * @returns {Promise<Object>} Created profile
+ */
+export async function registerUser({ email, password, name, role = 'user', projectName }) {
+  const registeredProfile = await createProfile({ email, password, name, role });
 
   // Auto-create default project untuk user baru (client self-service)
-  // Project name default: "Project {name}" atau bisa custom dari frontend
-  if (formattedRole === 'user') {
-    try {
-      const defaultProjectName = projectName || `${name}'s Project`;
-      const defaultSlug = defaultProjectName
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/[\s_]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || `project-${Date.now()}`;
-
-      await supabase.from('projects').insert({
-        owner_id: registeredProfile.id,
-        name: defaultProjectName,
-        slug: defaultSlug,
-        description: 'Default project created on registration',
-        rate_limit_per_min: 100,
-        daily_quota: 5000,
-        is_active: true
-      });
-    } catch (projError) {
-      // Jika gagal buat project, tidak masalah — user bisa buat sendiri nanti
-      console.error('Failed to create default project:', projError.message);
-    }
+  if (registeredProfile.role === 'user') {
+    await createDefaultProject({
+      ownerId: registeredProfile.id,
+      projectName: projectName || `${name}'s Project`,
+      description: 'Default project created on registration'
+    });
   }
 
-  writeAuditLog({ 
-    userId: registeredProfile.id, 
-    action: 'REGISTER_USER', 
-    targetEntity: 'profiles', 
-    detail: `Registered ${cleanEmail} as ${formattedRole}` 
+  writeAuditLog({
+    userId: registeredProfile.id,
+    action: 'REGISTER_USER',
+    targetEntity: 'profiles',
+    detail: `Registered ${registeredProfile.email} as ${registeredProfile.role}`
   });
-  
+
   return registeredProfile;
 }
 
@@ -132,57 +163,25 @@ export async function listUsers() {
  * @returns {Promise<Object>} Created profile dengan metadata
  */
 export async function createUserByAdmin({ email, password, name, role = 'user', project_name, quota_daily, rate_limit }) {
-  if (!email || !password || !name) {
-    throw new AppError('Email, password, and name are required.', 400, 'VALIDATION_ERROR');
-  }
-
-  const cleanEmail = email.toLowerCase().trim();
-  const formattedRole = role.toLowerCase() === 'admin' ? 'admin' : 'user';
-
-  const existingProfile = await profileRepository.findByEmail(cleanEmail);
-  if (existingProfile) {
-    throw new AppError('User dengan email ini sudah terdaftar.', 409, 'USER_EXISTS');
-  }
-
-  const passwordHash = await hashApiKey(password);
-  const newProfile = await profileRepository.insert({
-    email: cleanEmail,
-    password_hash: passwordHash,
-    name,
-    role: formattedRole
-  });
+  const newProfile = await createProfile({ email, password, name, role });
 
   // Buat project untuk client baru (jika role user dan ada project_name)
   // Project di-assign ke owner_id = user client, bukan admin
-  if (formattedRole === 'user' && project_name) {
-    try {
-      const projectSlug = project_name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/[\s_]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || `project-${Date.now()}`;
-
-      await supabase.from('projects').insert({
-        owner_id: newProfile.id,
-        name: project_name,
-        slug: projectSlug,
-        description: `Project for ${name}`,
-        rate_limit_per_min: rate_limit || 100,
-        daily_quota: quota_daily || 5000,
-        is_active: true
-      });
-    } catch (projError) {
-      // Jika gagal buat project (mis. slug duplikat), user tetap terbuat
-      console.error('Failed to create project for new user:', projError.message);
-    }
+  if (newProfile.role === 'user' && project_name) {
+    await createDefaultProject({
+      ownerId: newProfile.id,
+      projectName: project_name,
+      description: `Project for ${name}`,
+      rateLimit: rate_limit,
+      dailyQuota: quota_daily
+    });
   }
 
   writeAuditLog({
     userId: newProfile.id,
     action: 'ADMIN_CREATE_USER',
     targetEntity: 'profiles',
-    detail: `Admin created ${formattedRole} account for ${cleanEmail}${project_name ? ` (project: ${project_name})` : ''}`
+    detail: `Admin created ${newProfile.role} account for ${newProfile.email}${project_name ? ` (project: ${project_name})` : ''}`
   });
 
   return { ...newProfile, project_name, quota_daily, rate_limit };

@@ -19,5 +19,7 @@ import { buildBullMQConnection } from '@notification-gateway/shared';
 
 // Konfigurasi lingkungan dan redis dispatch-service (BullMQ-safe, Upstash-ready)
 export const config = {
+  port: process.env.PORT || 3006,
+  environment: process.env.NODE_ENV || 'development',
   redis: buildBullMQConnection()
 };

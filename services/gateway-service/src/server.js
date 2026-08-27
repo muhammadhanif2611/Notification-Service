@@ -8,6 +8,7 @@ import { ExpressAdapter } from '@bull-board/express';
 import { createLogger } from '@notification-gateway/shared';
 import { config } from './config/env.js';
 import { apiKeyAuth, jwtAuth, roleCheck } from './middlewares/auth.js';
+import { errorHandler } from './middlewares/errorHandler.js';
 
 const logger = createLogger('gateway-service');
 const app = express();
@@ -16,7 +17,8 @@ const SERVICES = {
   AUTH: process.env.AUTH_SERVICE_URL || 'http://localhost:3002',
   CLIENT: process.env.CLIENT_SERVICE_URL || 'http://localhost:3003',
   NOTIFICATION: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004',
-  CALLBACK_LOG: process.env.CALLBACK_LOG_SERVICE_URL || 'http://localhost:3005'
+  CALLBACK_LOG: process.env.CALLBACK_LOG_SERVICE_URL || 'http://localhost:3005',
+  DISPATCH: process.env.DISPATCH_SERVICE_URL || 'http://localhost:3006'
 };
 
 app.use(cors({
@@ -35,9 +37,9 @@ app.get('/health', (_req, res) =>
   res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() })
 );
 
-// Helper proxy permintaan HTTP ke microservice tujuan
-// GET requests: forward query params + user info via headers
-// POST/PUT/DELETE: inject user info ke body
+// Helper proxy permintaan HTTP ke microservice tujuan.
+// User info (user, project, environment) SELALU dikirim via header untuk SEMUA method —
+// body request tidak pernah dicemari metadata auth.
 async function proxyRequest(targetUrl, req, res) {
   try {
     // Build URL dengan query params untuk GET requests
@@ -53,13 +55,13 @@ async function proxyRequest(targetUrl, req, res) {
         'Content-Type': 'application/json',
         ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
         ...(req.headers['x-api-key'] ? { 'x-api-key': req.headers['x-api-key'] } : {}),
-        // Forward user info via headers untuk GET requests (client-service baca dari sini)
+        // Forward user info via header — konsisten untuk semua method
         ...(req.user ? { 'x-user-id': req.user.userId, 'x-user-role': req.user.role } : {}),
         ...(req.project ? { 'x-project-id': req.project.id } : {}),
         ...(req.environment ? { 'x-environment': req.environment } : {})
       },
       ...(req.method !== 'GET' && req.method !== 'HEAD'
-        ? { body: JSON.stringify({ ...req.body, user: req.user, project: req.project, environment: req.environment }) }
+        ? { body: JSON.stringify(req.body) }
         : {})
     });
     const data = await response.json();
@@ -70,51 +72,73 @@ async function proxyRequest(targetUrl, req, res) {
   }
 }
 
-// Proxy rute Auth Service
-app.post('/v1/auth/login', (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/login`, req, res));
-app.post('/v1/auth/register', (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/register`, req, res));
+// Tabel route proxy — config-driven, menggantikan definisi satu-per-satu.
+// Kolom: method HTTP, path gateway, middleware auth, service tujuan, path target.
+const ROUTE_TABLE = [
+  // Auth Service (publik)
+  ['post', '/v1/auth/login', [], 'AUTH', '/auth/login'],
+  ['post', '/v1/auth/register', [], 'AUTH', '/auth/register'],
 
-// Proxy rute Manajemen User oleh Admin (akun client dibuat oleh admin)
-app.get('/v1/auth/users', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users`, req, res));
-app.post('/v1/auth/users', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users`, req, res));
-app.put('/v1/auth/users/:id/status', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users/${req.params.id}/status`, req, res));
-app.delete('/v1/auth/users/:id', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.AUTH}/auth/users/${req.params.id}`, req, res));
+  // Manajemen User oleh Admin
+  ['get', '/v1/auth/users', ['admin'], 'AUTH', '/auth/users'],
+  ['post', '/v1/auth/users', ['admin'], 'AUTH', '/auth/users'],
+  ['put', '/v1/auth/users/:id/status', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}/status`],
+  ['delete', '/v1/auth/users/:id', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}`],
 
-// Proxy rute Client Service (Projects, API Keys, Templates, Vendors)
-// Semua route GET juga pakai jwtAuth agar user info ter-forward
-app.get('/v1/clients/projects', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
-app.get('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
-app.post('/v1/clients/projects', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects`, req, res));
-app.put('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
-app.delete('/v1/clients/projects/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/projects/${req.params.id}`, req, res));
+  // Client Service — Projects
+  ['get', '/v1/clients/projects', [], 'CLIENT', '/clients/projects'],
+  ['get', '/v1/clients/projects/:id', [], 'CLIENT', (req) => `/clients/projects/${req.params.id}`],
+  ['post', '/v1/clients/projects', [], 'CLIENT', '/clients/projects'],
+  ['put', '/v1/clients/projects/:id', [], 'CLIENT', (req) => `/clients/projects/${req.params.id}`],
+  ['delete', '/v1/clients/projects/:id', [], 'CLIENT', (req) => `/clients/projects/${req.params.id}`],
 
-app.get('/v1/clients/api-keys', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys`, req, res));
-app.post('/v1/clients/api-keys', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys`, req, res));
-app.post('/v1/clients/api-keys/:id/regenerate', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}/regenerate`, req, res));
-app.put('/v1/clients/api-keys/:id/deactivate', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}/deactivate`, req, res));
-app.put('/v1/clients/api-keys/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}`, req, res));
-app.delete('/v1/clients/api-keys/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/api-keys/${req.params.id}`, req, res));
+  // Client Service — API Keys
+  ['get', '/v1/clients/api-keys', [], 'CLIENT', '/clients/api-keys'],
+  ['post', '/v1/clients/api-keys', [], 'CLIENT', '/clients/api-keys'],
+  ['post', '/v1/clients/api-keys/:id/regenerate', [], 'CLIENT', (req) => `/clients/api-keys/${req.params.id}/regenerate`],
+  ['put', '/v1/clients/api-keys/:id/deactivate', [], 'CLIENT', (req) => `/clients/api-keys/${req.params.id}/deactivate`],
+  ['put', '/v1/clients/api-keys/:id', [], 'CLIENT', (req) => `/clients/api-keys/${req.params.id}`],
+  ['delete', '/v1/clients/api-keys/:id', [], 'CLIENT', (req) => `/clients/api-keys/${req.params.id}`],
 
-app.get('/v1/clients/templates', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
-app.post('/v1/clients/templates', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates`, req, res));
-app.put('/v1/clients/templates/:id/status', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}/status`, req, res));
-app.put('/v1/clients/templates/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}`, req, res));
-app.delete('/v1/clients/templates/:id', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/templates/${req.params.id}`, req, res));
+  // Client Service — Templates
+  ['get', '/v1/clients/templates', [], 'CLIENT', '/clients/templates'],
+  ['post', '/v1/clients/templates', [], 'CLIENT', '/clients/templates'],
+  ['put', '/v1/clients/templates/:id/status', ['admin'], 'CLIENT', (req) => `/clients/templates/${req.params.id}/status`],
+  ['put', '/v1/clients/templates/:id', [], 'CLIENT', (req) => `/clients/templates/${req.params.id}`],
+  ['delete', '/v1/clients/templates/:id', [], 'CLIENT', (req) => `/clients/templates/${req.params.id}`],
 
-app.get('/v1/clients/vendors', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res));
-app.post('/v1/clients/vendors', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res));
+  // Client Service — Vendors (admin only)
+  ['get', '/v1/clients/vendors', ['admin'], 'CLIENT', '/clients/vendors'],
+  ['post', '/v1/clients/vendors', ['admin'], 'CLIENT', '/clients/vendors'],
 
-// Manajemen sesi WhatsApp (Baileys) — QR pairing & reset (admin only)
-app.get('/v1/clients/wa-session', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/wa-session`, req, res));
-app.post('/v1/clients/wa-session/reset', jwtAuth, roleCheck(['admin']), (req, res) => proxyRequest(`${SERVICES.CLIENT}/clients/wa-session/reset`, req, res));
+  // Dispatch Service — WA Session per-project (client kelola sendiri)
+  ['get', '/v1/clients/wa-session', [], 'DISPATCH', '/wa-session'],
+  ['post', '/v1/clients/wa-session/connect', [], 'DISPATCH', '/wa-session/connect'],
+  ['post', '/v1/clients/wa-session/reset', [], 'DISPATCH', '/wa-session/reset'],
 
-// Proxy rute Notification Service
+  // Dispatch Service — Admin monitoring semua sesi WA
+  ['get', '/v1/admin/wa-sessions', ['admin'], 'DISPATCH', '/wa-sessions'],
+  ['post', '/v1/admin/wa-sessions/:projectId/disconnect', ['admin'], 'DISPATCH', (req) => `/wa-sessions/${req.params.projectId}/disconnect`],
+
+  // Callback Log Service (dengan auth untuk scoping)
+  ['get', '/v1/logs', [], 'CALLBACK_LOG', '/logs'],
+  ['get', '/v1/statistics', [], 'CALLBACK_LOG', '/statistics'],
+];
+
+// Daftarkan seluruh route dari tabel — auth jwtAuth selalu aktif kecuali rute publik auth
+for (const [method, path, roles, serviceKey, target] of ROUTE_TABLE) {
+  const middlewares = path.startsWith('/v1/auth/login') || path.startsWith('/v1/auth/register')
+    ? []
+    : [jwtAuth, ...(roles.length ? [roleCheck(roles)] : [])];
+  app[method](path, ...middlewares, (req, res) => {
+    const targetPath = typeof target === 'function' ? target(req) : target;
+    return proxyRequest(`${SERVICES[serviceKey]}${targetPath}`, req, res);
+  });
+}
+
+// Notification Service — pakai apiKeyAuth (bukan JWT)
 app.post('/v1/notifications/send', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/process`, req, res));
 app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/broadcast`, req, res));
-
-// Proxy rute Callback Log Service (dengan auth untuk scoping)
-app.get('/v1/logs', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/logs`, req, res));
-app.get('/v1/statistics', jwtAuth, (req, res) => proxyRequest(`${SERVICES.CALLBACK_LOG}/statistics`, req, res));
 
 // ── Admin: Tambahan Endpoint ───────────────────────────────────────────────
 // GET /v1/admin/vendors — list vendors (termasuk credential preview untuk admin)
@@ -140,7 +164,9 @@ createBullBoard({
   ],
   serverAdapter,
 });
-app.use('/admin/queues', serverAdapter.getRouter());
+app.use('/admin/queues', jwtAuth, roleCheck(['admin']), serverAdapter.getRouter());
+
+app.use(errorHandler);
 
 app.listen(config.port, () => {
   logger.info(`Gateway Service running on http://localhost:${config.port}`);

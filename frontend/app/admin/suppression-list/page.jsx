@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { UserX, Upload, Trash2, Filter, RefreshCw } from "lucide-react";
-import DataTable from "@/components/admin/DataTable";
-import MetricCard from "@/components/admin/MetricCard";
+import DataTable from "@/components/shared/DataTable";
+import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
 
 /**

@@ -4,3 +4,4 @@ export * from './validators.js';
 export * from './logger.js';
 export * from './rateLimiter.js';
 export * from './redis.js';
+export * from './slugify.js';

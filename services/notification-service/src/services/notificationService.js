@@ -45,6 +45,7 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
 }
 
 // Helper mengecek kuota harian & status keaktifan project
+// Return { project, todayCount } agar caller tidak perlu query countTodayByProject ulang
 async function checkProjectThreshold(projectId) {
   const project = await projectRepository.findByIdWithQuota(projectId);
   if (!project) throw new AppError('Associated project not found.', 404, 'PROJECT_NOT_FOUND');
@@ -72,7 +73,7 @@ async function checkProjectThreshold(projectId) {
     );
   }
 
-  return project;
+  return { project, todayCount };
 }
 
 // Helper menyimpan log dan memasukkan job ke antrean BullMQ
@@ -149,6 +150,7 @@ export async function processNotification({ body: reqBody, project, environment,
 }
 
 // Layanan memproses pengiriman notifikasi masal (broadcast)
+// Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
 export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, project, isSandbox = false }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new AppError('recipients must be a non-empty array.', 400, 'VALIDATION_ERROR');
@@ -162,8 +164,7 @@ export async function processBroadcast({ channel, recipients, templateCode, body
   const broadcastId = generateBroadcastId();
 
   if (!isSandbox) {
-    const projectRecord = await checkProjectThreshold(projectId);
-    const todayCount = await notificationLogRepository.countTodayByProject(projectId);
+    const { project: projectRecord, todayCount } = await checkProjectThreshold(projectId);
     const remainingQuota = projectRecord.daily_quota - todayCount;
     if (recipients.length > remainingQuota) {
       throw new AppError(`Broadcast exceeds quota. Remaining: ${remainingQuota}, Requested: ${recipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
@@ -171,25 +172,43 @@ export async function processBroadcast({ channel, recipients, templateCode, body
   }
 
   const { resolvedBody, resolvedSubject } = await resolveMessageContent(projectId, normalizedChannel, templateCode, body, variables);
+  const finalSubject = resolvedSubject ?? subject;
 
-  const queuedResults = [];
-  for (const recipient of recipients) {
-    const messageId = generateMessageId();
-    await persistAndEnqueue({
+  // Siapkan seluruh messageId, log rows, dan job payloads sekaligus
+  const queuedResults = recipients.map((recipient) => ({ recipient, messageId: generateMessageId() }));
+  const createdAt = new Date().toISOString();
+
+  const logRows = queuedResults.map(({ recipient, messageId }) => ({
+    message_id: messageId,
+    project_id: projectId,
+    channel: normalizedChannel,
+    recipient,
+    payload: { templateCode, body: resolvedBody, subject: finalSubject, isBroadcast: true, broadcastId, isSandbox }
+  }));
+
+  const jobPayloads = queuedResults.map(({ recipient, messageId }) => ({
+    name: normalizedChannel === CHANNELS.WHATSAPP ? 'send-whatsapp' : 'send-email',
+    data: {
       messageId,
       projectId,
       channel: normalizedChannel,
       recipient,
-      payload: { templateCode, body: resolvedBody, subject: resolvedSubject ?? subject, isBroadcast: true, broadcastId },
-      isSandbox,
-      subject: resolvedSubject ?? subject,
       body: resolvedBody,
-      templateCode,
-      variables,
-      broadcastId
-    });
-    queuedResults.push({ recipient, messageId });
-  }
+      subject: finalSubject,
+      templateCode: templateCode ?? null,
+      variables: variables ?? {},
+      isSandbox,
+      createdAt,
+      broadcastId,
+      isBroadcast: true
+    }
+  }));
+
+  // Batch insert 1 query + addBulk 1 call
+  await notificationLogRepository.insertMany(logRows);
+
+  const targetQueue = normalizedChannel === CHANNELS.WHATSAPP ? whatsappQueue : emailQueue;
+  await targetQueue.addBulk(jobPayloads);
 
   return {
     broadcastId,
@@ -197,7 +216,7 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     totalQueued: queuedResults.length,
     isSandbox,
     recipients: queuedResults,
-    acceptedAt: new Date().toISOString()
+    acceptedAt: createdAt
   };
 }
 

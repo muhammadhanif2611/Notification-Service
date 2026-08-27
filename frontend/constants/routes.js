@@ -13,6 +13,7 @@ export const ROUTES = Object.freeze({
     API_KEYS: "/client/api-keys",
     TEMPLATES: "/client/templates",
     BROADCAST: "/client/broadcast",
+    WA_SESSION: "/client/wa-session",
     SDK: "/client/sdk",
     WEBHOOK: "/client/webhook",
   },

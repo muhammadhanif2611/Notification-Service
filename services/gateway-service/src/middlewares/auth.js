@@ -1,4 +1,4 @@
-import { verifyApiKey, verifyAuthToken, createLogger } from '@notification-gateway/shared';
+import { verifyApiKey, verifyAuthToken, extractKeyPreview, createLogger } from '@notification-gateway/shared';
 import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
 
 const logger = createLogger('gateway-service');
@@ -16,17 +16,16 @@ export async function apiKeyAuth(req, res, next) {
       return res.status(401).json({ success: false, error: { code: 'INVALID_API_KEY_FORMAT', message: 'API Key must start with ngw_prod_ or ngw_sand_' } });
     }
 
-    const keys = await apiKeyRepository.findActiveByPrefix(keyPrefix);
+    // Filter berdasarkan key_preview (8 char terakhir) sebelum bcrypt compare → hanya 1 record
+    const keys = await apiKeyRepository.findActiveByPrefixAndPreview(keyPrefix, extractKeyPreview(apiKey));
     if (!keys?.length) {
       return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or inactive API Key.' } });
     }
 
-    let matchedKey = null;
-    for (const keyRecord of keys) {
-      if (await verifyApiKey(apiKey, keyRecord.key_hash)) {
-        matchedKey = keyRecord;
-        break;
-      }
+    const matchedKey = keys.find((keyRecord) => keyRecord.key_hash) || null;
+    const isValid = matchedKey ? await verifyApiKey(apiKey, matchedKey.key_hash) : false;
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or inactive API Key.' } });
     }
 
     if (!matchedKey?.projects?.is_active) {

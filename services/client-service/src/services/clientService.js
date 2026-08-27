@@ -13,7 +13,6 @@ import {
   createVendorSchema,
   createLogger
 } from '@notification-gateway/shared';
-import { whatsappSession } from '@notification-gateway/dispatch-service/src/whatsapp/session.js';
 import { AppError } from '../middlewares/errorHandler.js';
 import * as projectRepository from '../repositories/projectRepository.js';
 import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
@@ -329,17 +328,4 @@ export async function createVendor(payload, userId = null) {
   logger.info({ vendorId: registeredVendor.id, channel: registeredVendor.channel }, 'Vendor registered');
   writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
   return registeredVendor;
-}
-
-// Layanan mengambil status sesi WhatsApp (Baileys) — status koneksi & QR pairing
-export function getWhatsAppSessionStatus() {
-  return whatsappSession.getStatus();
-}
-
-// Layanan reset sesi WhatsApp (logout, hapus auth state, generate QR baru)
-export async function resetWhatsAppSession(userId = null) {
-  const result = await whatsappSession.reset();
-  logger.info({ userId }, 'WhatsApp session reset');
-  writeAuditLog({ userId, action: 'RESET_WA_SESSION', targetEntity: 'wa_session', detail: 'WhatsApp Baileys session reset via admin' });
-  return result;
 }

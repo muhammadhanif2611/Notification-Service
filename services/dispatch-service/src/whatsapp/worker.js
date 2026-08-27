@@ -13,7 +13,7 @@ export function startWhatsAppWorker(redisConfig) {
     logger.info({ messageId, recipient }, 'WhatsApp job processing');
 
     try {
-      const sendResult = await sendWhatsApp({ recipient, body, isSandbox });
+      const sendResult = await sendWhatsApp({ projectId, recipient, body, isSandbox });
       await statusQueue.add('status-update', { messageId, projectId, status: 'SENT' });
       return sendResult;
     } catch (error) {

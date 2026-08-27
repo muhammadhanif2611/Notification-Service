@@ -38,16 +38,11 @@ export async function findRecentLogs({ projectId = null, limit = 100, page = 1 }
   return data;
 }
 
-export async function findAllLogStats(projectId = null) {
-  let query = supabase
-    .from('notification_logs')
-    .select('status, channel');
-
-  if (projectId) {
-    query = query.eq('project_id', projectId);
-  }
-
-  const { data, error } = await query;
+// Statistik agregat via SQL GROUP BY — tidak fetch seluruh row ke memori
+export async function findLogStats(projectId = null) {
+  const { data, error } = await supabase.rpc('get_notification_log_stats', {
+    p_project_id: projectId || null
+  });
   if (error) throw error;
   return data;
 }

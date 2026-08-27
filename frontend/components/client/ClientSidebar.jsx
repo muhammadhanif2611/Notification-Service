@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CLIENT_MENU_ITEMS } from "@/constants/menuItems";
-import { LayoutDashboard, Clock, BarChart2, Key, Webhook, Zap, LogOut, FileText, Send, Code2, FolderKanban, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Clock, BarChart2, Key, Webhook, Zap, LogOut, FileText, Send, Code2, FolderKanban, ChevronDown, MessageSquare } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useProjectContext } from "@/lib/project-context";
 
 const ICON_MAP = {
-  LayoutDashboard, Clock, BarChart2, Key, Webhook, FileText, Send, Code2, FolderKanban,
+  LayoutDashboard, Clock, BarChart2, Key, Webhook, FileText, Send, Code2, FolderKanban, MessageSquare,
 };
 
 /**

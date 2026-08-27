@@ -4,15 +4,15 @@ import { sendBaileysTextMessage } from './session.js';
 const logger = createLogger('dispatch-service');
 
 /**
- * Mengirim pesan WhatsApp via Baileys (WhatsApp Web multi-device).
- * @param {{ recipient: string, body: string, isSandbox: boolean }} params
+ * Mengirim pesan WhatsApp via Baileys (WhatsApp Web multi-device) memakai sesi milik project.
+ * @param {{ projectId: string, recipient: string, body: string, isSandbox: boolean }} params
  * @returns {Promise<{ success: boolean, providerMessageId: string }>}
  */
-export async function sendWhatsApp({ recipient, body, isSandbox }) {
+export async function sendWhatsApp({ projectId, recipient, body, isSandbox }) {
   if (isSandbox) {
-    logger.info({ recipient }, '[SANDBOX] WhatsApp simulated');
+    logger.info({ projectId, recipient }, '[SANDBOX] WhatsApp simulated');
     return { success: true, providerMessageId: `baileys.sandbox.${Date.now()}` };
   }
 
-  return sendBaileysTextMessage({ recipient, body });
+  return sendBaileysTextMessage({ projectId, recipient, body });
 }

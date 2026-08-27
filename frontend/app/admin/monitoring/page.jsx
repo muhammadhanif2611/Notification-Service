@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Activity, RefreshCw, Cpu, ExternalLink } from "lucide-react";
-import MetricCard from "@/components/admin/MetricCard";
+import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
 
 const BULL_BOARD_URL = process.env.NEXT_PUBLIC_BULL_BOARD_URL || "http://127.0.0.1:3001/admin/queues";

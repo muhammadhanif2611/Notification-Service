@@ -29,8 +29,4 @@ router.delete('/templates/:id', clientController.deleteTemplate);
 router.get('/vendors', clientController.getVendors);
 router.post('/vendors', clientController.createVendor);
 
-// Rute manajemen sesi WhatsApp (Baileys)
-router.get('/wa-session', clientController.getWhatsAppSession);
-router.post('/wa-session/reset', clientController.resetWhatsAppSession);
-
 export default router;

@@ -1,13 +1,14 @@
 import * as notificationService from '../services/notificationService.js';
 
 // Controller: pemrosesan tunggal notifikasi
+// Project & environment dibaca dari header yang di-forward gateway — body murni business payload.
 export async function process(req, res, next) {
   try {
     const context = {
       body: req.body,
-      project: req.body.project ?? { id: req.headers['x-project-id'] },
-      environment: req.body.environment ?? req.headers['x-environment'] ?? 'production',
-      apiKeyPrefix: req.body.apiKeyPrefix ?? req.headers['x-api-key-prefix'] ?? 'ngw_prod_'
+      project: { id: req.headers['x-project-id'] },
+      environment: req.headers['x-environment'] ?? 'production',
+      apiKeyPrefix: req.headers['x-api-key-prefix'] ?? 'ngw_prod_'
     };
     const data = await notificationService.processNotification(context);
     return res.status(202).json({ success: true, data });
@@ -17,11 +18,11 @@ export async function process(req, res, next) {
 // Controller: pemrosesan broadcast notifikasi
 export async function broadcast(req, res, next) {
   try {
-    const { channel, recipients, templateCode, body, subject, variables, project, isSandbox } = req.body;
+    const { channel, recipients, templateCode, body, subject, variables } = req.body;
     const data = await notificationService.processBroadcast({
       channel, recipients, templateCode, body, subject, variables,
-      project: project ?? { id: req.headers['x-project-id'] },
-      isSandbox: isSandbox ?? req.headers['x-environment'] === 'sandbox'
+      project: { id: req.headers['x-project-id'] },
+      isSandbox: req.headers['x-environment'] === 'sandbox'
     });
     return res.status(202).json({ success: true, data });
   } catch (err) { next(err); }

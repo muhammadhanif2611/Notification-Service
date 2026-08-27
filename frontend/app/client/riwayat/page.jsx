@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { X, RefreshCw } from "lucide-react";
-import DataTable from "@/components/admin/DataTable";
+import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useProjectContext } from "@/lib/project-context";
 import { apiGet } from "@/lib/api";

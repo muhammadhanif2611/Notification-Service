@@ -8,7 +8,7 @@ import {
   HardDrive,
   RefreshCw,
 } from "lucide-react";
-import MetricCard from "@/components/admin/MetricCard";
+import MetricCard from "@/components/shared/MetricCard";
 import ClusterHealthCard from "@/components/admin/ClusterHealthCard";
 import { useAdminData } from "@/hooks/useAdminData";
 

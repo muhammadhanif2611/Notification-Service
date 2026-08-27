@@ -1,8 +1,7 @@
 import * as clientService from '../services/clientService.js';
 
 // Controller: mengambil daftar project berdasarkan owner (client) atau semua (admin)
-// User info diterima dari header (x-user-id, x-user-role) yang di-set gateway untuk GET requests
-// atau dari req.body.user untuk POST/PUT/DELETE requests
+// User info diterima dari header (x-user-id, x-user-role) yang di-forward gateway untuk semua method
 export async function getProjects(req, res, next) {
   try {
     const user = req.user || {
@@ -150,18 +149,4 @@ export async function createVendor(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Controller: mengambil status sesi WhatsApp (Baileys) — termasuk QR string saat pairing
-export async function getWhatsAppSession(req, res, next) {
-  try {
-    const data = clientService.getWhatsAppSessionStatus();
-    return res.json({ success: true, data });
-  } catch (err) { next(err); }
-}
 
-// Controller: reset sesi WhatsApp (logout + hapus auth state + generate QR baru)
-export async function resetWhatsAppSession(req, res, next) {
-  try {
-    const data = await clientService.resetWhatsAppSession(req.user?.userId);
-    return res.json({ success: true, message: 'WhatsApp session reset. Scan the new QR code.', data });
-  } catch (err) { next(err); }
-}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Mail, CheckCircle, XCircle, AlertTriangle, Globe, RefreshCw } from "lucide-react";
-import MetricCard from "@/components/admin/MetricCard";
+import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
 
 /**

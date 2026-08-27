@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Shield, Eye, EyeOff, Copy, Check, Lock, RefreshCw } from "lucide-react";
-import DataTable from "@/components/admin/DataTable";
+import DataTable from "@/components/shared/DataTable";
 import { useAdminData } from "@/hooks/useAdminData";
 
 /**

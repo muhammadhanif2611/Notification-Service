@@ -29,6 +29,16 @@ export async function insert(logData) {
   return data;
 }
 
+// Batch insert banyak log notifikasi sekaligus (untuk broadcast) — 1 query, bukan N query
+export async function insertMany(logsData) {
+  const rows = logsData.map((logData) => ({
+    ...logData,
+    status: NOTIFICATION_STATUS.QUEUED
+  }));
+  const { error } = await supabase.from('notification_logs').insert(rows);
+  if (error) throw error;
+}
+
 export async function findPaginated({ projectId, page, limit, status, channel }) {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
