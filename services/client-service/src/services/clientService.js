@@ -11,6 +11,7 @@ import {
   createTemplateSchema,
   updateTemplateSchema,
   createVendorSchema,
+  updateVendorSchema,
   createLogger
 } from '@notification-gateway/shared';
 import { AppError } from '../middlewares/errorHandler.js';
@@ -301,4 +302,48 @@ export async function createVendor(payload, userId = null) {
   logger.info({ vendorId: registeredVendor.id, channel: registeredVendor.channel }, 'Vendor registered');
   writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
   return registeredVendor;
+}
+
+// Layanan memperbarui kredensial/metadata vendor (enkripsi ulang jika credentials diubah)
+export async function updateVendor(vendorId, payload, userId = null) {
+  const validation = updateVendorSchema.safeParse(payload);
+  if (!validation.success) {
+    throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
+  }
+
+  const { name, credentials, priority, is_active } = validation.data;
+  const updateData = {};
+
+  if (name !== undefined) updateData.name = name;
+  if (priority !== undefined) updateData.priority = priority;
+  if (is_active !== undefined) updateData.is_active = is_active;
+
+  // Enkripsi ulang hanya jika admin mengirim credentials baru
+  if (credentials !== undefined) {
+    const { encryptedData, iv, authTag } = encryptAES(JSON.stringify(credentials));
+    updateData.credential_encrypted = encryptedData;
+    updateData.credential_iv = iv;
+    updateData.credential_auth_tag = authTag;
+  }
+
+  const updatedVendor = await vendorRepository.updateById(vendorId, updateData);
+  if (!updatedVendor) {
+    throw new AppError('Vendor not found', 404, 'NOT_FOUND');
+  }
+
+  logger.info({ vendorId }, 'Vendor updated');
+  writeAuditLog({ userId, action: 'UPDATE_VENDOR', targetEntity: 'vendors', detail: `Updated vendor ID ${vendorId}${credentials !== undefined ? ' (credentials rotated)' : ''}` });
+  return updatedVendor;
+}
+
+// Layanan menghapus vendor
+export async function deleteVendor(vendorId, userId = null) {
+  const deletedVendor = await vendorRepository.deleteById(vendorId);
+  if (!deletedVendor) {
+    throw new AppError('Vendor not found', 404, 'NOT_FOUND');
+  }
+
+  logger.info({ vendorId }, 'Vendor deleted');
+  writeAuditLog({ userId, action: 'DELETE_VENDOR', targetEntity: 'vendors', detail: `Deleted vendor ID ${vendorId}` });
+  return deletedVendor;
 }

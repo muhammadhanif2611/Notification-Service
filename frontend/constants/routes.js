@@ -22,7 +22,7 @@ export const ROUTES = Object.freeze({
     MONITORING: "/admin/monitoring",
     VENDORS: "/admin/vendors",
     WA_SESSION: "/admin/wa-session",
-    CREDENTIALS: "/admin/credentials",
+    CREDENTIALS: "/admin/vendors",
     DOMAIN_MTA: "/admin/domain-mta",
     USERS: "/admin/users",
     SUPPRESSION_LIST: "/admin/suppression-list",

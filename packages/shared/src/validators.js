@@ -87,3 +87,13 @@ export const createVendorSchema = z.object({
   credentials: nodemailerCredentialsSchema,
   priority: z.number().int().min(1).max(10).default(1)
 });
+
+// Skema validasi update kredensial/metadata vendor (semua opsional — partial update)
+export const updateVendorSchema = z.object({
+  name: z.string().min(2, 'Vendor name must be at least 2 characters').optional(),
+  credentials: nodemailerCredentialsSchema.optional(),
+  priority: z.number().int().min(1).max(10).optional(),
+  is_active: z.boolean().optional()
+}).refine((data) => Object.keys(data).length > 0, {
+  message: 'At least one field must be provided for update'
+});

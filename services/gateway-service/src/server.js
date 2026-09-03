@@ -109,6 +109,8 @@ const ROUTE_TABLE = [
   // Client Service — Vendors (admin only)
   ['get', '/v1/clients/vendors', ['admin'], 'CLIENT', '/clients/vendors'],
   ['post', '/v1/clients/vendors', ['admin'], 'CLIENT', '/clients/vendors'],
+  ['put', '/v1/clients/vendors/:id', ['admin'], 'CLIENT', (req) => `/clients/vendors/${req.params.id}`],
+  ['delete', '/v1/clients/vendors/:id', ['admin'], 'CLIENT', (req) => `/clients/vendors/${req.params.id}`],
 
   // Dispatch Service — WA Session per-project (client kelola sendiri)
   ['get', '/v1/clients/wa-session', [], 'DISPATCH', '/wa-session'],

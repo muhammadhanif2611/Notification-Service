@@ -141,4 +141,20 @@ export async function createVendor(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Controller: memperbarui kredensial/metadata vendor
+export async function updateVendor(req, res, next) {
+  try {
+    const data = await clientService.updateVendor(req.params.id, req.body, req.user?.userId);
+    return res.json({ success: true, message: 'Vendor updated successfully', data });
+  } catch (err) { next(err); }
+}
+
+// Controller: menghapus vendor
+export async function deleteVendor(req, res, next) {
+  try {
+    const data = await clientService.deleteVendor(req.params.id, req.user?.userId);
+    return res.json({ success: true, message: 'Vendor deleted successfully', data });
+  } catch (err) { next(err); }
+}
+
 

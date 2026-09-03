@@ -27,5 +27,7 @@ router.delete('/templates/:id', clientController.deleteTemplate);
 // Rute manajemen vendor provider
 router.get('/vendors', clientController.getVendors);
 router.post('/vendors', clientController.createVendor);
+router.put('/vendors/:id', clientController.updateVendor);
+router.delete('/vendors/:id', clientController.deleteVendor);
 
 export default router;

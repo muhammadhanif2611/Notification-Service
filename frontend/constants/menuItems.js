@@ -21,9 +21,8 @@ export const CLIENT_MENU_ITEMS = [
 export const ADMIN_MENU_ITEMS = [
   { label: "Control Center", href: ROUTES.ADMIN.CONTROL_CENTER, icon: "LayoutDashboard" },
   { label: "Queue Telemetry", href: ROUTES.ADMIN.MONITORING, icon: "Activity" },
-  { label: "Vendors", href: ROUTES.ADMIN.VENDORS, icon: "Server" },
+  { label: "Vendors & Kredensial", href: ROUTES.ADMIN.VENDORS, icon: "Server" },
   { label: "WhatsApp Session", href: ROUTES.ADMIN.WA_SESSION, icon: "MessageSquare" },
-  { label: "Kredensial", href: ROUTES.ADMIN.CREDENTIALS, icon: "Shield" },
   { label: "Domain & MTA", href: ROUTES.ADMIN.DOMAIN_MTA, icon: "Mail" },
   { label: "Kelola Pengguna", href: ROUTES.ADMIN.USERS, icon: "Users" },
   { label: "Suppression List", href: ROUTES.ADMIN.SUPPRESSION_LIST, icon: "UserX" },
