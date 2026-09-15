@@ -7,11 +7,13 @@ import Modal from "@/components/shared/Modal";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useUsers } from "@/hooks/useUsers";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/lib/toast-context";
 
 const EMPTY_FORM = { name: "", email: "", password: "", role: "user", project_name: "", quota_daily: "", rate_limit: "" };
 
 /** UsersPage — Kelola Pengguna: admin membuat akun login untuk client (DESIGN.md 6B.5). */
 export default function UsersPage() {
+  const toast = useToast();
   const { user: currentUser } = useAuth();
   const { users, loading, error, createUser, setUserStatus, deleteUser, updateUser, refetch } = useUsers();
 
@@ -132,7 +134,7 @@ export default function UsersPage() {
       else await setUserStatus(user.id, type === "activate");
       setConfirmAction(null);
     } catch (err) {
-      alert(err.message || "Aksi gagal.");
+      toast.error(err.message || "Aksi gagal.");
     } finally {
       setActionLoading(false);
     }

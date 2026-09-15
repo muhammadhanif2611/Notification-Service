@@ -6,12 +6,14 @@ import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useProjectContext } from "@/lib/project-context";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useToast } from "@/lib/toast-context";
 
 /**
  * TemplatesPage - Template Pesan per project aktif (konteks global sidebar).
  * Template langsung bisa digunakan tanpa persetujuan admin. Placeholder: {{nama}}, {{otp}}.
  */
 export default function TemplatesPage() {
+  const toast = useToast();
   const { activeProject } = useProjectContext();
   const projectId = activeProject?.id || null;
   const { templates, loading, createTemplate, updateTemplate, deleteTemplate } = useTemplates(projectId);
@@ -44,7 +46,7 @@ export default function TemplatesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!projectId) { alert("Pilih project terlebih dahulu dari sidebar."); return; }
+    if (!projectId) { toast.warning("Pilih project terlebih dahulu dari sidebar."); return; }
     setSaving(true);
     try {
       await createTemplate({
@@ -54,7 +56,7 @@ export default function TemplatesPage() {
         body: form.body, variables: parseVariables(),
       });
       setShowModal(false); setForm(emptyForm);
-    } catch (err) { alert("Gagal membuat template: " + err.message); } finally { setSaving(false); }
+    } catch (err) { toast.error("Gagal membuat template: " + err.message); } finally { setSaving(false); }
   };
 
   const handleUpdate = async (e) => {
@@ -67,13 +69,13 @@ export default function TemplatesPage() {
         body: form.body, variables: parseVariables(),
       });
       setEditing(null);
-    } catch (err) { alert("Gagal mengedit template: " + err.message); } finally { setSaving(false); }
+    } catch (err) { toast.error("Gagal mengedit template: " + err.message); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     setSaving(true);
     try { await deleteTemplate(deleting.id); setDeleting(null); }
-    catch (err) { alert("Gagal menghapus template: " + err.message); } finally { setSaving(false); }
+    catch (err) { toast.error("Gagal menghapus template: " + err.message); } finally { setSaving(false); }
   };
 
   const columns = [

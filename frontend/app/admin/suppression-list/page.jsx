@@ -5,6 +5,7 @@ import { UserX, Upload, Trash2, Filter, RefreshCw } from "lucide-react";
 import DataTable from "@/components/shared/DataTable";
 import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
+import { useToast } from "@/lib/toast-context";
 
 /**
  * Suppression List Page — Manajemen blokir otomatis.
@@ -18,6 +19,7 @@ const REASON_BADGE = {
 };
 
 export default function SuppressionListPage() {
+  const toast = useToast();
   const { logs, loading, refetch } = useAdminData();
   const [filter, setFilter] = useState("ALL");
 
@@ -76,7 +78,7 @@ export default function SuppressionListPage() {
       label: "",
       render: (_, row) => (
         <button 
-          onClick={() => alert(`Detail log ${row.id}: ${row.error_message || "No error"}`)}
+          onClick={() => toast.info({ title: `Detail Log ${row.id}`, message: row.error_message || "Tidak ada pesan error." })}
           className="p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/30 text-[var(--text-muted)] hover:text-red-600 transition-colors" 
           title="View details"
         >

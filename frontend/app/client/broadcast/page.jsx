@@ -5,6 +5,7 @@ import { Send, Plus, X, Eye, EyeOff, Upload, Download, FileSpreadsheet, Trash2 }
 import * as XLSX from "xlsx";
 import Alert from "@/components/shared/Alert";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useToast } from "@/lib/toast-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
 const STORAGE_KEY = "ngw_broadcast_apikey";
@@ -15,6 +16,7 @@ const STORAGE_KEY = "ngw_broadcast_apikey";
  * client memasukkan API Key manual (disimpan di sessionStorage tab ini saja).
  */
 export default function BroadcastPage() {
+  const toast = useToast();
   const [apiKey, setApiKey] = useState(() => (typeof window !== "undefined" ? sessionStorage.getItem(STORAGE_KEY) || "" : ""));
   const [showApiKey, setShowApiKey] = useState(false);
   const [channel, setChannel] = useState("WHATSAPP");
@@ -108,9 +110,9 @@ export default function BroadcastPage() {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!apiKey.trim()) { alert("Masukkan API Key terlebih dahulu."); return; }
-    if (validRecipients.length === 0) { alert("Tambahkan minimal 1 penerima."); return; }
-    if (!templateCode && !body.trim()) { alert("Isi template atau body pesan."); return; }
+    if (!apiKey.trim()) { toast.warning("Masukkan API Key terlebih dahulu."); return; }
+    if (validRecipients.length === 0) { toast.warning("Tambahkan minimal 1 penerima."); return; }
+    if (!templateCode && !body.trim()) { toast.warning("Isi template atau body pesan."); return; }
 
     setSending(true);
     setResult(null);

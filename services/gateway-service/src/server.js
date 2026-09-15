@@ -83,6 +83,7 @@ const ROUTE_TABLE = [
   ['get', '/v1/auth/users', ['admin'], 'AUTH', '/auth/users'],
   ['post', '/v1/auth/users', ['admin'], 'AUTH', '/auth/users'],
   ['put', '/v1/auth/users/:id/status', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}/status`],
+  ['put', '/v1/auth/users/:id', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}`],
   ['delete', '/v1/auth/users/:id', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}`],
 
   // Client Service — Projects

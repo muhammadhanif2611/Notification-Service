@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { MessageSquare, RefreshCw, Wifi, WifiOff, Unplug } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import { useToast } from "@/lib/toast-context";
 
 const STATUS_STYLE = {
   CONNECTED: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
@@ -19,6 +20,7 @@ const STATUS_LABEL = {
 };
 
 export default function AdminWaSessionsPage() {
+  const toast = useToast();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(null);
@@ -49,7 +51,7 @@ export default function AdminWaSessionsPage() {
       await apiPost(`/v1/admin/wa-sessions/${projectId}/disconnect`, {});
       await fetchSessions();
     } catch (err) {
-      alert("Gagal memutuskan sesi: " + err.message);
+      toast.error("Gagal memutuskan sesi: " + err.message);
     } finally {
       setDisconnecting(null);
     }

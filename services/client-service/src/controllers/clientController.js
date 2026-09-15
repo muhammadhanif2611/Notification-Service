@@ -1,5 +1,11 @@
 import * as clientService from '../services/clientService.js';
 
+// Helper: ambil userId dari JWT (req.user) atau header x-user-id yang di-forward gateway.
+// Client-service tidak punya JWT middleware sendiri — user info datang via header dari gateway.
+function getUserId(req) {
+  return req.user?.userId ?? req.headers['x-user-id'] ?? null;
+}
+
 // Controller: mengambil daftar project berdasarkan owner (client) atau semua (admin)
 // User info diterima dari header (x-user-id, x-user-role) yang di-forward gateway untuk semua method
 export async function getProjects(req, res, next) {
@@ -24,7 +30,7 @@ export async function getProjectById(req, res, next) {
 // Controller: membuat project baru
 export async function createProject(req, res, next) {
   try {
-    const data = await clientService.createProject(req.body, req.user?.userId);
+    const data = await clientService.createProject(req.body, getUserId(req));
     return res.status(201).json({ success: true, message: 'Project created successfully', data });
   } catch (err) { next(err); }
 }
@@ -32,7 +38,7 @@ export async function createProject(req, res, next) {
 // Controller: memperbarui data project
 export async function updateProject(req, res, next) {
   try {
-    const data = await clientService.updateProject(req.params.id, req.body, req.user?.userId);
+    const data = await clientService.updateProject(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'Project updated successfully', data });
   } catch (err) { next(err); }
 }
@@ -40,7 +46,7 @@ export async function updateProject(req, res, next) {
 // Controller: menghapus project beserta data terkait
 export async function deleteProject(req, res, next) {
   try {
-    const data = await clientService.deleteProject(req.params.id, req.user?.userId);
+    const data = await clientService.deleteProject(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'Project deleted successfully', data });
   } catch (err) { next(err); }
 }
@@ -56,7 +62,7 @@ export async function listApiKeys(req, res, next) {
 // Controller: membuat API Key baru
 export async function generateApiKey(req, res, next) {
   try {
-    const data = await clientService.generateApiKey(req.body, req.user?.userId);
+    const data = await clientService.generateApiKey(req.body, getUserId(req));
     return res.status(201).json({ success: true, message: 'API Key generated. Save the raw key — it will not be shown again.', data });
   } catch (err) { next(err); }
 }
@@ -64,7 +70,7 @@ export async function generateApiKey(req, res, next) {
 // Controller: meregenerasi API Key
 export async function regenerateApiKey(req, res, next) {
   try {
-    const data = await clientService.regenerateApiKey(req.params.id, req.user?.userId);
+    const data = await clientService.regenerateApiKey(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'API Key regenerated. Save the raw key — it will not be shown again.', data });
   } catch (err) { next(err); }
 }
@@ -72,7 +78,7 @@ export async function regenerateApiKey(req, res, next) {
 // Controller: menonaktifkan API Key
 export async function deactivateApiKey(req, res, next) {
   try {
-    const data = await clientService.deactivateApiKey(req.params.id, req.user?.userId);
+    const data = await clientService.deactivateApiKey(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'API Key deactivated successfully', data });
   } catch (err) { next(err); }
 }
@@ -80,7 +86,7 @@ export async function deactivateApiKey(req, res, next) {
 // Controller: mengganti nama/label API Key
 export async function updateApiKey(req, res, next) {
   try {
-    const data = await clientService.updateApiKey(req.params.id, req.body, req.user?.userId);
+    const data = await clientService.updateApiKey(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'API Key updated successfully', data });
   } catch (err) { next(err); }
 }
@@ -88,7 +94,7 @@ export async function updateApiKey(req, res, next) {
 // Controller: menghapus API Key secara permanen
 export async function deleteApiKey(req, res, next) {
   try {
-    const data = await clientService.deleteApiKey(req.params.id, req.user?.userId);
+    const data = await clientService.deleteApiKey(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'API Key deleted successfully', data });
   } catch (err) { next(err); }
 }
@@ -104,7 +110,7 @@ export async function getTemplates(req, res, next) {
 // Controller: membuat template baru
 export async function createTemplate(req, res, next) {
   try {
-    const data = await clientService.createTemplate(req.body, req.user?.userId);
+    const data = await clientService.createTemplate(req.body, getUserId(req));
     return res.status(201).json({ success: true, message: 'Template created successfully', data });
   } catch (err) { next(err); }
 }
@@ -112,7 +118,7 @@ export async function createTemplate(req, res, next) {
 // Controller: mengedit isi template
 export async function updateTemplate(req, res, next) {
   try {
-    const data = await clientService.updateTemplate(req.params.id, req.body, req.user?.userId);
+    const data = await clientService.updateTemplate(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'Template updated successfully', data });
   } catch (err) { next(err); }
 }
@@ -120,7 +126,7 @@ export async function updateTemplate(req, res, next) {
 // Controller: menghapus template
 export async function deleteTemplate(req, res, next) {
   try {
-    const data = await clientService.deleteTemplate(req.params.id, req.user?.userId);
+    const data = await clientService.deleteTemplate(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'Template deleted successfully', data });
   } catch (err) { next(err); }
 }
@@ -136,7 +142,7 @@ export async function getVendors(req, res, next) {
 // Controller: mendaftarkan vendor baru
 export async function createVendor(req, res, next) {
   try {
-    const data = await clientService.createVendor(req.body, req.user?.userId);
+    const data = await clientService.createVendor(req.body, getUserId(req));
     return res.status(201).json({ success: true, message: 'Vendor registered successfully', data });
   } catch (err) { next(err); }
 }
@@ -144,7 +150,7 @@ export async function createVendor(req, res, next) {
 // Controller: memperbarui kredensial/metadata vendor
 export async function updateVendor(req, res, next) {
   try {
-    const data = await clientService.updateVendor(req.params.id, req.body, req.user?.userId);
+    const data = await clientService.updateVendor(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'Vendor updated successfully', data });
   } catch (err) { next(err); }
 }
@@ -152,7 +158,7 @@ export async function updateVendor(req, res, next) {
 // Controller: menghapus vendor
 export async function deleteVendor(req, res, next) {
   try {
-    const data = await clientService.deleteVendor(req.params.id, req.user?.userId);
+    const data = await clientService.deleteVendor(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'Vendor deleted successfully', data });
   } catch (err) { next(err); }
 }

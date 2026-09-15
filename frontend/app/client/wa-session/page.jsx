@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { MessageSquare, RefreshCw, Power, Wifi, WifiOff, QrCode, PlugZap } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useProjectContext } from "@/lib/project-context";
+import { useToast } from "@/lib/toast-context";
 
 const STATUS_STYLE = {
   CONNECTED: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
@@ -21,6 +22,7 @@ const STATUS_LABEL = {
 };
 
 export default function ClientWaSessionPage() {
+  const toast = useToast();
   const { activeProject, activeProjectId } = useProjectContext();
   const [session, setSession] = useState({ status: "DISCONNECTED", qr: null });
   const [qrDataUrl, setQrDataUrl] = useState(null);
@@ -57,7 +59,7 @@ export default function ClientWaSessionPage() {
       await apiPost("/v1/clients/wa-session/connect", { projectId: activeProjectId });
       await fetchStatus();
     } catch (err) {
-      alert("Gagal menghubungkan sesi: " + err.message);
+      toast.error("Gagal menghubungkan sesi: " + err.message);
     } finally {
       setConnecting(false);
     }
@@ -70,7 +72,7 @@ export default function ClientWaSessionPage() {
       await apiPost("/v1/clients/wa-session/reset", { projectId: activeProjectId });
       await fetchStatus();
     } catch (err) {
-      alert("Gagal reset sesi: " + err.message);
+      toast.error("Gagal reset sesi: " + err.message);
     } finally {
       setResetting(false);
     }

@@ -5,6 +5,7 @@ import { Plus, Wifi, WifiOff, Copy, RefreshCw, Lock, Pencil, Trash2 } from "luci
 import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useAdminData } from "@/hooks/useAdminData";
+import { useToast } from "@/lib/toast-context";
 import { apiPost, apiPut, apiDelete } from "@/lib/api";
 
 /**
@@ -19,6 +20,7 @@ const CHANNEL_BADGE = {
 };
 
 export default function VendorsPage() {
+  const toast = useToast();
   const { vendors, loading, refetch } = useAdminData();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export default function VendorsPage() {
       setShowModal(false);
       setFormData({ name: "", channel: "EMAIL", priority: 1, credentials: "{}" });
     } catch (err) {
-      alert("Gagal menambahkan vendor: " + err.message);
+      toast.error("Gagal menambahkan vendor: " + err.message);
     } finally {
       setSaving(false);
     }
@@ -86,14 +88,14 @@ export default function VendorsPage() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editData.credentials.trim()) {
-      alert("Isi JSON kredensial baru untuk memperbarui.");
+      toast.warning("Isi JSON kredensial baru untuk memperbarui.");
       return;
     }
     let parsedCreds;
     try {
       parsedCreds = JSON.parse(editData.credentials);
     } catch {
-      alert("Format JSON kredensial tidak valid.");
+      toast.error("Format JSON kredensial tidak valid.");
       return;
     }
     setUpdating(true);
@@ -106,7 +108,7 @@ export default function VendorsPage() {
       await refetch();
       closeEditModal();
     } catch (err) {
-      alert("Gagal memperbarui kredensial: " + err.message);
+      toast.error("Gagal memperbarui kredensial: " + err.message);
     } finally {
       setUpdating(false);
     }
@@ -120,7 +122,7 @@ export default function VendorsPage() {
       await refetch();
       setDeleteVendor(null);
     } catch (err) {
-      alert("Gagal menghapus vendor: " + err.message);
+      toast.error("Gagal menghapus vendor: " + err.message);
     } finally {
       setDeleting(false);
     }
