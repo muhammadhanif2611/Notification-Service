@@ -10,7 +10,7 @@ export function startWhatsAppWorker(redisConfig) {
 
   const worker = new Worker('whatsapp-queue', async (job) => {
     const { messageId, projectId, recipient, body, isSandbox } = job.data;
-    logger.info({ messageId, recipient }, 'WhatsApp job processing');
+    logger.info({ messageId, recipient, body }, 'WhatsApp job processing');
 
     try {
       const sendResult = await sendWhatsApp({ projectId, recipient, body, isSandbox });

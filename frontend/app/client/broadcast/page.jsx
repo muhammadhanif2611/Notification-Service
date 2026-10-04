@@ -24,7 +24,8 @@ export default function BroadcastPage() {
   const [templateCode, setTemplateCode] = useState("");
   const [body, setBody] = useState("");
   const [subject, setSubject] = useState("");
-  const [recipients, setRecipients] = useState([""]);
+  const [recipients, setRecipients] = useState([{ phone: "", name: "" }]);
+  const [defaultName, setDefaultName] = useState("Kakak");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
   const [importInfo, setImportInfo] = useState(null);
@@ -39,15 +40,13 @@ export default function BroadcastPage() {
 
   const channelTemplates = templates.filter((t) => t.channel === channel);
 
-  const addRecipient = () => setRecipients([...recipients, ""]);
+  const addRecipient = () => setRecipients([...recipients, { phone: "", name: "" }]);
   const removeRecipient = (i) => setRecipients(recipients.filter((_, idx) => idx !== i));
-  const updateRecipient = (i, val) => {
+  const updateRecipient = (i, field, val) => {
     const next = [...recipients];
-    next[i] = val;
+    next[i] = { ...next[i], [field]: val };
     setRecipients(next);
   };
-
-  const validRecipients = recipients.map((r) => r.trim()).filter(Boolean);
 
   // Normalisasi nomor HP: "0812-345" / "+62 812" / "812" → "62812..." (khusus WhatsApp)
   const normalizeRecipient = (raw) => {
@@ -59,6 +58,25 @@ export default function BroadcastPage() {
     if (val.startsWith("0")) val = "62" + val.slice(1);
     else if (val.startsWith("8")) val = "62" + val;
     return val;
+  };
+
+  // Penerima yang valid: nomor/email terisi (nama opsional)
+  const validRecipients = recipients
+    .map((r) => ({ ...r, phone: normalizeRecipient(r.phone) }))
+    .filter((r) => r.phone);
+
+  // Bangun payload recipientVariables: nomor → { nama }.
+  // Nama sendiri dipakai jika diisi; jika kosong, fallback ke defaultName.
+  // Hanya dikirim jika body mengandung {{nama}} — jika tidak, tidak perlu.
+  const usesNamePlaceholder = /\{\{\s*nama\s*\}\}/i.test(body);
+  const hasAnyName = recipients.some((r) => r.name.trim());
+  const buildRecipientVariables = () => {
+    if (!usesNamePlaceholder && !hasAnyName) return undefined;
+    const map = {};
+    for (const r of validRecipients) {
+      map[r.phone] = { nama: r.name.trim() || defaultName.trim() || "Kakak" };
+    }
+    return Object.keys(map).length > 0 ? map : undefined;
   };
 
   // Import Excel/CSV: baca semua sel di kolom pertama, gabungkan dengan input manual (dedupe)
@@ -75,7 +93,10 @@ export default function BroadcastPage() {
       const imported = [];
       for (const row of rows) {
         const normalized = normalizeRecipient(row[0]);
-        if (normalized && /\d{5,}|@/.test(normalized)) imported.push(normalized);
+        const name = String(row[1] ?? "").trim();
+        if (normalized && /\d{5,}|@/.test(normalized)) {
+          imported.push({ phone: normalized, name });
+        }
       }
 
       if (imported.length === 0) {
@@ -84,8 +105,10 @@ export default function BroadcastPage() {
       }
 
       setRecipients((prev) => {
-        const existing = prev.map((r) => r.trim()).filter(Boolean);
-        return [...new Set([...existing, ...imported])];
+        const existing = prev.filter((r) => r.phone.trim());
+        const existingPhones = new Set(existing.map((r) => normalizeRecipient(r.phone)));
+        const newItems = imported.filter((item) => !existingPhones.has(item.phone));
+        return [...existing, ...newItems];
       });
       setImportInfo({ ok: true, message: `${imported.length} penerima diimpor dari "${file.name}" dan digabung dengan daftar manual.` });
     } catch {
@@ -93,18 +116,21 @@ export default function BroadcastPage() {
     }
   };
 
-  // Unduh template Excel contoh (header + 1 baris contoh)
+  // Unduh template Excel contoh (header + contoh: kolom 1 = nomor, kolom 2 = nama)
   const handleDownloadSample = () => {
     const sampleValue = channel === "WHATSAPP" ? "6281234567890" : "user@email.com";
-    const ws = XLSX.utils.aoa_to_sheet([["recipient"], [sampleValue]]);
-    ws["!cols"] = [{ wch: 22 }];
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["recipient", "nama"],
+      [sampleValue, "Biagi"],
+    ]);
+    ws["!cols"] = [{ wch: 22 }, { wch: 20 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Recipients");
     XLSX.writeFile(wb, "template-penerima-broadcast.xlsx");
   };
 
   const clearImported = () => {
-    setRecipients([""]);
+    setRecipients([{ phone: "", name: "" }]);
     setImportInfo(null);
   };
 
@@ -117,15 +143,17 @@ export default function BroadcastPage() {
     setSending(true);
     setResult(null);
     try {
+      const recipientVariables = buildRecipientVariables();
       const res = await fetch(`${API_URL}/v1/notifications/broadcast`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": apiKey.trim() },
         body: JSON.stringify({
           channel,
-          recipients: validRecipients,
+          recipients: validRecipients.map((r) => r.phone),
           templateCode: templateCode || undefined,
           body: body || undefined,
           subject: channel === "EMAIL" ? subject : undefined,
+          recipientVariables,
         }),
       });
       const data = await res.json();
@@ -142,7 +170,7 @@ export default function BroadcastPage() {
       <div>
         <h2 className="text-xl font-semibold text-[var(--text-primary)]">Broadcast</h2>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
-          Kirim pesan yang sama ke banyak penerima sekaligus (mis. pengumuman HRD ke seluruh karyawan).
+          Kirim pesan ke banyak penerima sekaligus. Gunakan <code className="font-mono bg-[var(--neutral-bg)] px-1 rounded">{"{{nama}}"}</code> di pesan agar setiap penerima menerima sapaan dengan namanya masing-masing.
         </p>
       </div>
 
@@ -216,9 +244,28 @@ export default function BroadcastPage() {
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Isi Pesan</label>
               <textarea
                 rows={4} value={body} onChange={(e) => setBody(e.target.value)}
-                placeholder="Tulis isi pesan broadcast..."
+                placeholder={"Tulis isi pesan broadcast...\nGunakan {{nama}} untuk menyapa penerima secara personal."}
                 className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
               />
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                💡 Tips: Tulis <code className="font-mono bg-[var(--neutral-bg)] px-1 rounded">{"{{nama}}"}</code> di pesan — otomatis diganti dengan nama tiap penerima. Contoh: <em>"Halo {"{{nama}}"}, ada info penting!"</em>
+              </p>
+            </div>
+          )}
+
+          {usesNamePlaceholder && (
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                Sapaan default (jika nama penerima kosong)
+              </label>
+              <input
+                type="text" value={defaultName} onChange={(e) => setDefaultName(e.target.value)}
+                placeholder="Kakak"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
+              />
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                Penerima tanpa nama akan disapa: <em>"Halo <strong>{defaultName.trim() || "Kakak"}</strong>, ..."</em>
+              </p>
             </div>
           )}
         </div>
@@ -229,6 +276,11 @@ export default function BroadcastPage() {
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-medium text-[var(--text-secondary)]">
                 Penerima ({validRecipients.length})
+                {usesNamePlaceholder && hasAnyName && (
+                  <span className="ml-2 text-[10px] text-green-600 dark:text-green-400 font-normal">
+                    ✓ {"{{nama}}"} aktif
+                  </span>
+                )}
               </label>
               <div className="flex items-center gap-3">
                 <button
@@ -257,7 +309,7 @@ export default function BroadcastPage() {
             <div className="flex items-center justify-between gap-2 mb-3 rounded-lg border border-dashed border-[var(--neutral-border)] bg-[var(--neutral-bg)] px-3 py-2">
               <p className="text-[11px] text-[var(--text-muted)] inline-flex items-center gap-1.5">
                 <FileSpreadsheet size={13} className="shrink-0" />
-                {channel === "WHATSAPP" ? "Nomor HP" : "Email"} dibaca dari kolom pertama file (.xlsx / .csv). Hasil import digabung dengan isian manual.
+                {channel === "WHATSAPP" ? "Nomor HP" : "Email"} di kolom 1, nama di kolom 2 (opsional, untuk {"{{nama}}"}). Hasil import digabung dengan isian manual.
               </p>
               <button
                 type="button" onClick={handleDownloadSample}
@@ -279,11 +331,16 @@ export default function BroadcastPage() {
               {recipients.map((r, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input
-                    type="text" value={r} onChange={(e) => updateRecipient(i, e.target.value)}
+                    type="text" value={r.phone} onChange={(e) => updateRecipient(i, "phone", e.target.value)}
                     placeholder={channel === "WHATSAPP" ? "6281234567890" : "user@email.com"}
-                    className="flex-1 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
                   />
-                  <button type="button" onClick={() => removeRecipient(i)} className="text-[var(--text-muted)] hover:text-red-500">
+                  <input
+                    type="text" value={r.name} onChange={(e) => updateRecipient(i, "name", e.target.value)}
+                    placeholder="Nama (opsional)"
+                    className="w-32 shrink-0 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
+                  />
+                  <button type="button" onClick={() => removeRecipient(i)} className="shrink-0 text-[var(--text-muted)] hover:text-red-500">
                     <X size={16} />
                   </button>
                 </div>

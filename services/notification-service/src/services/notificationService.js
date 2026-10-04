@@ -33,12 +33,32 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
 
   let resolvedBody = template.body;
   if (variables && typeof variables === 'object') {
-    for (const [key, value] of Object.entries(variables)) {
-      resolvedBody = resolvedBody.replaceAll(`{{${key}}}`, value);
-    }
+    resolvedBody = replaceTemplateVariables(resolvedBody, variables);
   }
 
   return { resolvedBody, resolvedSubject: template.subject ?? null };
+}
+
+// Helper mengambil raw body (tanpa replace variabel) — dipakai untuk personalisasi broadcast
+async function resolveRawBody(projectId, channel, templateCode, body) {
+  if (!templateCode) return { rawBody: body, resolvedSubject: null };
+
+  const template = await templateRepository.findApprovedTemplate(templateCode, channel, projectId);
+  if (!template) {
+    throw new AppError(`Template '${templateCode}' not found for this project/channel.`, 404, 'TEMPLATE_NOT_FOUND');
+  }
+
+  return { rawBody: template.body, resolvedSubject: template.subject ?? null };
+}
+
+// Helper replace placeholder {{key}} dalam body dengan nilai variabel
+function replaceTemplateVariables(body, variables) {
+  if (!variables || typeof variables !== 'object') return body;
+  let result = body;
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replaceAll(`{{${key}}}`, String(value));
+  }
+  return result;
 }
 
 // Helper mengecek kuota harian & status keaktifan project
@@ -148,7 +168,7 @@ export async function processNotification({ body: reqBody, project, environment,
 
 // Layanan memproses pengiriman notifikasi masal (broadcast)
 // Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
-export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, project, isSandbox = false }) {
+export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, recipientVariables, project, isSandbox = false }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new AppError('recipients must be a non-empty array.', 400, 'VALIDATION_ERROR');
   }
@@ -187,29 +207,43 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     }
   }
 
-  const { resolvedBody, resolvedSubject } = await resolveMessageContent(projectId, normalizedChannel, templateCode, body, variables);
+  // Ambil raw body (belum di-replace variabel) agar bisa dipersonalisasi per penerima
+  const { rawBody, resolvedSubject } = await resolveRawBody(projectId, normalizedChannel, templateCode, body);
   const finalSubject = resolvedSubject ?? subject;
 
   // Siapkan seluruh messageId, log rows, dan job payloads sekaligus
-  const queuedResults = recipients.map((recipient) => ({ recipient, messageId: generateMessageId() }));
+  const queuedResults = recipients.map((recipient) => {
+    const messageId = generateMessageId();
+
+    // Personalisasi: gabungkan variabel global + variabel khusus penerima ini
+    const perRecipientVars = (recipientVariables && typeof recipientVariables === 'object')
+      ? recipientVariables[recipient]
+      : null;
+    const mergedVars = { ...(variables ?? {}), ...(perRecipientVars ?? {}) };
+    const finalBody = replaceTemplateVariables(rawBody, mergedVars);
+
+    console.log(`[BROADCAST] ${recipient} → finalBody: "${finalBody}"`);
+
+    return { recipient, messageId, finalBody };
+  });
   const createdAt = new Date().toISOString();
 
-  const logRows = queuedResults.map(({ recipient, messageId }) => ({
+  const logRows = queuedResults.map(({ recipient, messageId, finalBody }) => ({
     message_id: messageId,
     project_id: projectId,
     channel: normalizedChannel,
     recipient,
-    payload: { templateCode, body: resolvedBody, subject: finalSubject, isBroadcast: true, broadcastId, isSandbox }
+    payload: { templateCode, body: finalBody, subject: finalSubject, isBroadcast: true, broadcastId, isSandbox }
   }));
 
-  const jobPayloads = queuedResults.map(({ recipient, messageId }) => ({
+  const jobPayloads = queuedResults.map(({ recipient, messageId, finalBody }) => ({
     name: normalizedChannel === CHANNELS.WHATSAPP ? 'send-whatsapp' : 'send-email',
     data: {
       messageId,
       projectId,
       channel: normalizedChannel,
       recipient,
-      body: resolvedBody,
+      body: finalBody,
       subject: finalSubject,
       templateCode: templateCode ?? null,
       variables: variables ?? {},

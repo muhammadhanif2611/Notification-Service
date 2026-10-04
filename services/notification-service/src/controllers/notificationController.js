@@ -18,9 +18,9 @@ export async function process(req, res, next) {
 // Controller: pemrosesan broadcast notifikasi
 export async function broadcast(req, res, next) {
   try {
-    const { channel, recipients, templateCode, body, subject, variables } = req.body;
+    const { channel, recipients, templateCode, body, subject, variables, recipientVariables } = req.body;
     const data = await notificationService.processBroadcast({
-      channel, recipients, templateCode, body, subject, variables,
+      channel, recipients, templateCode, body, subject, variables, recipientVariables,
       project: { id: req.headers['x-project-id'] },
       isSandbox: req.headers['x-environment'] === 'sandbox'
     });

@@ -61,7 +61,12 @@ await client.whatsapp.send({
   channel: 'WHATSAPP',               // atau 'EMAIL'
   recipients: ['6281234567890', '6281234567891'],
   templateCode: 'pengumuman_hrd',
-  variables: { periode: 'Q3 2026' }
+  variables: { periode: 'Q3 2026' },
+  // Personalisasi nama per penerima (opsional)
+  recipientVariables: {
+    '6281234567890': { nama: 'Biagi' },
+    '6281234567891': { nama: 'Andi' }
+  }
 });
 console.log(res.broadcastId, res.totalQueued);`,
   webhook: `// Verifikasi signature webhook (HMAC SHA-256) di endpoint Anda
