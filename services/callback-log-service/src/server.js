@@ -1,6 +1,12 @@
 import express from 'express';
 import { Worker } from 'bullmq';
-import { generateWebhookSignature, NOTIFICATION_STATUS, createLogger } from '@notification-gateway/shared';
+import {
+  generateWebhookSignature,
+  signWebhookPayload,
+  generateWebhookMessageId,
+  NOTIFICATION_STATUS,
+  createLogger
+} from '@notification-gateway/shared';
 import { config } from './config/env.js';
 import callbackLogRoutes from './routes/callbackLogRoutes.js';
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -34,7 +40,16 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Dieksekusi sebagai fire-and-forget dari worker status-queue agar pembaruan status
 // utama tidak ikut tertunda saat endpoint klien lambat.
 async function deliverWebhookWithRetry({ messageId, webhookUrl, webhookSecret, payload }) {
-  const signature = generateWebhookSignature(payload, webhookSecret);
+  // Header ala Resend/Svix: webhook-id, webhook-timestamp, webhook-signature.
+  // Signature dihitung dari RAW BODY string ("v1,<base64>") sehingga endpoint klien
+  // cukup verifikasi dari body mentah tanpa re-stringify JSON (penyebab umum mismatch).
+  // Header X-Gateway-Signature (legacy hex) tetap dikirim agar integrasi lama tidak rusak.
+  const webhookId = generateWebhookMessageId();
+  const webhookTimestamp = Math.floor(Date.now() / 1000).toString();
+  const body = JSON.stringify(payload);
+  const signature = signWebhookPayload({ id: webhookId, timestamp: webhookTimestamp, body, secret: webhookSecret });
+  const legacySignature = generateWebhookSignature(payload, webhookSecret);
+
   const notificationLog = await callbackLogRepository.findLogIdByMessageId(messageId);
 
   let httpStatus = null;
@@ -45,8 +60,14 @@ async function deliverWebhookWithRetry({ messageId, webhookUrl, webhookSecret, p
     try {
       const response = await fetch(webhookUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Gateway-Signature': signature },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+          'webhook-id': webhookId,
+          'webhook-timestamp': webhookTimestamp,
+          'webhook-signature': signature,
+          'X-Gateway-Signature': legacySignature
+        },
+        body,
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS)
       });
       httpStatus = response.status;
@@ -77,7 +98,7 @@ async function deliverWebhookWithRetry({ messageId, webhookUrl, webhookSecret, p
       messageId,
       webhookUrl,
       payloadSent: payload,
-      signature,
+      signature: `${webhookId}@${webhookTimestamp} ${signature}`,
       httpStatus,
       deliveredAt
     });
@@ -107,12 +128,15 @@ new Worker('status-queue', async (job) => {
       messageId,
       webhookUrl: projectRecord.webhook_url,
       webhookSecret: projectRecord.webhook_secret || 'default_secret',
+      // Format event ala Resend: { type, created_at, data }
       payload: {
-        event: 'notification.status_update',
-        messageId,
-        status,
-        error: error || null,
-        timestamp: new Date().toISOString()
+        type: 'notification.status_update',
+        created_at: new Date().toISOString(),
+        data: {
+          messageId,
+          status,
+          error: error || null
+        }
       }
     }).catch((err) => logger.error({ messageId, err: err.message }, 'Unexpected webhook error'));
   }

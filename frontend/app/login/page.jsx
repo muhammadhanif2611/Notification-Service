@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Zap, Eye, EyeOff, Loader2, Clock } from "lucide-react";
 
 /**
  * LoginPage — Halaman login dashboard.
@@ -10,6 +11,21 @@ import { Zap, Eye, EyeOff, Loader2 } from "lucide-react";
  * DESIGN.md: Clean, border-first, token-based, support dark mode.
  * @returns {JSX.Element}
  */
+// Komponen terpisah agar useSearchParams bisa dibungkus Suspense (wajib di App Router)
+function SessionNotice({ onNotice }) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("reason") === "idle") {
+      onNotice("Sesi Anda berakhir karena tidak ada aktivitas selama 30 menit. Silakan masuk kembali.");
+    } else if (searchParams.get("expired") === "1") {
+      onNotice("Sesi login Anda telah kedaluwarsa. Silakan masuk kembali.");
+    }
+  }, [searchParams, onNotice]);
+
+  return null;
+}
+
 export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
@@ -17,6 +33,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [sessionNotice, setSessionNotice] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,6 +51,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--neutral-bg)] px-4">
+      {/* Deteksi ?reason=idle / ?expired=1 untuk pesan sesi berakhir */}
+      <Suspense fallback={null}>
+        <SessionNotice onNotice={setSessionNotice} />
+      </Suspense>
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
@@ -50,6 +71,13 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-6 space-y-4">
+          {sessionNotice && (
+            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 text-xs">
+              <Clock size={14} className="mt-0.5 shrink-0" />
+              <span>{sessionNotice}</span>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-[var(--status-failed-bg)] border border-[#FECACA] dark:border-red-900 text-[var(--status-failed-text)] text-xs">
               <span className="mt-0.5 shrink-0">&#x2716;</span>

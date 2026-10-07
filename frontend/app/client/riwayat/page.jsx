@@ -19,12 +19,14 @@ export default function RiwayatPage() {
   const [status, setStatus] = useState("ALL");
   const [selected, setSelected] = useState(null);
 
+  const projectId = activeProject?.id;
+
   const fetchLogs = useCallback(async () => {
-    if (!activeProject?.id) { setLogs([]); setLoading(false); return; }
+    if (!projectId) { setLogs([]); setLoading(false); return; }
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("projectId", activeProject.id);
+      params.set("projectId", projectId);
       if (channel !== "ALL") params.set("channel", channel);
       if (status !== "ALL") params.set("status", status);
       params.set("limit", "50");
@@ -32,7 +34,7 @@ export default function RiwayatPage() {
       const d = res?.data;
       setLogs(Array.isArray(d) ? d : d?.data || []);
     } catch { setLogs([]); } finally { setLoading(false); }
-  }, [channel, status, activeProject?.id]);
+  }, [channel, status, projectId]);
 
   useEffect(() => {
     let cancelled = false;

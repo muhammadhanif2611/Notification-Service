@@ -1,10 +1,76 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Webhook, Copy, Check, Send, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Webhook, Copy, Check, Send, Eye, EyeOff, RefreshCw, ShieldCheck } from "lucide-react";
 import { useProjectContext } from "@/lib/project-context";
 import { apiGet, apiPut } from "@/lib/api";
 import Alert from "@/components/shared/Alert";
+
+// Snippet integrasi webhook siap copy-paste untuk project lain (pola Resend)
+const EXPRESS_SNIPPET = `// Endpoint webhook — Express.js
+import { NotificationClient } from '@notification-gateway/sdk';
+
+const client = new NotificationClient({ apiKey: process.env.NGW_API_KEY });
+
+// PENTING: pakai express.raw agar body tetap string mentah
+app.post('/webhook/notification',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    try {
+      const event = client.webhooks.verify({
+        payload: req.body.toString(), // raw body
+        headers: {
+          id: req.headers['webhook-id'],
+          timestamp: req.headers['webhook-timestamp'],
+          signature: req.headers['webhook-signature'],
+        },
+        secret: process.env.NGW_WEBHOOK_SECRET, // whsec_...
+      });
+      console.log(event.type, event.data.messageId, event.data.status);
+      res.json({ received: true });
+    } catch {
+      res.status(400).json({ error: 'Invalid webhook' });
+    }
+  }
+);`;
+
+const NEXTJS_SNIPPET = `// app/api/webhook/route.ts — Next.js App Router
+import { NotificationClient } from '@notification-gateway/sdk';
+
+const client = new NotificationClient({ apiKey: process.env.NGW_API_KEY });
+
+export async function POST(req: Request) {
+  const payload = await req.text(); // raw body WAJIB via .text()
+  try {
+    const event = client.webhooks.verify({
+      payload,
+      headers: {
+        id: req.headers.get('webhook-id'),
+        timestamp: req.headers.get('webhook-timestamp'),
+        signature: req.headers.get('webhook-signature'),
+      },
+      secret: process.env.NGW_WEBHOOK_SECRET!,
+    });
+    console.log(event.type, event.data.messageId, event.data.status);
+    return Response.json({ received: true });
+  } catch {
+    return Response.json({ error: 'Invalid webhook' }, { status: 400 });
+  }
+}`;
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={handleCopy} className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+      {copied ? <><Check size={12} className="text-emerald-500" /> Copied!</> : <><Copy size={12} /> Copy</>}
+    </button>
+  );
+}
 
 const EVENT_OPTIONS = [
   { id: "message.delivered", label: "message.delivered", desc: "Pesan berhasil terkirim" },
@@ -15,7 +81,7 @@ const EVENT_OPTIONS = [
 
 /** WebhookPage â€” Konfigurasi webhook (DESIGN.md 6A.5): URL, HMAC secret, event trigger, test ping. */
 export default function WebhookPage() {
-  const { activeProject } = useProjectContext();
+  const { activeProject, loading: projectLoading } = useProjectContext();
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("whsec_9f8e7d6c5b4a3210");
   const [showSecret, setShowSecret] = useState(false);
@@ -26,15 +92,19 @@ export default function WebhookPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (activeProject) {
-      setUrl(activeProject.webhook_url || "");
-      setSecret(activeProject.webhook_secret || "");
-      setLoading(false);
-    }
-  }, [activeProject]);
+  // Sinkronisasi form dari project aktif SAAT RENDER (pola resmi React:
+  // "adjusting state during rendering") — bukan setState di dalam effect.
+  // Reset juga terjadi otomatis saat ganti project (projectId berubah).
+  const projectId = activeProject?.id;
+  const [syncedProjectId, setSyncedProjectId] = useState(null);
+  if (projectId && projectId !== syncedProjectId) {
+    setSyncedProjectId(projectId);
+    setUrl(activeProject.webhook_url || "");
+    setSecret(activeProject.webhook_secret || "");
+  }
+
+  const loading = projectLoading || (!!projectId && projectId !== syncedProjectId);
 
   const toggleEvent = (id) =>
     setEvents((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
@@ -55,23 +125,54 @@ export default function WebhookPage() {
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
 
+  // Generate secret baru (whsec_ + base64 24 byte) — ala Resend
+  const handleGenerateSecret = () => {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    setSecret("whsec_" + btoa(String.fromCharCode(...bytes)));
+  };
+
   const handlePing = async () => {
     if (!url) return;
     setPinging(true); setPingResult(null);
     const startTime = Date.now();
     try {
-      const testPayload = { event: "notification.status_update", messageId: "msg_test_" + Date.now(), status: "SENT", timestamp: new Date().toISOString(), _test: true };
+      const testPayload = {
+        type: "notification.status_update",
+        created_at: new Date().toISOString(),
+        data: { messageId: "msg_test_" + Date.now(), status: "SENT", error: null, _test: true }
+      };
+      const body = JSON.stringify(testPayload);
+      const webhookId = "msg_test_" + crypto.randomUUID().replaceAll("-", "");
+      const webhookTimestamp = Math.floor(Date.now() / 1000).toString();
       let signature = "";
+      let legacySignature = "";
       if (secret) {
         const encoder = new TextEncoder();
-        const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(JSON.stringify(testPayload)));
-        signature = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+        // Signature ala Svix: HMAC(`${id}.${timestamp}.${rawBody}`) base64, prefix "v1,"
+        let keyBytes = encoder.encode(secret);
+        if (secret.startsWith("whsec_")) {
+          keyBytes = Uint8Array.from(atob(secret.slice("whsec_".length)), (c) => c.charCodeAt(0));
+        }
+        const key = await crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(`${webhookId}.${webhookTimestamp}.${body}`));
+        signature = "v1," + btoa(String.fromCharCode(...new Uint8Array(sig)));
+        // Signature legacy (hex dari body) untuk kompatibilitas integrasi lama
+        const legacyKey = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+        const legacySig = await crypto.subtle.sign("HMAC", legacyKey, encoder.encode(body));
+        legacySignature = Array.from(new Uint8Array(legacySig)).map(b => b.toString(16).padStart(2, "0")).join("");
       }
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...(signature ? { "X-Gateway-Signature": signature } : {}) }, body: JSON.stringify(testPayload), signal: AbortSignal.timeout(5000) });
+      const headers = { "Content-Type": "application/json" };
+      if (signature) {
+        headers["webhook-id"] = webhookId;
+        headers["webhook-timestamp"] = webhookTimestamp;
+        headers["webhook-signature"] = signature;
+        headers["X-Gateway-Signature"] = legacySignature;
+      }
+      const response = await fetch(url, { method: "POST", headers, body, signal: AbortSignal.timeout(5000) });
       const latency = Date.now() - startTime;
-      const body = await response.text();
-      setPingResult({ status: response.status, latency, body: body.slice(0, 200) });
+      const responseBody = await response.text();
+      setPingResult({ status: response.status, latency, body: responseBody.slice(0, 200) });
     } catch (err) { setPingResult({ status: 0, latency: Date.now() - startTime, body: err.message }); } finally { setPinging(false); }
   };
 
@@ -119,10 +220,12 @@ export default function WebhookPage() {
               type={showSecret ? "text" : "password"}
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
-              value={secret}
-              className="w-full px-3 py-2.5 pr-20 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] focus:outline-none"
+              className="w-full px-3 py-2.5 pr-24 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] focus:outline-none"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+              <button type="button" onClick={handleGenerateSecret} className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" aria-label="Generate secret baru" title="Generate secret baru (whsec_)">
+                <RefreshCw size={14} />
+              </button>
               <button type="button" onClick={() => setShowSecret(!showSecret)} className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" aria-label="Toggle secret">
                 {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
@@ -132,7 +235,8 @@ export default function WebhookPage() {
             </div>
           </div>
           <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
-            Verifikasi header <code className="font-mono">X-Gateway-Signature</code> dengan key ini.
+            Simpan secret ini di env project Anda (<code className="font-mono">NGW_WEBHOOK_SECRET</code>).
+            Gateway mengirim header <code className="font-mono">webhook-id</code>, <code className="font-mono">webhook-timestamp</code>, dan <code className="font-mono">webhook-signature</code> — verifikasi dengan <code className="font-mono">client.webhooks.verify()</code>.
           </p>
         </div>
 
@@ -188,6 +292,45 @@ export default function WebhookPage() {
           </div>
         </div>
       )}
+
+      {/* Cara Kerja Webhook — dokumentasi siap implement di project lain (pola Resend/Svix) */}
+      <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} className="text-amber-600 dark:text-amber-400" />
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Cara Kerja &amp; Integrasi di Project Anda</h3>
+        </div>
+
+        <ol className="list-decimal list-inside space-y-1.5 text-xs text-[var(--text-secondary)] leading-relaxed">
+          <li>Buat endpoint <code className="font-mono">POST</code> di project Anda, lalu simpan URL-nya di form atas beserta Signing Secret.</li>
+          <li>Setiap status pesan berubah (SENT/FAILED), gateway mengirim HTTP POST ke endpoint Anda dengan format event <code className="font-mono">{"{ type, created_at, data }"}</code>.</li>
+          <li>Setiap request menyertakan header <code className="font-mono">webhook-id</code> (unik per event, bisa dipakai untuk idempotency), <code className="font-mono">webhook-timestamp</code>, dan <code className="font-mono">webhook-signature</code> (HMAC-SHA256).</li>
+          <li>Verifikasi signature menggunakan SDK agar request palsu &amp; replay attack tertolak otomatis.</li>
+          <li>Balas HTTP 200 dalam 10 detik. Jika gagal, gateway me-retry hingga 3x dengan exponential backoff (5s, 10s).</li>
+        </ol>
+
+        <div className="rounded-lg border border-[var(--neutral-border)] overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-[var(--neutral-border)]">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">Express.js</span>
+            <CopyButton text={EXPRESS_SNIPPET} />
+          </div>
+          <pre className="p-4 text-[11px] font-mono text-[var(--text-primary)] bg-[var(--neutral-bg)] overflow-x-auto leading-relaxed">{EXPRESS_SNIPPET}</pre>
+        </div>
+
+        <div className="rounded-lg border border-[var(--neutral-border)] overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border-b border-[var(--neutral-border)]">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">Next.js (App Router)</span>
+            <CopyButton text={NEXTJS_SNIPPET} />
+          </div>
+          <pre className="p-4 text-[11px] font-mono text-[var(--text-primary)] bg-[var(--neutral-bg)] overflow-x-auto leading-relaxed">{NEXTJS_SNIPPET}</pre>
+        </div>
+
+        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+          <strong>Penting:</strong> gunakan <em>raw request body</em> (string mentah) saat verifikasi.
+          Signature sangat sensitif — framework yang me-parse JSON lalu me-stringify ulang akan membuat
+          signature mismatch. Contoh payload:{" "}
+          <code className="font-mono">{'{"type":"notification.status_update","created_at":"...","data":{"messageId":"...","status":"SENT","error":null}}'}</code>
+        </p>
+      </div>
     </>
   );
 }

@@ -248,7 +248,7 @@ export default function BroadcastPage() {
                 className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
               />
               <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                💡 Tips: Tulis <code className="font-mono bg-[var(--neutral-bg)] px-1 rounded">{"{{nama}}"}</code> di pesan — otomatis diganti dengan nama tiap penerima. Contoh: <em>"Halo {"{{nama}}"}, ada info penting!"</em>
+                💡 Tips: Tulis <code className="font-mono bg-[var(--neutral-bg)] px-1 rounded">{"{{nama}}"}</code> di pesan — otomatis diganti dengan nama tiap penerima. Contoh: <em>&ldquo;Halo {"{{nama}}"}, ada info penting!&rdquo;</em>
               </p>
             </div>
           )}
@@ -264,7 +264,7 @@ export default function BroadcastPage() {
                 className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
               />
               <p className="text-[11px] text-[var(--text-muted)] mt-1">
-                Penerima tanpa nama akan disapa: <em>"Halo <strong>{defaultName.trim() || "Kakak"}</strong>, ..."</em>
+                Penerima tanpa nama akan disapa: <em>&ldquo;Halo <strong>{defaultName.trim() || "Kakak"}</strong>, ...&rdquo;</em>
               </p>
             </div>
           )}

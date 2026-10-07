@@ -25,13 +25,15 @@ export default function ClientDashboardPage() {
   const [recentLogs, setRecentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const projectId = activeProject?.id;
+
   const fetchData = useCallback(async () => {
-    if (!activeProject?.id) { setLoading(false); return; }
+    if (!projectId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [statsRes, logsRes] = await Promise.allSettled([
-        apiGet(`/v1/statistics?projectId=${activeProject.id}`),
-        apiGet(`/v1/logs?projectId=${activeProject.id}&limit=5`),
+        apiGet(`/v1/statistics?projectId=${projectId}`),
+        apiGet(`/v1/logs?projectId=${projectId}&limit=5`),
       ]);
       if (statsRes.status === "fulfilled") setStats(statsRes.value?.data || null);
       if (logsRes.status === "fulfilled") {
@@ -43,7 +45,7 @@ export default function ClientDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeProject?.id]);
+  }, [projectId]);
 
   useEffect(() => {
     let cancelled = false;

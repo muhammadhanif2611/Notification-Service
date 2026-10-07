@@ -1,39 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Sun, Moon } from "lucide-react";
+
+// Deteksi client-side mount tanpa setState di effect (menghindari hydration mismatch)
+const subscribe = () => () => {};
+const useMounted = () => useSyncExternalStore(subscribe, () => true, () => false);
+
+// Baca tema awal dari localStorage / system preference (client-only)
+function getInitialTheme() {
+  if (typeof window === "undefined") return false;
+  const savedTheme = localStorage.getItem("theme");
+  return savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
 
 /**
  * Theme toggle component untuk switch antara Light dan Dark mode.
  * Persist preference ke localStorage dan apply .dark class ke <html>.
- * 
+ *
  * @returns {JSX.Element}
  */
 export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  /**
-   * Initialize theme dari localStorage atau system preference.
-   * Hanya run di client-side setelah hydration.
-   */
-  useEffect(() => {
-    setMounted(true);
-    
-    // Baca preference dari localStorage
-    const savedTheme = localStorage.getItem("theme");
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const shouldBeDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
-    
-    // Sync DOM dengan preference
-    if (shouldBeDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    
-    setIsDark(shouldBeDark);
-  }, []);
+  const mounted = useMounted();
+  // Lazy initializer — tanpa effect, tanpa setState sinkron
+  const [isDark, setIsDark] = useState(getInitialTheme);
 
   /**
    * Toggle antara dark dan light mode.

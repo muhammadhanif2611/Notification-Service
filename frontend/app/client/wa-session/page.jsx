@@ -26,13 +26,15 @@ export default function ClientWaSessionPage() {
   const { activeProject, activeProjectId } = useProjectContext();
   const [session, setSession] = useState({ status: "DISCONNECTED", qr: null });
   const [qrDataUrl, setQrDataUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchStatus = useCallback(async () => {
-    if (!activeProjectId) { setLoading(false); return; }
+    if (!activeProjectId) return;
+    setIsFetching(true);
     try {
       const res = await apiGet(`/v1/clients/wa-session?projectId=${activeProjectId}`);
       const data = res.data || res;
@@ -42,16 +44,20 @@ export default function ClientWaSessionPage() {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setIsFetching(false);
+      setHasLoaded(true);
     }
   }, [activeProjectId]);
 
+  // Fetch awal (via timeout agar tidak setState sinkron di effect) + polling tiap 5 dtk
   useEffect(() => {
-    setLoading(true);
     const initial = setTimeout(fetchStatus, 0);
     const interval = setInterval(fetchStatus, 5000);
     return () => { clearTimeout(initial); clearInterval(interval); };
   }, [fetchStatus]);
+
+  // Loading diturunkan dari state fetch — tanpa setState sinkron di effect
+  const loading = isFetching && !hasLoaded;
 
   const handleConnect = async () => {
     setConnecting(true);

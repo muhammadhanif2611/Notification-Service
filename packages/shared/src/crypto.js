@@ -41,10 +41,43 @@ export function decryptAES({ encryptedData, iv, authTag }) {
   return decryptedBuffer.toString('utf8');
 }
 
-// Generate HMAC SHA-256 signature untuk verifikasi webhook
+// Generate HMAC SHA-256 signature untuk verifikasi webhook (LEGACY — hex dari JSON body)
 export function generateWebhookSignature(payload, secret) {
   const dataString = typeof payload === 'object' ? JSON.stringify(payload) : payload;
   return crypto.createHmac('sha256', secret).update(dataString).digest('hex');
+}
+
+// === Skema signature ala Resend/Svix ===
+// Signed content: `${id}.${timestamp}.${rawBody}` → HMAC-SHA256 → base64, diprefix "v1,"
+// Keunggulan: signature dihitung dari RAW BODY sehingga framework klien tidak perlu
+// me-re-stringify payload (penyebab umum signature mismatch), plus timestamp mencegah replay attack.
+
+// Generate signing secret baru dengan prefix whsec_ (base64 24 byte), ala Resend
+export function generateWebhookSecret() {
+  return 'whsec_' + crypto.randomBytes(24).toString('base64');
+}
+
+// Generate ID unik pesan webhook (dikirim via header webhook-id, juga dipakai untuk idempotency)
+export function generateWebhookMessageId() {
+  return `msg_${crypto.randomBytes(16).toString('hex')}`;
+}
+
+// Normalisasi secret → Buffer kunci HMAC.
+// Secret whsec_ di-decode dari base64; secret lama (plain text) dipakai apa adanya.
+export function getWebhookSecretBytes(secret) {
+  if (secret.startsWith('whsec_')) {
+    return Buffer.from(secret.slice('whsec_'.length), 'base64');
+  }
+  return Buffer.from(secret, 'utf8');
+}
+
+// Buat signature webhook format "v1,<base64>" untuk dikirim di header webhook-signature
+export function signWebhookPayload({ id, timestamp, body, secret }) {
+  const key = getWebhookSecretBytes(secret);
+  const digest = crypto.createHmac('sha256', key)
+    .update(`${id}.${timestamp}.${body}`)
+    .digest('base64');
+  return `v1,${digest}`;
 }
 
 // Generasi hash aman untuk password atau API Key

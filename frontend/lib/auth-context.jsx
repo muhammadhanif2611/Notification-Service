@@ -13,6 +13,8 @@ const USER_KEY = "ngw_user";
  * AuthProvider — Context provider untuk autentikasi dashboard.
  * Login via gateway → auth-service (POST /v1/auth/login).
  * Token JWT disimpan di localStorage (expiry 8 jam sesuai IMPLEMENTATION_PLAN).
+ * Sesi juga dibatasi idle timeout 30 menit (lihat lib/useIdleTimeout.js) —
+ * murni client-side sehingga tidak menambah request ke server/Redis.
  * @param {object} props
  * @param {React.ReactNode} props.children
  * @returns {JSX.Element}

@@ -2,7 +2,7 @@ import { HttpClient } from './http.js';
 import { WhatsAppClient } from './whatsapp.js';
 import { EmailClient } from './email.js';
 import { BroadcastClient } from './broadcast.js';
-import { verifyWebhookSignature } from './verifyWebhook.js';
+import { verifyWebhookSignature, WebhooksClient } from './verifyWebhook.js';
 
 // Client utama SDK Notification Gateway
 export class NotificationClient {
@@ -14,9 +14,12 @@ export class NotificationClient {
     this.whatsapp = new WhatsAppClient(this.httpClient);
     this.email = new EmailClient(this.httpClient);
     this.broadcast = new BroadcastClient(this.httpClient);
+    // Verifikasi webhook ala Resend: client.webhooks.verify({ payload, headers, secret })
+    // Mengembalikan event hasil parse, atau melempar error jika signature/timestamp invalid.
+    this.webhooks = new WebhooksClient();
   }
 
-  // Verifikasi signature webhook dari Notification Gateway
+  // Verifikasi signature webhook LEGACY (hex dari JSON body) — gunakan webhooks.verify() untuk integrasi baru
   verifyWebhook({ payload, signature, secret }) {
     return verifyWebhookSignature({ payload, signature, secret });
   }

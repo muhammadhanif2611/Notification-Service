@@ -69,17 +69,189 @@ await client.whatsapp.send({
   }
 });
 console.log(res.broadcastId, res.totalQueued);`,
-  webhook: `// Verifikasi signature webhook (HMAC SHA-256) di endpoint Anda
-app.post('/webhook/notification', (req, res) => {
-  const valid = client.verifyWebhook({
-    payload: req.body,
-    signature: req.headers['x-gateway-signature'],
-    secret: process.env.WEBHOOK_SECRET
-  });
-  if (!valid) return res.status(401).json({ error: 'Invalid signature' });
-  console.log(req.body.status, req.body.messageId);
-  res.json({ received: true });
-});`,
+  webhook: `// Verifikasi webhook (pola Resend/Svix) di endpoint Anda
+// PENTING: pakai express.raw agar body tetap string mentah
+app.post('/webhook/notification',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    try {
+      const event = client.webhooks.verify({
+        payload: req.body.toString(), // raw body
+        headers: {
+          id: req.headers['webhook-id'],
+          timestamp: req.headers['webhook-timestamp'],
+          signature: req.headers['webhook-signature'],
+        },
+        secret: process.env.NGW_WEBHOOK_SECRET, // whsec_...
+      });
+      console.log(event.type, event.data.messageId, event.data.status);
+      res.json({ received: true });
+    } catch {
+      res.status(400).json({ error: 'Invalid webhook' });
+    }
+  }
+);`,
+};
+
+// === REST API bahasa-agnostic: kontrak endpoint yang sama untuk SEMUA bahasa ===
+const REST_SNIPPETS = {
+  auth: `# Semua request ke Gateway hanya butuh 2 header ini — berlaku di bahasa apa pun:
+#   x-api-key:    API Key dari dashboard (ngw_prod_... / ngw_sand_...)
+#   Content-Type: application/json
+#
+# Base URL (development): http://localhost:3001
+# Endpoint pengiriman:
+#   POST /v1/notifications/send        → kirim 1 pesan
+#   POST /v1/notifications/broadcast   → kirim ke banyak penerima`,
+  send: `curl -X POST http://localhost:3001/v1/notifications/send \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ngw_prod_xxxxxxxx" \\
+  -d '{
+    "channel": "WHATSAPP",
+    "recipient": "6281234567890",
+    "body": "Halo! Pesanan Anda #INV-10291 telah dikirim."
+  }'
+
+# Respons sukses (HTTP 202 — pesan masuk antrean, status akhir via webhook):
+# {
+#   "success": true,
+#   "data": { "messageId": "msg_...", "status": "QUEUED" }
+# }`,
+  broadcast: `curl -X POST http://localhost:3001/v1/notifications/broadcast \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ngw_prod_xxxxxxxx" \\
+  -d '{
+    "channel": "EMAIL",
+    "recipients": ["budi@mail.com", "andi@mail.com"],
+    "subject": "Pengumuman Penting",
+    "body": "<h1>Halo!</h1><p>Ada pembaruan sistem.</p>",
+    "recipientVariables": {
+      "budi@mail.com": { "nama": "Budi" },
+      "andi@mail.com": { "nama": "Andi" }
+    }
+  }'`,
+};
+
+// Contoh konsumsi REST API langsung (tanpa SDK) per bahasa
+const REST_EXAMPLES = {
+  js: `// Node.js 18+ — fetch bawaan, tanpa install apa pun
+const res = await fetch('http://localhost:3001/v1/notifications/send', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': process.env.NGW_API_KEY,
+  },
+  body: JSON.stringify({
+    channel: 'WHATSAPP',
+    recipient: '6281234567890',
+    body: 'Halo! Pesanan Anda telah dikirim.',
+  }),
+});
+const result = await res.json();
+console.log(result.data.messageId);`,
+  python: `# Python — cukup library 'requests' (pip install requests)
+import requests
+
+res = requests.post(
+    'http://localhost:3001/v1/notifications/send',
+    headers={'x-api-key': 'ngw_prod_xxxxxxxx'},
+    json={
+        'channel': 'WHATSAPP',
+        'recipient': '6281234567890',
+        'body': 'Halo! Pesanan Anda telah dikirim.',
+    },
+    timeout=10,
+)
+print(res.json()['data']['messageId'])`,
+  php: `<?php
+// PHP — cURL bawaan, tanpa library tambahan
+$ch = curl_init('http://localhost:3001/v1/notifications/send');
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_HTTPHEADER => [
+        'Content-Type: application/json',
+        'x-api-key: ngw_prod_xxxxxxxx',
+    ],
+    CURLOPT_POSTFIELDS => json_encode([
+        'channel' => 'WHATSAPP',
+        'recipient' => '6281234567890',
+        'body' => 'Halo! Pesanan Anda telah dikirim.',
+    ]),
+]);
+$result = json_decode(curl_exec($ch), true);
+curl_close($ch);
+echo $result['data']['messageId'];`,
+};
+
+// Cara hitung signature webhook MANUAL (tanpa SDK) — algoritma universal
+const WEBHOOK_MANUAL = {
+  python: `# Verifikasi webhook manual — Python (Flask/FastAPI/dll)
+import hmac, hashlib, base64, time, json
+
+def verify_webhook(raw_body: bytes, headers: dict, secret: str) -> dict:
+    wh_id       = headers.get('webhook-id')
+    timestamp   = headers.get('webhook-timestamp')
+    signature   = headers.get('webhook-signature')
+    if not (wh_id and timestamp and signature):
+        raise ValueError('Header webhook tidak lengkap')
+
+    # 1. Cek timestamp (toleransi 5 menit — anti replay attack)
+    if abs(time.time() - int(timestamp)) > 300:
+        raise ValueError('Timestamp kadaluarsa')
+
+    # 2. Signature = base64( HMAC_SHA256("id.timestamp.rawBody") ), prefix "v1,"
+    key = base64.b64decode(secret[6:]) if secret.startswith('whsec_') else secret.encode()
+    signed = f"{wh_id}.{timestamp}.{raw_body.decode()}".encode()
+    expected = 'v1,' + base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
+
+    if not any(hmac.compare_digest(expected, s) for s in signature.split(' ')):
+        raise ValueError('Signature tidak valid')
+
+    return json.loads(raw_body)
+
+# Pemakaian di Flask:
+# @app.post('/webhook/notification')
+# def webhook():
+#     event = verify_webhook(request.get_data(), request.headers, 'whsec_...')
+#     return {'received': True}`,
+  php: `<?php
+// Verifikasi webhook manual — PHP native
+function verifyWebhook(string $rawBody, array $headers, string $secret): array {
+    $id        = $headers['webhook-id']        ?? null;
+    $timestamp = $headers['webhook-timestamp'] ?? null;
+    $signature = $headers['webhook-signature'] ?? null;
+    if (!$id || !$timestamp || !$signature) {
+        throw new Exception('Header webhook tidak lengkap');
+    }
+
+    // 1. Cek timestamp (toleransi 5 menit — anti replay attack)
+    if (abs(time() - (int)$timestamp) > 300) {
+        throw new Exception('Timestamp kadaluarsa');
+    }
+
+    // 2. Signature = base64( HMAC_SHA256("id.timestamp.rawBody") ), prefix "v1,"
+    $key = str_starts_with($secret, 'whsec_')
+        ? base64_decode(substr($secret, 6))
+        : $secret;
+    $expected = 'v1,' . base64_encode(
+        hash_hmac('sha256', "{$id}.{$timestamp}.{$rawBody}", $key, true)
+    );
+
+    $valid = false;
+    foreach (explode(' ', $signature) as $sig) {
+        if (hash_equals($expected, $sig)) { $valid = true; break; }
+    }
+    if (!$valid) throw new Exception('Signature tidak valid');
+
+    return json_decode($rawBody, true);
+}
+
+// Pemakaian:
+// $rawBody = file_get_contents('php://input'); // WAJIB raw body mentah
+// $event = verifyWebhook($rawBody, getallheaders(), 'whsec_...');
+// echo $event['data']['messageId'];`,
 };
 
 const STEPS = [
@@ -89,10 +261,34 @@ const STEPS = [
   { icon: ShieldCheck, title: "4. Terima Webhook", desc: "Verifikasi signature untuk menerima status pengiriman real-time." },
 ];
 
+// Tab pemilih bahasa untuk snippet REST API (dokumentasi bahasa-agnostic)
+function LangTabs({ tabs, active, onChange }) {
+  return (
+    <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 w-fit">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onChange(tab.id)}
+          className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+            active === tab.id
+              ? "bg-[var(--neutral-surface)] text-[var(--text-primary)] shadow-sm"
+              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function SdkPage() {
   const { activeProject } = useProjectContext();
   const [apiKeys, setApiKeys] = useState([]);
   const [loadingKeys, setLoadingKeys] = useState(true);
+  const [restLang, setRestLang] = useState("js");
+  const [webhookLang, setWebhookLang] = useState("python");
 
   useEffect(() => {
     async function fetchKeys() {
@@ -202,6 +398,96 @@ export default function SdkPage() {
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">Verifikasi Webhook</h3>
           </div>
           <CodeBlock title="client.verifyWebhook()" code={SNIPPETS.webhook} />
+        </div>
+      </div>
+
+      {/* ===== REST API — untuk client yang TIDAK pakai JavaScript ===== */}
+      <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <Code2 size={16} className="text-[var(--text-primary)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">REST API — Untuk Bahasa Apa Pun</h3>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+            Aplikasi Anda tidak pakai JavaScript? Tidak masalah. Gateway ini adalah REST API biasa —
+            cukup kirim HTTP POST dengan API Key. Kontrak di bawah berlaku sama untuk PHP, Python, Go, Java, C#, dan lainnya.
+          </p>
+        </div>
+
+        {/* Kontrak API */}
+        <CodeBlock title="Kontrak API (semua bahasa)" code={REST_SNIPPETS.auth} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CodeBlock title="cURL — Kirim 1 Pesan" code={REST_SNIPPETS.send} />
+          <CodeBlock title="cURL — Broadcast" code={REST_SNIPPETS.broadcast} />
+        </div>
+
+        {/* Contoh per bahasa */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h4 className="text-xs font-semibold text-[var(--text-primary)]">Contoh Kirim Pesan per Bahasa (tanpa SDK)</h4>
+            <LangTabs
+              tabs={[
+                { id: "js", label: "Node.js" },
+                { id: "python", label: "Python" },
+                { id: "php", label: "PHP" },
+              ]}
+              active={restLang}
+              onChange={setRestLang}
+            />
+          </div>
+          <CodeBlock
+            title={{ js: "Node.js — fetch bawaan", python: "Python — requests", php: "PHP — cURL" }[restLang]}
+            code={REST_EXAMPLES[restLang]}
+          />
+        </div>
+
+        {/* Webhook manual per bahasa */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h4 className="text-xs font-semibold text-[var(--text-primary)]">Verifikasi Webhook Manual (tanpa SDK)</h4>
+            <LangTabs
+              tabs={[
+                { id: "python", label: "Python" },
+                { id: "php", label: "PHP" },
+              ]}
+              active={webhookLang}
+              onChange={setWebhookLang}
+            />
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Algoritma signature universal: <code className="font-mono">base64(HMAC_SHA256(&quot;webhook-id.webhook-timestamp.rawBody&quot;, secret))</code> dengan prefix <code className="font-mono">v1,</code>.
+            Tersedia di semua bahasa (<code className="font-mono">hmac</code> di Python, <code className="font-mono">hash_hmac</code> di PHP, dst).
+          </p>
+          <CodeBlock
+            title={{ python: "Python — hmac + hashlib", php: "PHP — hash_hmac" }[webhookLang]}
+            code={WEBHOOK_MANUAL[webhookLang]}
+          />
+        </div>
+
+        {/* Format respons & error */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div className="rounded-lg border border-[var(--neutral-border)] p-3.5">
+            <p className="text-[11px] font-semibold text-[var(--text-primary)] mb-1.5">Format Respons Sukses</p>
+            <pre className="text-[11px] font-mono text-[var(--text-secondary)] leading-relaxed">{`{
+  "success": true,
+  "data": {
+    "messageId": "msg_...",
+    "status": "QUEUED"
+  }
+}`}</pre>
+          </div>
+          <div className="rounded-lg border border-[var(--neutral-border)] p-3.5">
+            <p className="text-[11px] font-semibold text-[var(--text-primary)] mb-1.5">Format Respons Error</p>
+            <pre className="text-[11px] font-mono text-[var(--text-secondary)] leading-relaxed">{`{
+  "success": false,
+  "error": "Invalid API Key"
+}
+
+// HTTP 401 → API Key salah/nonaktif
+// HTTP 400 → payload tidak valid
+// HTTP 429 → rate limit / kuota habis`}</pre>
+          </div>
         </div>
       </div>
 

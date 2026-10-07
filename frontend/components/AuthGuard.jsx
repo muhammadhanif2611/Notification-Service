@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useIdleTimeout } from "@/lib/useIdleTimeout";
 import { Loader2 } from "lucide-react";
 
 // Deteksi client-side mount tanpa setState di effect (menghindari hydration mismatch)
@@ -21,6 +22,10 @@ export default function AuthGuard({ children, requiredRole }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const mounted = useMounted();
+
+  // Auto-logout setelah 30 menit tidak ada aktivitas (murni client-side,
+  // tanpa polling ke server/Redis). Aktivitas tersinkron antar-tab browser.
+  useIdleTimeout();
 
   useEffect(() => {
     if (!mounted || loading) return;
