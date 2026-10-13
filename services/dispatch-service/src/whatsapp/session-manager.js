@@ -35,6 +35,7 @@ function createSessionState() {
     lastQrCode: null,
     connectionPromise: null,
     reconnectAttempts: 0,
+    reconnectTimer: null,
     connectedAt: null
   };
 }
@@ -109,12 +110,17 @@ async function connectSocket(projectId) {
  */
 function scheduleReconnect(projectId) {
   const state = getOrCreateState(projectId);
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
   const delay = resolveReconnectDelay(state.reconnectAttempts);
   state.reconnectAttempts += 1;
 
-  logger.warn({ projectId, delay, attempt: state.reconnectAttempts }, 'WhatsApp connection closed — scheduling reconnect');
+  logger.warn({ projectId, delay, attempt: state.reconnectAttempts }, 'WhatsApp connection closed — scheduling debounced reconnect');
 
-  setTimeout(() => {
+  state.reconnectTimer = setTimeout(() => {
+    state.reconnectTimer = null;
     connectSocket(projectId).catch((err) =>
       logger.error({ projectId, err: err.message }, 'WhatsApp reconnect failed')
     );
@@ -185,6 +191,11 @@ export async function connectProject(projectId) {
 export async function disconnectProject(projectId) {
   const state = getOrCreateState(projectId);
 
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+
   try {
     state.socket?.end(undefined);
   } catch (err) {
@@ -230,6 +241,11 @@ export function getAllSessionStatuses() {
  */
 export async function resetProjectSession(projectId) {
   const state = getOrCreateState(projectId);
+
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
 
   try {
     await state.socket?.logout();

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "notification-gateway-sdk"
+version = "1.0.0"
+description = "Official Python SDK for Notification Gateway — kirim WhatsApp, Email, dan Broadcast notifikasi."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["notification", "whatsapp", "email", "broadcast", "gateway", "sdk"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Communications",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx>=0.27",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+    "responses>=0.25",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/notification-service"
+Repository = "https://github.com/your-org/notification-service"
+Documentation = "https://github.com/your-org/notification-service/tree/main/packages/sdk-python"
+"Bug Tracker" = "https://github.com/your-org/notification-service/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["notification_gateway"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -15,10 +15,8 @@ import { useAdminData } from "@/hooks/useAdminData";
 export default function ControlCenterPage() {
   const { statistics, logs, vendors, health, loading, refetch } = useAdminData();
 
-  useEffect(() => {
-    const interval = setInterval(() => refetch(), 30000);
-    return () => clearInterval(interval);
-  }, [refetch]);
+  // Refresh data di-handle via trigger: initial mount, tombol Refresh (manual),
+  // dan Tab Visibility trigger saat tab aktif kembali (useAdminData).
 
   const totalMessages = statistics?.total || 0;
   const sentMessages = statistics?.sent || 0;

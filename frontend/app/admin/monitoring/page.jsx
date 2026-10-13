@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Activity, RefreshCw, Cpu, ExternalLink } from "lucide-react";
 import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
@@ -8,12 +8,22 @@ import { useAdminData } from "@/hooks/useAdminData";
 const BULL_BOARD_URL = process.env.NEXT_PUBLIC_BULL_BOARD_URL || "http://127.0.0.1:3001/admin/queues";
 
 export default function MonitoringPage() {
-  const { statistics, loading, refetch } = useAdminData();
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  // Hanya ambil scope 'statistics' untuk menghemat bandwidth & beban server
+  const scopeConfig = useMemo(() => ({ scope: ["statistics"] }), []);
+  const { statistics, loading, refetch } = useAdminData(scopeConfig);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
+  // Auto-refresh cerdas: hanya berjalan saat user mengaktifkannya dan tab sedang aktif terlihat
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(() => refetch(), 5000);
+
+    const interval = setInterval(() => {
+      // Jangan trigger request jika browser di-minimize atau tab sedang tidak aktif
+      if (document.visibilityState === "visible") {
+        refetch();
+      }
+    }, 20000); // 20 detik interval aman, bukan 5 detik buta
+
     return () => clearInterval(interval);
   }, [autoRefresh, refetch]);
 
@@ -42,7 +52,7 @@ export default function MonitoringPage() {
                 : "border border-[var(--neutral-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             }`}
           >
-            {autoRefresh ? "Auto-refresh ON" : "Auto-refresh OFF"}
+            {autoRefresh ? "Auto-refresh (20s) ON" : "Auto-refresh OFF"}
           </button>
           <button
             onClick={() => refetch()}

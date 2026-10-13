@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Plus, Wifi, WifiOff, Copy, RefreshCw, Lock, Pencil, Trash2 } from "lucide-react";
 import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
@@ -21,7 +21,9 @@ const CHANNEL_BADGE = {
 
 export default function VendorsPage() {
   const toast = useToast();
-  const { vendors, loading, refetch } = useAdminData();
+  // Hanya fetch scope 'vendors' untuk efisiensi
+  const scopeConfig = useMemo(() => ({ scope: ["vendors"] }), []);
+  const { vendors, loading, refetch } = useAdminData(scopeConfig);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
@@ -40,11 +42,6 @@ export default function VendorsPage() {
   // State untuk modal konfirmasi Hapus Vendor
   const [deleteVendor, setDeleteVendor] = useState(null); // vendor yang akan dihapus
   const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => refetch(), 30000);
-    return () => clearInterval(interval);
-  }, [refetch]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

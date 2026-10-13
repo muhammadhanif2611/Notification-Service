@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiGet } from "@/lib/api";
 
+const DEFAULT_SCOPE = ["vendors", "statistics", "logs", "health"];
+const VISIBILITY_STALE_MS = 30000; // Minimal 30 detik jeda sebelum auto-refresh saat tab aktif kembali
+
 /**
- * Custom hook untuk mengambil data admin dari berbagai microservice.
- * Menggunakan Promise.all untuk parallel fetching dan error handling yang robust.
- * 
+ * Custom hook untuk mengambil data admin dari berbagai microservice secara terkontrol.
+ * Dilengkapi dengan:
+ * - Scoped fetching (hanya fetch endpoint yang dibutuhkan halaman pemanggil)
+ * - Tab visibility trigger (refresh saat kembali ke tab dengan cooldown, tanpa continuous polling)
+ * - Debounced/Throttled refetch (mencegah klik berulang bertubi-tubi)
+ *
+ * @param {object} [options]
+ * @param {Array<'vendors'|'statistics'|'logs'|'health'>} [options.scope] - Endpoint yang ingin di-fetch
+ * @param {boolean} [options.autoRefreshOnFocus=true] - Refresh saat tab browser aktif kembali
  * @returns {Object} { vendors, statistics, logs, health, loading, error, refetch }
  */
-export function useAdminData() {
+export function useAdminData(options = {}) {
+  const scope = options.scope || DEFAULT_SCOPE;
+  const autoRefreshOnFocus = options.autoRefreshOnFocus !== false;
+
   const [vendors, setVendors] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -17,9 +29,11 @@ export function useAdminData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const lastFetchTimeRef = useRef(0);
+  const inProgressRef = useRef(false);
+
   /**
    * Fetch vendors dari client-service via gateway.
-   * Endpoint: GET /v1/clients/vendors
    */
   const fetchVendors = useCallback(async () => {
     try {
@@ -34,7 +48,6 @@ export function useAdminData() {
 
   /**
    * Fetch statistics dari callback-log-service via gateway.
-   * Endpoint: GET /v1/statistics
    */
   const fetchStatistics = useCallback(async () => {
     try {
@@ -48,7 +61,6 @@ export function useAdminData() {
 
   /**
    * Fetch logs dari callback-log-service via gateway.
-   * Endpoint: GET /v1/logs
    */
   const fetchLogs = useCallback(async () => {
     try {
@@ -62,7 +74,6 @@ export function useAdminData() {
 
   /**
    * Fetch health status dari gateway.
-   * Endpoint: GET /health
    */
   const fetchHealth = useCallback(async () => {
     try {
@@ -75,37 +86,67 @@ export function useAdminData() {
   }, []);
 
   /**
-   * Refetch semua data secara parallel.
-   * Menggunakan Promise.allSettled agar satu kegagalan tidak menghentikan yang lain.
+   * Refetch data secara selektif sesuai scope yang diminta.
+   * Dilengkapi guard in-progress untuk mencegah tumpang-tindih panggilan.
    */
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (forced = false) => {
+    const now = Date.now();
+    // Throttle manual trigger: cegah spam klik lebih dari 1x dalam 800ms
+    if (!forced && inProgressRef.current) return;
+    if (!forced && now - lastFetchTimeRef.current < 800) return;
+
+    inProgressRef.current = true;
     setLoading(true);
     setError(null);
-    
-    await Promise.allSettled([
-      fetchVendors(),
-      fetchStatistics(),
-      fetchLogs(),
-      fetchHealth(),
-    ]);
-    
-    setLoading(false);
-  }, [fetchVendors, fetchStatistics, fetchLogs, fetchHealth]);
+
+    const promises = [];
+    if (scope.includes("vendors")) promises.push(fetchVendors());
+    if (scope.includes("statistics")) promises.push(fetchStatistics());
+    if (scope.includes("logs")) promises.push(fetchLogs());
+    if (scope.includes("health")) promises.push(fetchHealth());
+
+    try {
+      await Promise.allSettled(promises);
+      lastFetchTimeRef.current = Date.now();
+    } finally {
+      setLoading(false);
+      inProgressRef.current = false;
+    }
+  }, [scope, fetchVendors, fetchStatistics, fetchLogs, fetchHealth]);
 
   // Initial fetch saat component mount
   useEffect(() => {
     let cancelled = false;
-    
     (async () => {
       if (!cancelled) {
-        await refetch();
+        await refetch(true);
       }
     })();
-    
+
     return () => {
       cancelled = true;
     };
   }, [refetch]);
+
+  // Tab Visibility Trigger: refresh data saat pengguna kembali ke tab
+  // HANYA dipicu jika sudah lebih dari 30 detik sejak fetch terakhir (bukan polling buta)
+  useEffect(() => {
+    if (!autoRefreshOnFocus) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const elapsed = Date.now() - lastFetchTimeRef.current;
+        if (elapsed >= VISIBILITY_STALE_MS) {
+          refetch(false);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [autoRefreshOnFocus, refetch]);
 
   return {
     vendors,

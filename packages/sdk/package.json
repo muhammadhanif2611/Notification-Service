@@ -1,17 +1,40 @@
 {
-  "name": "@notification-gateway/sdk",
+  "name": "notification-gateway-sdk",
   "version": "1.0.0",
-  "description": "Developer Client SDK for Central Notification Gateway (Pure JavaScript)",
+  "description": "Official JavaScript/Node.js SDK for Notification Gateway — send WhatsApp, Email, and Broadcast notifications with ease.",
   "main": "src/index.js",
   "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "notification",
     "sdk",
     "whatsapp",
     "email",
+    "broadcast",
     "gateway",
-    "javascript"
+    "javascript",
+    "nodejs",
+    "webhook"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/notification-service.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/your-org/notification-service/tree/main/packages/sdk#readme",
+  "bugs": {
+    "url": "https://github.com/your-org/notification-service/issues"
+  }
 }

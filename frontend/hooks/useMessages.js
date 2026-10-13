@@ -14,9 +14,9 @@ export function useMessages(initialFilters = {}) {
     setError(null);
     try {
       const params = new URLSearchParams(filters).toString();
-      const res = await apiGet(`/api/messages?${params}`);
-      setMessages(res.data?.data || []);
-      setTotal(res.data?.total || 0);
+      const res = await apiGet(`/v1/logs${params ? `?${params}` : ''}`);
+      setMessages(Array.isArray(res.data) ? res.data : res.data?.data || []);
+      setTotal(res.total || res.data?.length || 0);
     } catch (err) {
       setError(err.message);
     } finally {

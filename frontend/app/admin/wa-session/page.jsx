@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageSquare, RefreshCw, Wifi, WifiOff, Unplug } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
@@ -25,12 +25,16 @@ export default function AdminWaSessionsPage() {
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(null);
   const [error, setError] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const lastFetchTimeRef = useRef(0);
 
   const fetchSessions = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await apiGet("/v1/admin/wa-sessions");
       setSessions(res.data || []);
       setError(null);
+      lastFetchTimeRef.current = Date.now();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -38,11 +42,38 @@ export default function AdminWaSessionsPage() {
     }
   }, []);
 
+  // Initial fetch saat halaman dimuat
   useEffect(() => {
-    const initial = setTimeout(fetchSessions, 0);
-    const interval = setInterval(fetchSessions, 5000);
-    return () => { clearTimeout(initial); clearInterval(interval); };
+    fetchSessions();
   }, [fetchSessions]);
+
+  // Tab visibility trigger: refresh saat pengguna kembali ke tab (cooldown 30s)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const elapsed = Date.now() - lastFetchTimeRef.current;
+        if (elapsed >= 30000) {
+          fetchSessions();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [fetchSessions]);
+
+  // Controlled auto-refresh (hanya saat user mengaktifkannya dan tab aktif)
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchSessions();
+      }
+    }, 20000);
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchSessions]);
 
   const handleDisconnect = async (projectId, projectName) => {
     if (!confirm(`Putuskan sesi WhatsApp project "${projectName}"?`)) return;
@@ -66,7 +97,26 @@ export default function AdminWaSessionsPage() {
             Monitoring seluruh sesi WhatsApp per-project. Client mengelola sesi mereka sendiri — admin hanya bisa memantau dan force-disconnect.
           </p>
         </div>
-        <span className="text-xs text-[var(--text-muted)]">Auto-refresh setiap 5 detik</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+              autoRefresh
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                : "border border-[var(--neutral-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            {autoRefresh ? "Auto-refresh (20s) ON" : "Auto-refresh OFF"}
+          </button>
+          <button
+            onClick={fetchSessions}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -83,7 +133,7 @@ export default function AdminWaSessionsPage() {
           <h3 className="font-semibold text-[var(--text-primary)]">Semua Sesi Project</h3>
         </div>
 
-        {loading ? (
+        {loading && sessions.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--text-muted)]">
             <RefreshCw size={16} className="animate-spin" />
             Memuat data sesi...

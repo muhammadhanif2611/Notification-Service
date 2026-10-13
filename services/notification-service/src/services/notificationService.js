@@ -1,8 +1,10 @@
-import { CHANNELS, NOTIFICATION_STATUS, sendNotificationSchema, checkRateLimit } from '@notification-gateway/shared';
+import { CHANNELS, NOTIFICATION_STATUS, sendNotificationSchema, checkRateLimit, createLogger } from '@notification-gateway/shared';
 import { whatsappQueue, emailQueue } from '../config/queue.js';
 import { config } from '../config/env.js';
 import { AppError } from '../middlewares/errorHandler.js';
 import { randomBytes } from 'node:crypto';
+
+const logger = createLogger('notification-service');
 import * as templateRepository from '../repositories/templateRepository.js';
 import * as projectRepository from '../repositories/projectRepository.js';
 import * as notificationLogRepository from '../repositories/notificationLogRepository.js';
@@ -222,7 +224,7 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     const mergedVars = { ...(variables ?? {}), ...(perRecipientVars ?? {}) };
     const finalBody = replaceTemplateVariables(rawBody, mergedVars);
 
-    console.log(`[BROADCAST] ${recipient} → finalBody: "${finalBody}"`);
+    logger.debug({ recipient, messageId }, 'Broadcast message prepared');
 
     return { recipient, messageId, finalBody };
   });

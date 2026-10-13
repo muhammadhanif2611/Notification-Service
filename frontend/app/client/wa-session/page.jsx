@@ -49,12 +49,36 @@ export default function ClientWaSessionPage() {
     }
   }, [activeProjectId]);
 
-  // Fetch awal (via timeout agar tidak setState sinkron di effect) + polling tiap 5 dtk
+  // Initial fetch saat project berubah
   useEffect(() => {
-    const initial = setTimeout(fetchStatus, 0);
-    const interval = setInterval(fetchStatus, 5000);
-    return () => { clearTimeout(initial); clearInterval(interval); };
+    fetchStatus();
   }, [fetchStatus]);
+
+  // Smart Polling Trigger:
+  // HANYA melakukan polling saat aktif dalam proses pairing (WAITING_QR atau CONNECTING)
+  // Berhenti total saat CONNECTED atau DISCONNECTED.
+  // Pause saat tab browser tidak aktif.
+  useEffect(() => {
+    const isPairing = session.status === "WAITING_QR" || session.status === "CONNECTING";
+    if (!isPairing) return;
+
+    let pollCount = 0;
+    const maxPolls = 24; // Maksimal 2 menit (24 x 5s) untuk mencegah pemanggilan terus-menerus tanpa batas
+
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+
+      pollCount += 1;
+      if (pollCount > maxPolls) {
+        clearInterval(interval);
+        return;
+      }
+
+      fetchStatus();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [session.status, fetchStatus]);
 
   // Loading diturunkan dari state fetch — tanpa setState sinkron di effect
   const loading = isFetching && !hasLoaded;
@@ -96,6 +120,14 @@ export default function ClientWaSessionPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={fetchStatus}
+            disabled={isFetching || !activeProjectId}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+            Refresh
+          </button>
           {!isConnected && session.status !== "CONNECTING" && session.status !== "WAITING_QR" && (
             <button
               onClick={handleConnect}

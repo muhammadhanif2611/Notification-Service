@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Code2, Copy, Check, Package, KeyRound, MessageSquare, Mail, Radio, ShieldCheck, AlertCircle } from "lucide-react";
+import {
+  Code2, Copy, Check, Package, KeyRound, MessageSquare,
+  Mail, Radio, ShieldCheck, AlertCircle, ExternalLink,
+} from "lucide-react";
 import { useProjectContext } from "@/lib/project-context";
 import { apiGet } from "@/lib/api";
 
+// ─── CodeBlock ────────────────────────────────────────────────────────────────
 function CodeBlock({ title, code }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -20,251 +24,18 @@ function CodeBlock({ title, code }) {
           onClick={handleCopy}
           className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
-          {copied ? <><Check size={12} className="text-emerald-500" /> Copied!</> : <><Copy size={12} /> Copy</>}
+          {copied ? <><Check size={12} className="text-emerald-500" /> Disalin!</> : <><Copy size={12} /> Salin</>}
         </button>
       </div>
-      <pre className="p-4 text-xs font-mono text-[var(--text-primary)] bg-[var(--neutral-bg)] overflow-x-auto leading-relaxed">{code}</pre>
+      <pre className="p-4 text-xs font-mono text-[var(--text-primary)] bg-[var(--neutral-bg)] overflow-x-auto leading-relaxed whitespace-pre">{code}</pre>
     </div>
   );
 }
 
-const SNIPPETS = {
-  install: `npm install @notification-gateway/sdk
-# atau via git dependency (monorepo internal):
-# npm install git+https://github.com/perusahaan/notification-service.git#main:packages/sdk`,
-  init: `import { NotificationClient } from '@notification-gateway/sdk';
-
-// Inisialisasi dengan API Key dari dashboard
-const client = new NotificationClient({
-  apiKey: process.env.NGW_API_KEY,   // ngw_prod_... atau ngw_sand_...
-  baseUrl: 'http://localhost:3001',  // URL Gateway (ganti dengan production URL)
-  timeout: 10000
-});`,
-  whatsapp: `// WhatsApp teks biasa
-await client.whatsapp.send({
-  to: '6281234567890',
-  body: 'Halo! Pesanan Anda #INV-10291 telah dikirim.'
-});
-
-// WhatsApp dengan template ter-approve
-await client.whatsapp.send({
-  to: '6281234567890',
-  templateCode: 'otp_verification',
-  variables: { nama: 'Budi', otp: '894211' }
-});`,
-  email: `await client.email.send({
-  to: 'budi@perusahaan.com',
-  subject: 'Konfirmasi Pembayaran #INV-10291',
-  body: '<h1>Terima kasih!</h1><p>Pembayaran Anda telah diterima.</p>'
-});`,
-  broadcast: `const res = await client.broadcast.send({
-  channel: 'WHATSAPP',               // atau 'EMAIL'
-  recipients: ['6281234567890', '6281234567891'],
-  templateCode: 'pengumuman_hrd',
-  variables: { periode: 'Q3 2026' },
-  // Personalisasi nama per penerima (opsional)
-  recipientVariables: {
-    '6281234567890': { nama: 'Biagi' },
-    '6281234567891': { nama: 'Andi' }
-  }
-});
-console.log(res.broadcastId, res.totalQueued);`,
-  webhook: `// Verifikasi webhook (pola Resend/Svix) di endpoint Anda
-// PENTING: pakai express.raw agar body tetap string mentah
-app.post('/webhook/notification',
-  express.raw({ type: 'application/json' }),
-  (req, res) => {
-    try {
-      const event = client.webhooks.verify({
-        payload: req.body.toString(), // raw body
-        headers: {
-          id: req.headers['webhook-id'],
-          timestamp: req.headers['webhook-timestamp'],
-          signature: req.headers['webhook-signature'],
-        },
-        secret: process.env.NGW_WEBHOOK_SECRET, // whsec_...
-      });
-      console.log(event.type, event.data.messageId, event.data.status);
-      res.json({ received: true });
-    } catch {
-      res.status(400).json({ error: 'Invalid webhook' });
-    }
-  }
-);`,
-};
-
-// === REST API bahasa-agnostic: kontrak endpoint yang sama untuk SEMUA bahasa ===
-const REST_SNIPPETS = {
-  auth: `# Semua request ke Gateway hanya butuh 2 header ini — berlaku di bahasa apa pun:
-#   x-api-key:    API Key dari dashboard (ngw_prod_... / ngw_sand_...)
-#   Content-Type: application/json
-#
-# Base URL (development): http://localhost:3001
-# Endpoint pengiriman:
-#   POST /v1/notifications/send        → kirim 1 pesan
-#   POST /v1/notifications/broadcast   → kirim ke banyak penerima`,
-  send: `curl -X POST http://localhost:3001/v1/notifications/send \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: ngw_prod_xxxxxxxx" \\
-  -d '{
-    "channel": "WHATSAPP",
-    "recipient": "6281234567890",
-    "body": "Halo! Pesanan Anda #INV-10291 telah dikirim."
-  }'
-
-# Respons sukses (HTTP 202 — pesan masuk antrean, status akhir via webhook):
-# {
-#   "success": true,
-#   "data": { "messageId": "msg_...", "status": "QUEUED" }
-# }`,
-  broadcast: `curl -X POST http://localhost:3001/v1/notifications/broadcast \\
-  -H "Content-Type: application/json" \\
-  -H "x-api-key: ngw_prod_xxxxxxxx" \\
-  -d '{
-    "channel": "EMAIL",
-    "recipients": ["budi@mail.com", "andi@mail.com"],
-    "subject": "Pengumuman Penting",
-    "body": "<h1>Halo!</h1><p>Ada pembaruan sistem.</p>",
-    "recipientVariables": {
-      "budi@mail.com": { "nama": "Budi" },
-      "andi@mail.com": { "nama": "Andi" }
-    }
-  }'`,
-};
-
-// Contoh konsumsi REST API langsung (tanpa SDK) per bahasa
-const REST_EXAMPLES = {
-  js: `// Node.js 18+ — fetch bawaan, tanpa install apa pun
-const res = await fetch('http://localhost:3001/v1/notifications/send', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': process.env.NGW_API_KEY,
-  },
-  body: JSON.stringify({
-    channel: 'WHATSAPP',
-    recipient: '6281234567890',
-    body: 'Halo! Pesanan Anda telah dikirim.',
-  }),
-});
-const result = await res.json();
-console.log(result.data.messageId);`,
-  python: `# Python — cukup library 'requests' (pip install requests)
-import requests
-
-res = requests.post(
-    'http://localhost:3001/v1/notifications/send',
-    headers={'x-api-key': 'ngw_prod_xxxxxxxx'},
-    json={
-        'channel': 'WHATSAPP',
-        'recipient': '6281234567890',
-        'body': 'Halo! Pesanan Anda telah dikirim.',
-    },
-    timeout=10,
-)
-print(res.json()['data']['messageId'])`,
-  php: `<?php
-// PHP — cURL bawaan, tanpa library tambahan
-$ch = curl_init('http://localhost:3001/v1/notifications/send');
-curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 10,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'x-api-key: ngw_prod_xxxxxxxx',
-    ],
-    CURLOPT_POSTFIELDS => json_encode([
-        'channel' => 'WHATSAPP',
-        'recipient' => '6281234567890',
-        'body' => 'Halo! Pesanan Anda telah dikirim.',
-    ]),
-]);
-$result = json_decode(curl_exec($ch), true);
-curl_close($ch);
-echo $result['data']['messageId'];`,
-};
-
-// Cara hitung signature webhook MANUAL (tanpa SDK) — algoritma universal
-const WEBHOOK_MANUAL = {
-  python: `# Verifikasi webhook manual — Python (Flask/FastAPI/dll)
-import hmac, hashlib, base64, time, json
-
-def verify_webhook(raw_body: bytes, headers: dict, secret: str) -> dict:
-    wh_id       = headers.get('webhook-id')
-    timestamp   = headers.get('webhook-timestamp')
-    signature   = headers.get('webhook-signature')
-    if not (wh_id and timestamp and signature):
-        raise ValueError('Header webhook tidak lengkap')
-
-    # 1. Cek timestamp (toleransi 5 menit — anti replay attack)
-    if abs(time.time() - int(timestamp)) > 300:
-        raise ValueError('Timestamp kadaluarsa')
-
-    # 2. Signature = base64( HMAC_SHA256("id.timestamp.rawBody") ), prefix "v1,"
-    key = base64.b64decode(secret[6:]) if secret.startswith('whsec_') else secret.encode()
-    signed = f"{wh_id}.{timestamp}.{raw_body.decode()}".encode()
-    expected = 'v1,' + base64.b64encode(hmac.new(key, signed, hashlib.sha256).digest()).decode()
-
-    if not any(hmac.compare_digest(expected, s) for s in signature.split(' ')):
-        raise ValueError('Signature tidak valid')
-
-    return json.loads(raw_body)
-
-# Pemakaian di Flask:
-# @app.post('/webhook/notification')
-# def webhook():
-#     event = verify_webhook(request.get_data(), request.headers, 'whsec_...')
-#     return {'received': True}`,
-  php: `<?php
-// Verifikasi webhook manual — PHP native
-function verifyWebhook(string $rawBody, array $headers, string $secret): array {
-    $id        = $headers['webhook-id']        ?? null;
-    $timestamp = $headers['webhook-timestamp'] ?? null;
-    $signature = $headers['webhook-signature'] ?? null;
-    if (!$id || !$timestamp || !$signature) {
-        throw new Exception('Header webhook tidak lengkap');
-    }
-
-    // 1. Cek timestamp (toleransi 5 menit — anti replay attack)
-    if (abs(time() - (int)$timestamp) > 300) {
-        throw new Exception('Timestamp kadaluarsa');
-    }
-
-    // 2. Signature = base64( HMAC_SHA256("id.timestamp.rawBody") ), prefix "v1,"
-    $key = str_starts_with($secret, 'whsec_')
-        ? base64_decode(substr($secret, 6))
-        : $secret;
-    $expected = 'v1,' . base64_encode(
-        hash_hmac('sha256', "{$id}.{$timestamp}.{$rawBody}", $key, true)
-    );
-
-    $valid = false;
-    foreach (explode(' ', $signature) as $sig) {
-        if (hash_equals($expected, $sig)) { $valid = true; break; }
-    }
-    if (!$valid) throw new Exception('Signature tidak valid');
-
-    return json_decode($rawBody, true);
-}
-
-// Pemakaian:
-// $rawBody = file_get_contents('php://input'); // WAJIB raw body mentah
-// $event = verifyWebhook($rawBody, getallheaders(), 'whsec_...');
-// echo $event['data']['messageId'];`,
-};
-
-const STEPS = [
-  { icon: KeyRound, title: "1. Buat API Key", desc: "Buka menu API Key, buat key Production atau Sandbox (ngw_sand_ untuk testing)." },
-  { icon: Package, title: "2. Install SDK", desc: "Tambahkan @notification-gateway/sdk ke project Anda." },
-  { icon: Code2, title: "3. Inisialisasi & Kirim", desc: "Panggil client.whatsapp.send() / client.email.send() dari backend Anda." },
-  { icon: ShieldCheck, title: "4. Terima Webhook", desc: "Verifikasi signature untuk menerima status pengiriman real-time." },
-];
-
-// Tab pemilih bahasa untuk snippet REST API (dokumentasi bahasa-agnostic)
+// ─── LangTabs ─────────────────────────────────────────────────────────────────
 function LangTabs({ tabs, active, onChange }) {
   return (
-    <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 w-fit">
+    <div className="flex gap-1 p-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 w-fit flex-wrap">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -283,12 +54,307 @@ function LangTabs({ tabs, active, onChange }) {
   );
 }
 
+// ─── BadgeLink ────────────────────────────────────────────────────────────────
+function BadgeLink({ href, label, color = "zinc" }) {
+  const colors = {
+    red: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50",
+    blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50",
+    orange: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50",
+    zinc: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700",
+  };
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${colors[color]}`}
+    >
+      {label}
+      <ExternalLink size={10} />
+    </a>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SNIPPETS — per bahasa SDK
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SDK_LANGS = [
+  { id: "js",     label: "JavaScript (npm)" },
+  { id: "python", label: "Python (pip)" },
+  { id: "php",    label: "PHP (Composer)" },
+];
+
+const INSTALL_SNIPPETS = {
+  js:     `npm install notification-gateway-sdk`,
+  python: `pip install notification-gateway-sdk`,
+  php:    `composer require notification-gateway/sdk`,
+};
+
+const INIT_SNIPPETS = {
+  js: `import { NotificationClient } from 'notification-gateway-sdk';
+
+const client = new NotificationClient({
+  apiKey: process.env.NGW_API_KEY,   // ngw_prod_... atau ngw_sand_...
+  baseUrl: 'http://localhost:3001',  // Ganti dengan production URL
+  timeout: 10000,
+});`,
+  python: `from notification_gateway import NotificationClient
+import os
+
+client = NotificationClient(
+    api_key=os.environ["NGW_API_KEY"],   # ngw_prod_... atau ngw_sand_...
+    base_url="http://localhost:3001",    # Ganti dengan production URL
+)`,
+  php: `<?php
+
+use NotificationGateway\\NotificationClient;
+
+$client = new NotificationClient(
+    apiKey: $_ENV['NGW_API_KEY'],     // ngw_prod_... atau ngw_sand_...
+    baseUrl: 'http://localhost:3001', // Ganti dengan production URL
+);`,
+};
+
+const WHATSAPP_SNIPPETS = {
+  js: `// Teks biasa
+await client.whatsapp.send({
+  to: '6281234567890',
+  body: 'Halo! Pesanan Anda #INV-10291 telah dikirim.',
+});
+
+// Dengan template
+await client.whatsapp.send({
+  to: '6281234567890',
+  templateCode: 'otp_verification',
+  variables: { nama: 'Budi', otp: '894211' },
+});`,
+  python: `# Teks biasa (sync)
+result = client.whatsapp.send(
+    to="6281234567890",
+    body="Halo! Pesanan Anda #INV-10291 telah dikirim.",
+)
+
+# Dengan template + async (FastAPI)
+result = await client.whatsapp.send_async(
+    to="6281234567890",
+    template_code="otp_verification",
+    variables={"nama": "Budi", "otp": "894211"},
+)`,
+  php: `// Teks biasa
+$result = $client->whatsapp->send(
+    to: '6281234567890',
+    body: 'Halo! Pesanan Anda #INV-10291 telah dikirim.',
+);
+
+// Dengan template
+$result = $client->whatsapp->send(
+    to: '6281234567890',
+    templateCode: 'otp_verification',
+    variables: ['nama' => 'Budi', 'otp' => '894211'],
+);`,
+};
+
+const EMAIL_SNIPPETS = {
+  js: `await client.email.send({
+  to: 'budi@perusahaan.com',
+  subject: 'Konfirmasi Pembayaran #INV-10291',
+  body: '<h1>Terima kasih!</h1><p>Pembayaran Anda telah diterima.</p>',
+});`,
+  python: `# Sync (Flask)
+result = client.email.send(
+    to="budi@perusahaan.com",
+    subject="Konfirmasi Pembayaran #INV-10291",
+    body="<h1>Terima kasih!</h1><p>Pembayaran Anda telah diterima.</p>",
+)
+
+# Async (FastAPI)
+result = await client.email.send_async(
+    to="budi@perusahaan.com",
+    subject="Konfirmasi Pembayaran #INV-10291",
+    body="<h1>Terima kasih!</h1>",
+)`,
+  php: `$result = $client->email->send(
+    to: 'budi@perusahaan.com',
+    subject: 'Konfirmasi Pembayaran #INV-10291',
+    body: '<h1>Terima kasih!</h1><p>Pembayaran Anda telah diterima.</p>',
+);
+echo $result['messageId']; // msg_...`,
+};
+
+const BROADCAST_SNIPPETS = {
+  js: `const res = await client.broadcast.send({
+  channel: 'WHATSAPP',
+  recipients: ['6281234567890', '6281234567891'],
+  templateCode: 'pengumuman_hrd',
+  variables: { periode: 'Q3 2026' },
+  recipientVariables: {
+    '6281234567890': { nama: 'Biagi' },
+    '6281234567891': { nama: 'Andi' },
+  },
+});
+// res.broadcastId, res.totalQueued`,
+  python: `# Sync (Flask)
+result = client.broadcast.send(
+    channel="WHATSAPP",
+    recipients=["6281234567890", "6281234567891"],
+    template_code="pengumuman_hrd",
+    variables={"periode": "Q3 2026"},
+    recipient_variables={
+        "6281234567890": {"nama": "Biagi"},
+        "6281234567891": {"nama": "Andi"},
+    },
+)
+
+# Async (FastAPI)
+result = await client.broadcast.send_async(
+    channel="WHATSAPP",
+    recipients=["6281234567890", "6281234567891"],
+    template_code="pengumuman_hrd",
+    variables={"periode": "Q3 2026"},
+)`,
+  php: `$result = $client->broadcast->send(
+    channel: 'WHATSAPP',
+    recipients: ['6281234567890', '6281234567891'],
+    templateCode: 'pengumuman_hrd',
+    variables: ['periode' => 'Q3 2026'],
+    recipientVariables: [
+        '6281234567890' => ['nama' => 'Biagi'],
+        '6281234567891' => ['nama' => 'Andi'],
+    ],
+);
+echo $result['broadcastId'] . ' — ' . $result['totalQueued'] . ' pesan';`,
+};
+
+const WEBHOOK_SNIPPETS = {
+  js: `// Express — PENTING: pakai express.raw agar body tetap mentah
+app.post('/webhook/notification',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    try {
+      const event = client.webhooks.verify({
+        payload: req.body.toString(),
+        headers: {
+          id: req.headers['webhook-id'],
+          timestamp: req.headers['webhook-timestamp'],
+          signature: req.headers['webhook-signature'],
+        },
+        secret: process.env.NGW_WEBHOOK_SECRET, // whsec_...
+      });
+      // event.type, event.data.messageId, event.data.status
+      res.json({ received: true });
+    } catch {
+      res.status(400).json({ error: 'Invalid webhook' });
+    }
+  }
+);`,
+  python: `# FastAPI (async)
+from fastapi import FastAPI, Request, Header, HTTPException
+
+app = FastAPI()
+
+@app.post("/webhook/notification")
+async def webhook(
+    request: Request,
+    webhook_id: str = Header(alias="webhook-id"),
+    webhook_timestamp: str = Header(alias="webhook-timestamp"),
+    webhook_signature: str = Header(alias="webhook-signature"),
+):
+    raw_body = await request.body()
+    try:
+        event = client.webhooks.verify(
+            payload=raw_body,
+            headers={
+                "webhook-id": webhook_id,
+                "webhook-timestamp": webhook_timestamp,
+                "webhook-signature": webhook_signature,
+            },
+            secret=os.environ["NGW_WEBHOOK_SECRET"],
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid webhook")
+    return {"received": True}
+
+# Flask (sync)
+@app.post('/webhook/notification')
+def webhook():
+    event = client.webhooks.verify(
+        payload=request.get_data(),    # raw body wajib
+        headers=dict(request.headers),
+        secret=os.environ["NGW_WEBHOOK_SECRET"],
+    )
+    return {"received": True}`,
+  php: `<?php
+// PHP Native / Laravel Controller
+
+use NotificationGateway\\Exception\\WebhookVerificationException;
+
+// Ambil raw body — WAJIB sebelum framework mem-parse-nya
+$rawBody = file_get_contents('php://input');
+
+try {
+    $event = $client->webhooks->verify(
+        rawBody: $rawBody,
+        headers: getallheaders(), // atau $request->headers->all() di Laravel
+        secret: $_ENV['NGW_WEBHOOK_SECRET'], // whsec_...
+    );
+} catch (WebhookVerificationException $e) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid webhook']);
+    exit;
+}
+
+// Proses event
+// $event['type'], $event['data']['messageId'], $event['data']['status']
+echo json_encode(['received' => true]);`,
+};
+
+// ─── REST API snippets ────────────────────────────────────────────────────────
+const REST_SNIPPETS = {
+  auth: `# Semua request ke Gateway hanya butuh 2 header ini:
+#   x-api-key:    API Key dari dashboard (ngw_prod_... / ngw_sand_...)
+#   Content-Type: application/json
+#
+# Endpoint:
+#   POST /v1/notifications/send        → kirim 1 pesan
+#   POST /v1/notifications/broadcast   → kirim ke banyak penerima`,
+  send: `curl -X POST http://localhost:3001/v1/notifications/send \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ngw_prod_xxxxxxxx" \\
+  -d '{
+    "channel": "WHATSAPP",
+    "recipient": "6281234567890",
+    "body": "Halo! Pesanan Anda #INV-10291 telah dikirim."
+  }'
+
+# Respons sukses (HTTP 202):
+# { "success": true, "data": { "messageId": "msg_...", "status": "QUEUED" } }`,
+  broadcast: `curl -X POST http://localhost:3001/v1/notifications/broadcast \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: ngw_prod_xxxxxxxx" \\
+  -d '{
+    "channel": "EMAIL",
+    "recipients": ["budi@mail.com", "andi@mail.com"],
+    "subject": "Pengumuman Penting",
+    "body": "<h1>Halo!</h1><p>Ada pembaruan sistem.</p>"
+  }'`,
+};
+
+// ─── Steps ────────────────────────────────────────────────────────────────────
+const STEPS = [
+  { icon: KeyRound, title: "1. Buat API Key", desc: "Buka menu API Key, buat key Production atau Sandbox (ngw_sand_ untuk testing)." },
+  { icon: Package, title: "2. Install SDK", desc: "Pilih SDK sesuai bahasa: npm, pip, atau Composer." },
+  { icon: Code2, title: "3. Inisialisasi & Kirim", desc: "Buat client dengan API Key lalu panggil whatsapp.send() / email.send() dari backend Anda." },
+  { icon: ShieldCheck, title: "4. Terima Webhook", desc: "Verifikasi signature untuk menerima status pengiriman real-time." },
+];
+
+// ─── SdkPage ──────────────────────────────────────────────────────────────────
 export default function SdkPage() {
   const { activeProject } = useProjectContext();
   const [apiKeys, setApiKeys] = useState([]);
   const [loadingKeys, setLoadingKeys] = useState(true);
-  const [restLang, setRestLang] = useState("js");
-  const [webhookLang, setWebhookLang] = useState("python");
+  const [sdkLang, setSdkLang] = useState("js");
+  const [webhookLang, setWebhookLang] = useState("js");
 
   useEffect(() => {
     async function fetchKeys() {
@@ -296,17 +362,18 @@ export default function SdkPage() {
       try {
         const res = await apiGet("/v1/clients/api-keys");
         const allKeys = res?.data || [];
-        setApiKeys(allKeys.filter(k => k.project_id === activeProject.id));
+        setApiKeys(allKeys.filter((k) => k.project_id === activeProject.id));
       } catch { setApiKeys([]); }
       finally { setLoadingKeys(false); }
     }
     fetchKeys();
   }, [activeProject?.id]);
 
-  const activeKey = apiKeys.find(k => k.is_active);
+  const activeKey = apiKeys.find((k) => k.is_active);
 
   return (
     <>
+      {/* Header */}
       <div>
         <h2 className="text-xl font-semibold text-[var(--text-primary)]">SDK & Integrasi</h2>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -359,114 +426,103 @@ export default function SdkPage() {
         ))}
       </div>
 
-      {/* Instalasi + Init */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <CodeBlock title="Instalasi" code={SNIPPETS.install} />
-        <CodeBlock title="Inisialisasi Client" code={SNIPPETS.init} />
-      </div>
-
-      {/* Channel usage */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <MessageSquare size={16} className="text-emerald-600 dark:text-emerald-400" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">WhatsApp (Baileys)</h3>
-          </div>
-          <CodeBlock title="client.whatsapp.send()" code={SNIPPETS.whatsapp} />
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Mail size={16} className="text-blue-600 dark:text-blue-400" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Email (Nodemailer)</h3>
-          </div>
-          <CodeBlock title="client.email.send()" code={SNIPPETS.email} />
-        </div>
-      </div>
-
-      {/* Broadcast + Webhook */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Radio size={16} className="text-purple-600 dark:text-purple-400" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Broadcast Massal</h3>
-          </div>
-          <CodeBlock title="client.broadcast.send()" code={SNIPPETS.broadcast} />
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={16} className="text-amber-600 dark:text-amber-400" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Verifikasi Webhook</h3>
-          </div>
-          <CodeBlock title="client.verifyWebhook()" code={SNIPPETS.webhook} />
-        </div>
-      </div>
-
-      {/* ===== REST API — untuk client yang TIDAK pakai JavaScript ===== */}
+      {/* ===== SDK MULTI-BAHASA ===== */}
       <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-5">
+        {/* Header + badge links */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Package size={16} className="text-[var(--text-primary)]" />
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">SDK Resmi — Pilih Bahasa Anda</h3>
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Tersedia untuk JavaScript/Node.js, Python, dan PHP. Semua SDK mendukung WhatsApp, Email, Broadcast, dan verifikasi Webhook.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <BadgeLink href="https://www.npmjs.com/package/notification-gateway-sdk" label="npm" color="red" />
+            <BadgeLink href="https://pypi.org/project/notification-gateway-sdk/" label="PyPI" color="blue" />
+            <BadgeLink href="https://packagist.org/packages/notification-gateway/sdk" label="Packagist" color="orange" />
+          </div>
+        </div>
+
+        {/* Tab pemilih bahasa */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <LangTabs tabs={SDK_LANGS} active={sdkLang} onChange={setSdkLang} />
+        </div>
+
+        {/* Install */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CodeBlock title="Instalasi" code={INSTALL_SNIPPETS[sdkLang]} />
+          <CodeBlock title="Inisialisasi Client" code={INIT_SNIPPETS[sdkLang]} />
+        </div>
+
+        {/* WhatsApp + Email */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare size={15} className="text-emerald-600 dark:text-emerald-400" />
+              <h4 className="text-xs font-semibold text-[var(--text-primary)]">WhatsApp</h4>
+            </div>
+            <CodeBlock title="Kirim WhatsApp" code={WHATSAPP_SNIPPETS[sdkLang]} />
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Mail size={15} className="text-blue-600 dark:text-blue-400" />
+              <h4 className="text-xs font-semibold text-[var(--text-primary)]">Email</h4>
+            </div>
+            <CodeBlock title="Kirim Email" code={EMAIL_SNIPPETS[sdkLang]} />
+          </div>
+        </div>
+
+        {/* Broadcast + Webhook */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Radio size={15} className="text-purple-600 dark:text-purple-400" />
+              <h4 className="text-xs font-semibold text-[var(--text-primary)]">Broadcast Massal</h4>
+            </div>
+            <CodeBlock title="Broadcast" code={BROADCAST_SNIPPETS[sdkLang]} />
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={15} className="text-amber-600 dark:text-amber-400" />
+              <h4 className="text-xs font-semibold text-[var(--text-primary)]">Verifikasi Webhook</h4>
+              <LangTabs
+                tabs={[
+                  { id: "js", label: "JS" },
+                  { id: "python", label: "Python" },
+                  { id: "php", label: "PHP" },
+                ]}
+                active={webhookLang}
+                onChange={setWebhookLang}
+              />
+            </div>
+            <CodeBlock title="Webhook Verify" code={WEBHOOK_SNIPPETS[webhookLang]} />
+          </div>
+        </div>
+      </div>
+
+      {/* ===== REST API — tanpa SDK ===== */}
+      <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-4">
         <div>
           <div className="flex items-center gap-2">
             <Code2 size={16} className="text-[var(--text-primary)]" />
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">REST API — Untuk Bahasa Apa Pun</h3>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">REST API — Tanpa SDK</h3>
           </div>
           <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
-            Aplikasi Anda tidak pakai JavaScript? Tidak masalah. Gateway ini adalah REST API biasa —
-            cukup kirim HTTP POST dengan API Key. Kontrak di bawah berlaku sama untuk PHP, Python, Go, Java, C#, dan lainnya.
+            Untuk bahasa lain (Go, Java, C#, Ruby, dll) — cukup kirim HTTP POST dengan API Key.
+            Kontrak di bawah berlaku sama untuk semua bahasa.
           </p>
         </div>
-
-        {/* Kontrak API */}
-        <CodeBlock title="Kontrak API (semua bahasa)" code={REST_SNIPPETS.auth} />
-
+        <CodeBlock title="Kontrak API" code={REST_SNIPPETS.auth} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <CodeBlock title="cURL — Kirim 1 Pesan" code={REST_SNIPPETS.send} />
           <CodeBlock title="cURL — Broadcast" code={REST_SNIPPETS.broadcast} />
         </div>
 
-        {/* Contoh per bahasa */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h4 className="text-xs font-semibold text-[var(--text-primary)]">Contoh Kirim Pesan per Bahasa (tanpa SDK)</h4>
-            <LangTabs
-              tabs={[
-                { id: "js", label: "Node.js" },
-                { id: "python", label: "Python" },
-                { id: "php", label: "PHP" },
-              ]}
-              active={restLang}
-              onChange={setRestLang}
-            />
-          </div>
-          <CodeBlock
-            title={{ js: "Node.js — fetch bawaan", python: "Python — requests", php: "PHP — cURL" }[restLang]}
-            code={REST_EXAMPLES[restLang]}
-          />
-        </div>
-
-        {/* Webhook manual per bahasa */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h4 className="text-xs font-semibold text-[var(--text-primary)]">Verifikasi Webhook Manual (tanpa SDK)</h4>
-            <LangTabs
-              tabs={[
-                { id: "python", label: "Python" },
-                { id: "php", label: "PHP" },
-              ]}
-              active={webhookLang}
-              onChange={setWebhookLang}
-            />
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-            Algoritma signature universal: <code className="font-mono">base64(HMAC_SHA256(&quot;webhook-id.webhook-timestamp.rawBody&quot;, secret))</code> dengan prefix <code className="font-mono">v1,</code>.
-            Tersedia di semua bahasa (<code className="font-mono">hmac</code> di Python, <code className="font-mono">hash_hmac</code> di PHP, dst).
-          </p>
-          <CodeBlock
-            title={{ python: "Python — hmac + hashlib", php: "PHP — hash_hmac" }[webhookLang]}
-            code={WEBHOOK_MANUAL[webhookLang]}
-          />
-        </div>
-
-        {/* Format respons & error */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        {/* Format respons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="rounded-lg border border-[var(--neutral-border)] p-3.5">
             <p className="text-[11px] font-semibold text-[var(--text-primary)] mb-1.5">Format Respons Sukses</p>
             <pre className="text-[11px] font-mono text-[var(--text-secondary)] leading-relaxed">{`{

@@ -3,12 +3,12 @@ import cors from 'cors';
 import { Queue } from 'bullmq';
 import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
-
 import { ExpressAdapter } from '@bull-board/express';
 import { createLogger } from '@notification-gateway/shared';
 import { config } from './config/env.js';
 import { apiKeyAuth, jwtAuth, roleCheck } from './middlewares/auth.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { forwardProxyRequest } from './services/proxyService.js';
 
 const logger = createLogger('gateway-service');
 const app = express();
@@ -37,43 +37,8 @@ app.get('/health', (_req, res) =>
   res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() })
 );
 
-// Helper proxy permintaan HTTP ke microservice tujuan.
-// User info (user, project, environment) SELALU dikirim via header untuk SEMUA method —
-// body request tidak pernah dicemari metadata auth.
-async function proxyRequest(targetUrl, req, res) {
-  try {
-    // Build URL dengan query params untuk GET requests
-    let url = targetUrl;
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      const queryString = new URLSearchParams(req.query).toString();
-      if (queryString) url += `?${queryString}`;
-    }
-
-    const response = await fetch(url, {
-      method: req.method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
-        ...(req.headers['x-api-key'] ? { 'x-api-key': req.headers['x-api-key'] } : {}),
-        // Forward user info via header — konsisten untuk semua method
-        ...(req.user ? { 'x-user-id': req.user.userId, 'x-user-role': req.user.role } : {}),
-        ...(req.project ? { 'x-project-id': req.project.id } : {}),
-        ...(req.environment ? { 'x-environment': req.environment } : {})
-      },
-      ...(req.method !== 'GET' && req.method !== 'HEAD'
-        ? { body: JSON.stringify(req.body) }
-        : {})
-    });
-    const data = await response.json();
-    return res.status(response.status).json(data);
-  } catch (err) {
-    logger.error({ targetUrl, err: err.message }, 'Proxy request failed');
-    return res.status(502).json({ success: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'Target microservice unavailable' } });
-  }
-}
-
-// Tabel route proxy — config-driven, menggantikan definisi satu-per-satu.
-// Kolom: method HTTP, path gateway, middleware auth, service tujuan, path target.
+// Tabel route proxy — config-driven
+// Kolom: method HTTP, path gateway, roles required, service tujuan, path target.
 const ROUTE_TABLE = [
   // Auth Service (publik)
   ['post', '/v1/auth/login', [], 'AUTH', '/auth/login'],
@@ -134,31 +99,25 @@ for (const [method, path, roles, serviceKey, target] of ROUTE_TABLE) {
     : [jwtAuth, ...(roles.length ? [roleCheck(roles)] : [])];
   app[method](path, ...middlewares, (req, res) => {
     const targetPath = typeof target === 'function' ? target(req) : target;
-    return proxyRequest(`${SERVICES[serviceKey]}${targetPath}`, req, res);
+    return forwardProxyRequest(`${SERVICES[serviceKey]}${targetPath}`, req, res);
   });
 }
 
 // Notification Service — pakai apiKeyAuth (bukan JWT)
-app.post('/v1/notifications/send', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/process`, req, res));
-app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) => proxyRequest(`${SERVICES.NOTIFICATION}/notifications/broadcast`, req, res));
+app.post('/v1/notifications/send', apiKeyAuth, (req, res) =>
+  forwardProxyRequest(`${SERVICES.NOTIFICATION}/notifications/process`, req, res)
+);
+app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) =>
+  forwardProxyRequest(`${SERVICES.NOTIFICATION}/notifications/broadcast`, req, res)
+);
 
 // ── Admin: Tambahan Endpoint ───────────────────────────────────────────────
-// GET /v1/admin/vendors — list vendors (termasuk credential preview untuk admin)
-app.get('/v1/admin/vendors', jwtAuth, roleCheck(['admin']), async (req, res) => {
-  try {
-    const response = await fetch(`${SERVICES.CLIENT}/clients/vendors`);
-    const data = await response.json();
-    return res.status(response.status).json(data);
-  } catch (err) {
-    logger.error({ err: err.message }, 'Failed to fetch vendors');
-    return res.status(502).json({ success: false, error: { message: 'Client service unavailable' } });
-  }
-});
+// GET /v1/admin/vendors — list vendors untuk admin
+app.get('/v1/admin/vendors', jwtAuth, roleCheck(['admin']), (req, res) =>
+  forwardProxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res)
+);
 
 // ── Bull Board (Queue Monitoring UI) ───────────────────────────────────────
-// Hanya aktif di mode development. Di production Bull Board terus mem-polling
-// semua queue (tiap beberapa detik) sehingga sangat boros request Upstash.
-// Selain itu adapter diarahkan ke queue yang benar-benar dipakai.
 if (process.env.NODE_ENV !== 'production') {
   const serverAdapter = new ExpressAdapter();
   serverAdapter.setBasePath('/admin/queues');

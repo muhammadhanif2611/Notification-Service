@@ -96,27 +96,80 @@ console.log(resBroadcast.totalQueued); // 3
 
 ---
 
-### 5. Verifikasi Webhook Signature
+### 5. Verifikasi Webhook (pola Resend/Svix)
+
+Gateway mengirim HTTP POST ke endpoint Anda dengan format event:
+
+```json
+{
+  "type": "notification.status_update",
+  "created_at": "2026-08-13T10:00:00.000Z",
+  "data": { "messageId": "msg_...", "status": "SENT", "error": null }
+}
+```
+
+Setiap request menyertakan header:
+
+| Header | Deskripsi |
+|---|---|
+| `webhook-id` | ID unik per event — bisa dipakai untuk idempotency |
+| `webhook-timestamp` | Unix timestamp (detik) — dicek toleransi 5 menit agar replay attack tertolak |
+| `webhook-signature` | Signature HMAC-SHA256 format `v1,<base64>`, dihitung dari `${id}.${timestamp}.${rawBody}` |
+
+**Express.js:**
 
 ```javascript
-// Di endpoint webhook receiver Anda
-app.post('/webhook/notification', (req, res) => {
-  const isValid = client.verifyWebhook({
-    payload: req.body,
-    signature: req.headers['x-webhook-signature'],
-    secret: 'your-webhook-secret'
-  });
+// PENTING: pakai express.raw agar body tetap string mentah
+app.post('/webhook/notification',
+  express.raw({ type: 'application/json' }),
+  (req, res) => {
+    try {
+      const event = client.webhooks.verify({
+        payload: req.body.toString(), // raw body WAJIB string mentah
+        headers: {
+          id: req.headers['webhook-id'],
+          timestamp: req.headers['webhook-timestamp'],
+          signature: req.headers['webhook-signature'],
+        },
+        secret: process.env.NGW_WEBHOOK_SECRET, // whsec_...
+      });
 
-  if (!isValid) {
-    return res.status(401).json({ error: 'Invalid signature' });
+      console.log(event.type, event.data.messageId, event.data.status);
+      res.json({ received: true });
+    } catch {
+      res.status(400).json({ error: 'Invalid webhook' });
+    }
   }
-
-  // Proses webhook...
-  console.log('Status:', req.body.status); // SENT / DELIVERED / FAILED
-  console.log('Message ID:', req.body.messageId);
-  res.json({ received: true });
-});
+);
 ```
+
+**Next.js (App Router):**
+
+```javascript
+export async function POST(req) {
+  const payload = await req.text(); // raw body via .text()
+  try {
+    const event = client.webhooks.verify({
+      payload,
+      headers: {
+        id: req.headers.get('webhook-id'),
+        timestamp: req.headers.get('webhook-timestamp'),
+        signature: req.headers.get('webhook-signature'),
+      },
+      secret: process.env.NGW_WEBHOOK_SECRET,
+    });
+    console.log(event.type, event.data);
+    return Response.json({ received: true });
+  } catch {
+    return Response.json({ error: 'Invalid webhook' }, { status: 400 });
+  }
+}
+```
+
+> **Catatan:** Signature dihitung dari *raw request body*. Framework yang me-parse JSON
+> lalu me-stringify ulang akan membuat signature mismatch — selalu verifikasi dari body mentah.
+> Metode legacy `client.verifyWebhook({ payload, signature, secret })` (header `X-Gateway-Signature`)
+> masih tersedia untuk kompatibilitas integrasi lama.
 
 ---
 

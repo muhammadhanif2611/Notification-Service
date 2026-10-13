@@ -61,7 +61,8 @@ async function createDefaultProject({ ownerId, projectName, description, rateLim
         description,
         rateLimitPerMin: rateLimit,
         dailyQuota
-      })
+      }),
+      signal: AbortSignal.timeout(5000)
     });
 
     if (!response.ok) {

@@ -13,8 +13,8 @@ export function useStatistics(dateRange = {}) {
     setError(null);
     try {
       const params = new URLSearchParams(dateRange).toString();
-      const res = await apiGet(`/api/statistics?${params}`);
-      setStats(res.data);
+      const res = await apiGet(`/v1/statistics${params ? `?${params}` : ''}`);
+      setStats(res.stats || res.data || null);
     } catch (err) {
       setError(err.message);
     } finally {
