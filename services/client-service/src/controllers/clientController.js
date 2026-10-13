@@ -6,6 +6,10 @@ function getUserId(req) {
   return req.user?.userId ?? req.headers['x-user-id'] ?? null;
 }
 
+function getUserRole(req) {
+  return req.user?.role ?? req.headers['x-user-role'] ?? 'user';
+}
+
 // Controller: mengambil daftar project berdasarkan owner (client) atau semua (admin)
 // User info diterima dari header (x-user-id, x-user-role) yang di-forward gateway untuk semua method
 export async function getProjects(req, res, next) {
@@ -27,11 +31,30 @@ export async function getProjectById(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Controller: membuat project baru
+// Controller: membuat project baru (Model 2: Client request / Admin direct)
 export async function createProject(req, res, next) {
   try {
-    const data = await clientService.createProject(req.body, getUserId(req));
-    return res.status(201).json({ success: true, message: 'Project created successfully', data });
+    const data = await clientService.createProject(req.body, getUserId(req), getUserRole(req));
+    const isPending = !data.is_active;
+    return res.status(201).json({
+      success: true,
+      message: isPending
+        ? 'Pengajuan proyek berhasil dikirim. Menunggu persetujuan admin.'
+        : 'Proyek berhasil dibuat.',
+      data
+    });
+  } catch (err) { next(err); }
+}
+
+// Controller: menyetujui pengajuan project oleh Admin
+export async function approveProject(req, res, next) {
+  try {
+    const data = await clientService.approveProject(req.params.id, req.body, getUserId(req));
+    return res.json({
+      success: true,
+      message: 'Proyek berhasil disetujui dan diaktifkan.',
+      data
+    });
   } catch (err) { next(err); }
 }
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Code2, Copy, Check, Package, KeyRound, MessageSquare,
   Mail, Radio, ShieldCheck, AlertCircle, ExternalLink,
+  Activity, RefreshCw, Clock,
 } from "lucide-react";
 import { useProjectContext } from "@/lib/project-context";
 import { apiGet } from "@/lib/api";
@@ -342,10 +343,10 @@ const REST_SNIPPETS = {
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 const STEPS = [
-  { icon: KeyRound, title: "1. Buat API Key", desc: "Buka menu API Key, buat key Production atau Sandbox (ngw_sand_ untuk testing)." },
-  { icon: Package, title: "2. Install SDK", desc: "Pilih SDK sesuai bahasa: npm, pip, atau Composer." },
-  { icon: Code2, title: "3. Inisialisasi & Kirim", desc: "Buat client dengan API Key lalu panggil whatsapp.send() / email.send() dari backend Anda." },
-  { icon: ShieldCheck, title: "4. Terima Webhook", desc: "Verifikasi signature untuk menerima status pengiriman real-time." },
+  { icon: KeyRound, title: "1. Pengajuan & Key", desc: "Ajukan project baru. Setelah Admin menyetujui, API Key otomatis diterbitkan." },
+  { icon: Package, title: "2. Install SDK", desc: "Pilih SDK resmi: npm (Node.js/TS), pip (Python), atau Composer (PHP)." },
+  { icon: Activity, title: "3. Handshake (Ping)", desc: "Simpan key di .env lalu jalankan client.ping() untuk memvalidasi koneksi ke Gateway." },
+  { icon: Code2, title: "4. Kirim & Notifikasi", desc: "Kirim pesan via whatsapp.send(), email.send(), atau broadcast dari aplikasi Anda." },
 ];
 
 // ─── SdkPage ──────────────────────────────────────────────────────────────────
@@ -353,23 +354,31 @@ export default function SdkPage() {
   const { activeProject } = useProjectContext();
   const [apiKeys, setApiKeys] = useState([]);
   const [loadingKeys, setLoadingKeys] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [sdkLang, setSdkLang] = useState("js");
   const [webhookLang, setWebhookLang] = useState("js");
 
-  useEffect(() => {
-    async function fetchKeys() {
-      if (!activeProject?.id) { setLoadingKeys(false); return; }
-      try {
-        const res = await apiGet("/v1/clients/api-keys");
-        const allKeys = res?.data || [];
-        setApiKeys(allKeys.filter((k) => k.project_id === activeProject.id));
-      } catch { setApiKeys([]); }
-      finally { setLoadingKeys(false); }
+  const fetchKeys = useCallback(async () => {
+    if (!activeProject?.id) { setLoadingKeys(false); return; }
+    try {
+      setRefreshing(true);
+      const res = await apiGet("/v1/clients/api-keys");
+      const allKeys = res?.data || [];
+      setApiKeys(allKeys.filter((k) => k.project_id === activeProject.id));
+    } catch {
+      setApiKeys([]);
+    } finally {
+      setLoadingKeys(false);
+      setRefreshing(false);
     }
-    fetchKeys();
   }, [activeProject?.id]);
 
+  useEffect(() => {
+    fetchKeys();
+  }, [fetchKeys]);
+
   const activeKey = apiKeys.find((k) => k.is_active);
+  const isConnected = !!(activeKey?.last_used_at);
 
   return (
     <>
@@ -380,6 +389,80 @@ export default function SdkPage() {
           Hubungkan aplikasi Anda ke Notification Gateway dalam hitungan menit menggunakan SDK resmi.
         </p>
       </div>
+
+      {/* Pending Approval Notice */}
+      {activeProject && !activeProject.is_active && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-amber-700 dark:text-amber-300">
+          <Clock size={18} className="shrink-0 mt-0.5" />
+          <div className="text-xs leading-relaxed">
+            <span className="font-semibold text-sm block mb-0.5">Project Belum Disetujui Admin</span>
+            Pengajuan proyek <strong>{activeProject.name}</strong> sedang dalam tahap verifikasi oleh Admin Platform. Setelah disetujui, API Key dan koneksi SDK akan aktif secara otomatis.
+          </div>
+        </div>
+      )}
+
+      {/* Telemetri Status Koneksi SDK (Handshake) */}
+      {activeProject && (
+        <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[var(--neutral-border)]">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-3 w-3">
+                {isConnected && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                )}
+                <span className={`relative inline-flex rounded-full h-3 w-3 ${isConnected ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                  Status Koneksi SDK:
+                  <span className={isConnected ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+                    {isConnected ? "🟢 Terhubung (SDK Aktif)" : "🟡 Menunggu Handshake Pertama"}
+                  </span>
+                </h3>
+              </div>
+            </div>
+
+            <button
+              onClick={fetchKeys}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--neutral-bg)] transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
+              Cek Ulang Status
+            </button>
+          </div>
+
+          <div className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            {isConnected ? (
+              <p>
+                Koneksi SDK berhasil diverifikasi oleh Notification Gateway. Sinyal terakhir diterima pada:{" "}
+                <strong className="font-mono text-[var(--text-primary)]">
+                  {new Date(activeKey.last_used_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "medium" })} WIB
+                </strong>
+                .
+              </p>
+            ) : (
+              <p>
+                Gateway belum mendeteksi aktivitas koneksi dari SDK untuk project ini. Jalankan uji koneksi (handshake) menggunakan metode <code className="font-mono font-semibold text-[var(--text-primary)]">client.ping()</code> untuk memvalidasi integrasi Anda.
+              </p>
+            )}
+          </div>
+
+          {/* Handshake Code Box */}
+          <div className="rounded-lg bg-zinc-950 dark:bg-black text-zinc-100 p-4 font-mono text-xs border border-zinc-800 space-y-2">
+            <div className="text-zinc-500 text-[11px]">// 1. Tambahkan ke file .env aplikasi Anda:</div>
+            <div className="text-zinc-200">
+              NGW_API_KEY={activeKey ? `${activeKey.key_prefix}••••••••${activeKey.key_preview}` : "ngw_prod_xxxxxxxx"}
+            </div>
+            <div className="text-zinc-200">NGW_BASE_URL=http://localhost:3001</div>
+            <div className="pt-2 text-zinc-500 text-[11px]">// 2. Uji handshake koneksi SDK:</div>
+            <div className="text-emerald-400">const res = await client.ping();</div>
+            <div className="text-zinc-400">console.log(res);</div>
+            <div className="text-zinc-500 text-[11px]">// Respons gateway saat terhubung (HTTP 200):</div>
+            <div className="text-zinc-400">{`// { success: true, project: "${activeProject.slug}", environment: "${activeKey?.environment || "production"}" }`}</div>
+          </div>
+        </div>
+      )}
 
       {/* API Key Info */}
       {activeProject && (
@@ -401,13 +484,17 @@ export default function SdkPage() {
                 </span>
               </div>
               <p className="text-[11px] text-[var(--text-muted)]">
-                Gunakan API Key lengkap yang Anda simpan saat membuat key. Jika hilang, regenerate di menu API Keys.
+                Gunakan API Key lengkap yang Anda simpan saat disetujui atau dibuat. Jika hilang, Anda dapat meregenerasi key di menu Kelola API Key.
               </p>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
               <AlertCircle size={14} />
-              <p className="text-xs">Belum ada API Key aktif. <a href="/client/api-keys" className="underline">Buat API Key</a> terlebih dahulu.</p>
+              <p className="text-xs">
+                {activeProject.is_active
+                  ? <span>Belum ada API Key aktif. <a href="/client/api-keys" className="underline">Buat API Key</a> terlebih dahulu.</span>
+                  : <span>Menunggu persetujuan Admin sebelum API Key diterbitkan.</span>}
+              </p>
             </div>
           )}
         </div>

@@ -21,15 +21,49 @@ const SERVICES = {
   DISPATCH: process.env.DISPATCH_SERVICE_URL || 'http://localhost:3006'
 };
 
-app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-  ],
+const allowedOrigins = config.corsOrigins || [];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // 1. Izinkan request non-browser (Node.js SDK, server-to-server, cURL, Mobile App)
+    if (!origin) return callback(null, true);
+
+    // 2. Izinkan jika wildcard, terdaftar di env, mode development, atau port localhost mana pun
+    if (
+      allowedOrigins.includes('*') ||
+      allowedOrigins.includes(origin) ||
+      config.environment === 'development' ||
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:')
+    ) {
+      return callback(null, true);
+    }
+
+    logger.warn({ origin }, 'Origin rejected by CORS policy');
+    return callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-api-key',
+    'x-user-id',
+    'x-user-role',
+    'x-project-id',
+    'x-environment',
+    'x-webhook-signature',
+    'webhook-id',
+    'webhook-timestamp',
+    'webhook-signature',
+    'Accept'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag'],
+  maxAge: 86400 // Cache preflight OPTIONS 24 jam untuk hemat latency
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // Endpoint health check server gateway
@@ -51,10 +85,11 @@ const ROUTE_TABLE = [
   ['put', '/v1/auth/users/:id', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}`],
   ['delete', '/v1/auth/users/:id', ['admin'], 'AUTH', (req) => `/auth/users/${req.params.id}`],
 
-  // Client Service — Projects
+  // Client Service — Projects (Model 2: Request & Admin Approval)
   ['get', '/v1/clients/projects', [], 'CLIENT', '/clients/projects'],
   ['get', '/v1/clients/projects/:id', [], 'CLIENT', (req) => `/clients/projects/${req.params.id}`],
   ['post', '/v1/clients/projects', [], 'CLIENT', '/clients/projects'],
+  ['post', '/v1/clients/projects/:id/approve', ['admin'], 'CLIENT', (req) => `/clients/projects/${req.params.id}/approve`],
   ['put', '/v1/clients/projects/:id', [], 'CLIENT', (req) => `/clients/projects/${req.params.id}`],
   ['delete', '/v1/clients/projects/:id', [], 'CLIENT', (req) => `/clients/projects/${req.params.id}`],
 
@@ -110,6 +145,28 @@ app.post('/v1/notifications/send', apiKeyAuth, (req, res) =>
 app.post('/v1/notifications/broadcast', apiKeyAuth, (req, res) =>
   forwardProxyRequest(`${SERVICES.NOTIFICATION}/notifications/broadcast`, req, res)
 );
+
+// Ping / Handshake Telemetry — memvalidasi API Key dan mencatat waktu hit pertama/terakhir SDK
+app.get('/v1/notifications/ping', apiKeyAuth, (req, res) => {
+  return res.json({
+    success: true,
+    data: {
+      status: 'connected',
+      message: 'Koneksi ke Notification Gateway berhasil diverifikasi.',
+      project: {
+        id: req.project.id,
+        name: req.project.name,
+        slug: req.project.slug,
+      },
+      environment: req.environment,
+      rateLimitPerMin: req.project.rate_limit_per_min,
+      dailyQuota: req.project.daily_quota,
+      keyPrefix: req.apiKeyRecord.key_prefix,
+      keyPreview: req.apiKeyRecord.key_preview,
+      timestamp: new Date().toISOString()
+    }
+  });
+});
 
 // ── Admin: Tambahan Endpoint ───────────────────────────────────────────────
 // GET /v1/admin/vendors — list vendors untuk admin

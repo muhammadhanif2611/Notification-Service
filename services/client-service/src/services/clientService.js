@@ -40,14 +40,18 @@ export async function getProjectById(projectId) {
 }
 
 // Layanan membuat project baru dengan validasi skema
-// owner_id di-set dari user yang membuat (client self-service)
-export async function createProject(payload, userId = null) {
+// Model 2: Pengajuan Mandiri (Self-Service Request)
+// Jika dibuat oleh role 'user' (client), proyek berstatus PENDING (is_active = false) menunggu persetujuan admin.
+// Jika dibuat oleh 'admin', proyek bisa langsung aktif.
+export async function createProject(payload, userId = null, userRole = null) {
   const validation = createProjectSchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid project creation payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
-  const { name, slug, description, rateLimitPerMin, dailyQuota, webhookUrl, webhookSecret } = validation.data;
+  const { name, slug, description, rateLimitPerMin, dailyQuota, webhookUrl, webhookSecret, isActive } = validation.data;
+  const activeStatus = userRole === 'admin' ? (isActive ?? true) : false;
+
   try {
     const createdProject = await projectRepository.insert({
       name,
@@ -57,11 +61,17 @@ export async function createProject(payload, userId = null) {
       daily_quota: dailyQuota,
       webhook_url: webhookUrl,
       webhook_secret: webhookSecret,
-      owner_id: userId  // Set owner ke user yang membuat
+      owner_id: userId,
+      is_active: activeStatus
     });
 
-    logger.info({ projectId: createdProject.id, slug: createdProject.slug, ownerId: userId }, 'Project created');
-    writeAuditLog({ userId, action: 'CREATE_PROJECT', targetEntity: 'projects', detail: `Created project '${name}'` });
+    logger.info({ projectId: createdProject.id, slug: createdProject.slug, ownerId: userId, isActive: activeStatus }, 'Project created/requested');
+    writeAuditLog({
+      userId,
+      action: activeStatus ? 'CREATE_PROJECT' : 'REQUEST_PROJECT',
+      targetEntity: 'projects',
+      detail: activeStatus ? `Created project '${name}'` : `Requested project access for '${name}' (pending approval)`
+    });
     return createdProject;
   } catch (error) {
     if (error.code === '23505') {
@@ -78,7 +88,17 @@ export async function updateProject(projectId, updateData, userId = null) {
     throw new AppError('Invalid project payload', 400, 'VALIDATION_ERROR', validation.error.errors);
   }
 
-  const updatedProject = await projectRepository.updateById(projectId, validation.data);
+  const dbData = {};
+  if (validation.data.name !== undefined) dbData.name = validation.data.name;
+  if (validation.data.slug !== undefined) dbData.slug = validation.data.slug.toLowerCase().trim();
+  if (validation.data.description !== undefined) dbData.description = validation.data.description;
+  if (validation.data.rateLimitPerMin !== undefined) dbData.rate_limit_per_min = validation.data.rateLimitPerMin;
+  if (validation.data.dailyQuota !== undefined) dbData.daily_quota = validation.data.dailyQuota;
+  if (validation.data.webhookUrl !== undefined) dbData.webhook_url = validation.data.webhookUrl;
+  if (validation.data.webhookSecret !== undefined) dbData.webhook_secret = validation.data.webhookSecret;
+  if (validation.data.isActive !== undefined) dbData.is_active = validation.data.isActive;
+
+  const updatedProject = await projectRepository.updateById(projectId, dbData);
   if (!updatedProject) {
     throw new AppError('Project not found or update failed', 404, 'NOT_FOUND');
   }
@@ -86,6 +106,50 @@ export async function updateProject(projectId, updateData, userId = null) {
   logger.info({ projectId }, 'Project updated');
   writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
   return updatedProject;
+}
+
+// Layanan menyetujui pengajuan project oleh Admin (Model 2: Approval Flow)
+export async function approveProject(projectId, payload = {}, adminUserId = null) {
+  const existingProject = await projectRepository.findByIdWithApiKeys(projectId);
+  if (!existingProject) {
+    throw new AppError('Project not found', 404, 'NOT_FOUND');
+  }
+
+  const dailyQuota = payload.dailyQuota ? Number(payload.dailyQuota) : (existingProject.daily_quota || 5000);
+  const rateLimitPerMin = payload.rateLimitPerMin ? Number(payload.rateLimitPerMin) : (existingProject.rate_limit_per_min || 100);
+  const environment = payload.environment || 'production';
+
+  // 1. Update project menjadi aktif dengan kuota yang disetujui
+  const updatedProject = await projectRepository.updateById(projectId, {
+    is_active: true,
+    daily_quota: dailyQuota,
+    rate_limit_per_min: rateLimitPerMin
+  });
+
+  // 2. Terbitkan API Key awal secara otomatis jika belum ada API Key aktif
+  let generatedKey = null;
+  const activeKeys = (existingProject.api_keys || []).filter(k => k.is_active);
+  if (activeKeys.length === 0) {
+    generatedKey = await generateApiKey({
+      projectId,
+      name: `${updatedProject.name} Initial Key`,
+      environment
+    }, adminUserId);
+  }
+
+  logger.info({ projectId, adminUserId }, 'Project approved and activated');
+  writeAuditLog({
+    userId: adminUserId,
+    action: 'APPROVE_PROJECT',
+    targetEntity: 'projects',
+    detail: `Admin approved project '${updatedProject.name}' with quota ${dailyQuota}/day`
+  });
+
+  return {
+    project: updatedProject,
+    rawApiKey: generatedKey?.rawApiKey || null,
+    apiKeyInfo: generatedKey?.apiKeyInfo || null
+  };
 }
 
 // Layanan mengambil daftar semua API Key (metadata, tanpa hash)

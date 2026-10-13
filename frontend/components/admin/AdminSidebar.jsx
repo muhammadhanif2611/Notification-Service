@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ADMIN_MENU_ITEMS } from "@/constants/menuItems";
 import {
   LayoutDashboard,
+  FolderKanban,
   Activity,
   Server,
   Shield,
@@ -25,6 +26,7 @@ import { useAuth } from "@/lib/auth-context";
  */
 const ICON_MAP = {
   LayoutDashboard: LayoutDashboard,
+  FolderKanban: FolderKanban,
   Activity: Activity,
   Server: Server,
   Shield: Shield,

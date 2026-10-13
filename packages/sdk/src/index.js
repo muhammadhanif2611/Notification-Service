@@ -23,4 +23,20 @@ export class NotificationClient {
   verifyWebhook({ payload, signature, secret }) {
     return verifyWebhookSignature({ payload, signature, secret });
   }
+
+  /**
+   * Ping / Verifikasi koneksi dan validitas API Key ke Notification Gateway.
+   * Dipanggil saat setup pertama kali setelah download SDK.
+   * @returns {Promise<{ success: boolean, data: { status: string, project: object, environment: string, timestamp: string } }>}
+   */
+  async ping() {
+    return this.httpClient.get('/v1/notifications/ping');
+  }
+
+  /**
+   * Alias untuk ping()
+   */
+  async testConnection() {
+    return this.ping();
+  }
 }

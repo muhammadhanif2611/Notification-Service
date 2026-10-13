@@ -20,6 +20,7 @@ export const CLIENT_MENU_ITEMS = [
 
 export const ADMIN_MENU_ITEMS = [
   { label: "Control Center", href: ROUTES.ADMIN.CONTROL_CENTER, icon: "LayoutDashboard" },
+  { label: "Daftar Project", href: ROUTES.ADMIN.PROJECTS, icon: "FolderKanban" },
   { label: "Queue Telemetry", href: ROUTES.ADMIN.MONITORING, icon: "Activity" },
   { label: "Vendors & Kredensial", href: ROUTES.ADMIN.VENDORS, icon: "Server" },
   { label: "WhatsApp Session", href: ROUTES.ADMIN.WA_SESSION, icon: "MessageSquare" },

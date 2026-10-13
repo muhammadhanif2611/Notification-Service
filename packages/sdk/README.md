@@ -28,15 +28,38 @@ pnpm add @notification-gateway/sdk
 import { NotificationClient } from '@notification-gateway/sdk';
 
 const client = new NotificationClient({
-  apiKey: 'ngw_prod_hris_98a71b2c3d4e...', // Dapatkan dari Admin Portal
+  apiKey: 'ngw_prod_hris_98a71b2c3d4e...', // Dapatkan dari Dashboard
   baseUrl: 'https://gateway.company.com', // Opsional (default: http://localhost:3001)
-  timeout: 10000 // Opsional (default: 10000ms)
+  timeout: 10000,                          // Opsional (default: 10000ms)
+  mode: 'cors',                           // Opsional (default: cors)
+  credentials: 'omit'                     // Opsional (default: omit)
 });
 ```
 
 ---
 
-### 2. Pengiriman Notifikasi WhatsApp
+### 2. Uji Koneksi / Handshake (Ping)
+
+Gunakan `client.ping()` setelah inisialisasi untuk memverifikasi API Key dan memberi tahu Gateway bahwa SDK Anda telah aktif:
+
+```javascript
+const connection = await client.ping();
+console.log(connection);
+// Output:
+// {
+//   success: true,
+//   data: {
+//     status: 'connected',
+//     project: { name: 'Aplikasi Kasir', slug: 'aplikasi-kasir' },
+//     environment: 'production',
+//     dailyQuota: 5000
+//   }
+// }
+```
+
+---
+
+### 3. Pengiriman Notifikasi WhatsApp
 
 ```javascript
 // Kirim Pesan WhatsApp Biasa
@@ -60,7 +83,7 @@ const resTemplate = await client.whatsapp.send({
 
 ---
 
-### 3. Pengiriman Email HTML
+### 4. Pengiriman Email HTML
 
 ```javascript
 const resEmail = await client.email.send({
@@ -72,7 +95,7 @@ const resEmail = await client.email.send({
 
 ---
 
-### 4. Broadcast Notifikasi Massal
+### 5. Broadcast Notifikasi Massal
 
 ```javascript
 // Kirim pesan yang sama ke banyak penerima sekaligus
@@ -96,7 +119,7 @@ console.log(resBroadcast.totalQueued); // 3
 
 ---
 
-### 5. Verifikasi Webhook (pola Resend/Svix)
+### 6. Verifikasi Webhook (pola Resend/Svix)
 
 Gateway mengirim HTTP POST ke endpoint Anda dengan format event:
 

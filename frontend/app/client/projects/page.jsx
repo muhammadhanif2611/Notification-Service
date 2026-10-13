@@ -8,7 +8,7 @@
 // =============================================================================
 
 import { useState } from "react";
-import { FolderKanban, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { FolderKanban, Plus, Pencil, Trash2, Check, X, Clock, ShieldCheck, AlertCircle } from "lucide-react";
 import Modal from "@/components/shared/Modal";
 import Alert from "@/components/shared/Alert";
 import { useProjectContext } from "@/lib/project-context";
@@ -79,6 +79,15 @@ export default function ProjectsPage() {
   const formFields = (
     <>
       {error && <Alert variant="error">{error}</Alert>}
+      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
+        <p className="font-semibold flex items-center gap-1.5">
+          <Clock size={13} />
+          Alur Pengajuan & Persetujuan Admin
+        </p>
+        <p className="text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-300/80">
+          Setiap pengajuan proyek akan ditinjau oleh Admin Platform untuk alokasi kuota & rate limit. Setelah disetujui, API Key pertama akan otomatis diterbitkan.
+        </p>
+      </div>
       <div>
         <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Project</label>
         <input type="text" required value={form.name} onChange={(e) => handleNameChange(e.target.value)}
@@ -107,12 +116,12 @@ export default function ProjectsPage() {
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)]">Projects</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Kelola project Anda. Project yang dipilih menjadi konteks untuk API Key, Template, dan Broadcast.
+            Kelola dan ajukan project Anda. Project yang disetujui Admin menjadi konteks untuk API Key, Template, dan Broadcast.
           </p>
         </div>
         <button onClick={openCreate}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors">
-          <Plus size={14} /> Buat Project
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-xs">
+          <Plus size={14} /> Ajukan Proyek Baru
         </button>
       </div>
 
@@ -123,41 +132,86 @@ export default function ProjectsPage() {
         <div className="py-16 text-center bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl">
           <FolderKanban size={32} className="mx-auto text-[var(--text-muted)] mb-3" />
           <p className="text-sm font-medium text-[var(--text-primary)]">Belum ada project</p>
-          <p className="text-xs text-[var(--text-secondary)] mt-1 mb-4">Buat project pertama untuk mulai mengirim notifikasi.</p>
+          <p className="text-xs text-[var(--text-secondary)] mt-1 mb-4">Ajukan project pertama untuk mulai menggunakan Notification Gateway.</p>
           <button onClick={openCreate}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)]">
-            <Plus size={14} /> Buat Project
+            <Plus size={14} /> Ajukan Proyek Baru
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map((p) => {
-            const isActive = p.id === activeProjectId;
+            const isSelected = p.id === activeProjectId;
+            const isApproved = p.is_active;
+
             return (
               <div key={p.id}
-                className={`relative bg-[var(--neutral-surface)] border rounded-xl p-4 transition-colors ${isActive ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-[var(--neutral-border)]"}`}>
-                {isActive && (
-                  <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--primary)] text-[var(--on-primary)]">
-                    <Check size={10} /> Aktif
-                  </span>
-                )}
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
-                    <FolderKanban size={16} />
+                className={`relative bg-[var(--neutral-surface)] border rounded-xl p-4 flex flex-col justify-between transition-colors ${
+                  isSelected ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-[var(--neutral-border)]"
+                }`}>
+                
+                {/* Header Card */}
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
+                        <FolderKanban size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{p.name}</p>
+                        <p className="text-xs font-mono text-[var(--text-muted)] truncate">{p.slug}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {isApproved ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          <ShieldCheck size={10} /> Disetujui
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <Clock size={10} /> Pending
+                        </span>
+                      )}
+
+                      {isSelected && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-[var(--primary)] text-[var(--on-primary)]">
+                          <Check size={9} /> Terpilih
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{p.name}</p>
-                    <p className="text-xs font-mono text-[var(--text-muted)] truncate">{p.slug}</p>
-                  </div>
+
+                  {p.description && (
+                    <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2">{p.description}</p>
+                  )}
+
+                  {/* Status Banner */}
+                  {!isApproved ? (
+                    <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                      <Clock size={14} className="shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-snug">
+                        <span className="font-semibold block">Menunggu Persetujuan Admin</span>
+                        Proyek ini sedang ditinjau. Kredensial API Key akan diterbitkan setelah disetujui.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                      <span>Kuota: <strong className="font-mono text-[var(--text-secondary)]">{p.daily_quota ?? 1000}/hari</strong></span>
+                      <span>•</span>
+                      <span>Rate: <strong className="font-mono text-[var(--text-secondary)]">{p.rate_limit_per_min ?? 60}/mnt</strong></span>
+                    </div>
+                  )}
                 </div>
-                {p.description && (
-                  <p className="text-xs text-[var(--text-secondary)] mt-3 line-clamp-2">{p.description}</p>
-                )}
+
+                {/* Footer Actions */}
                 <div className="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--neutral-border)]">
-                  {!isActive && (
+                  {!isSelected ? (
                     <button onClick={() => selectProject(p.id)} className="text-xs font-medium text-[var(--primary)] hover:underline">
-                      Pilih
+                      Pilih Konteks
                     </button>
+                  ) : (
+                    <span className="text-xs text-[var(--text-muted)]">Aktif digunakan</span>
                   )}
                   <div className="flex-1" />
                   <button onClick={() => openEdit(p)} title="Edit project"
@@ -174,8 +228,9 @@ export default function ProjectsPage() {
           })}
         </div>
       )}
-      {/* Modal Buat */}
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Buat Project Baru" maxWidth="max-w-md">
+
+      {/* Modal Ajukan Proyek */}
+      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Ajukan Proyek Baru" maxWidth="max-w-md">
         <form onSubmit={handleCreate} className="space-y-4">
           {formFields}
           <div className="flex justify-end gap-2 pt-2">
@@ -183,7 +238,7 @@ export default function ProjectsPage() {
               className="px-4 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--neutral-bg)]">Batal</button>
             <button type="submit" disabled={saving || !form.name.trim() || !form.slug.trim()}
               className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50">
-              {saving ? "Menyimpan..." : "Buat Project"}
+              {saving ? "Mengirim..." : "Kirim Pengajuan Proyek"}
             </button>
           </div>
         </form>

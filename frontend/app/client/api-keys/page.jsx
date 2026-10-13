@@ -99,13 +99,26 @@ export default function ApiKeysPage() {
           </p>
         </div>
         <button
+          disabled={!activeProject || !activeProject.is_active}
           onClick={() => setIsCreateModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] font-medium text-sm rounded-lg transition-colors shadow-xs focus:outline-none"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] font-medium text-sm rounded-lg transition-colors shadow-xs focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          title={activeProject && !activeProject.is_active ? "Project belum disetujui oleh Admin" : "Buat API Key Baru"}
         >
           <Plus className="w-4 h-4" />
           Buat API Key Baru
         </button>
       </div>
+
+      {/* Pending approval notice */}
+      {activeProject && !activeProject.is_active && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-amber-700 dark:text-amber-300">
+          <Clock className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="text-xs leading-relaxed">
+            <span className="font-semibold text-sm block mb-0.5">Project Ini Menunggu Persetujuan Admin</span>
+            Status proyek <strong>{activeProject.name}</strong> masih dalam peninjauan oleh Admin Platform. Kredensial API Key pertama akan diterbitkan secara otomatis setelah Admin menyetujui proyek ini.
+          </div>
+        </div>
+      )}
 
       {/* Error alert */}
       {error && (

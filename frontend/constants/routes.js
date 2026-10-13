@@ -19,6 +19,7 @@ export const ROUTES = Object.freeze({
   },
   ADMIN: {
     CONTROL_CENTER: "/admin/control-center",
+    PROJECTS: "/admin/projects",
     MONITORING: "/admin/monitoring",
     VENDORS: "/admin/vendors",
     WA_SESSION: "/admin/wa-session",

@@ -22,7 +22,8 @@ export const createProjectSchema = z.object({
   rateLimitPerMin: z.number().int().positive().default(100),
   dailyQuota: z.number().int().positive().default(5000),
   webhookUrl: z.string().url().optional().or(z.literal('')),
-  webhookSecret: z.string().optional()
+  webhookSecret: z.string().optional(),
+  isActive: z.boolean().optional()
 });
 
 // Skema validasi request pembuatan API Key baru
@@ -63,7 +64,8 @@ export const updateProjectSchema = z.object({
   rateLimitPerMin: z.number().int().positive().optional(),
   dailyQuota: z.number().int().positive().optional(),
   webhookUrl: z.string().url().optional().or(z.literal('')),
-  webhookSecret: z.string().optional().nullable()
+  webhookSecret: z.string().optional().nullable(),
+  isActive: z.boolean().optional()
 });
 
 // Skema validasi update API Key (rename label)

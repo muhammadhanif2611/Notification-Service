@@ -5,7 +5,7 @@ import { supabase } from '@notification-gateway/database';
 export async function findAll() {
   const { data, error } = await supabase
     .from('projects')
-    .select('*, profiles(name, email)')
+    .select('*, profiles(name, email), api_keys(id, name, key_prefix, key_preview, environment, last_used_at, is_active, created_at)')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
@@ -15,7 +15,7 @@ export async function findByOwnerId(ownerId) {
   if (!ownerId) return [];
   const { data, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('*, api_keys(id, name, key_prefix, key_preview, environment, last_used_at, is_active, created_at)')
     .eq('owner_id', ownerId)
     .order('created_at', { ascending: false });
   if (error) throw error;
