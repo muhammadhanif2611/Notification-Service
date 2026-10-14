@@ -23,11 +23,16 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "migrate": "node scripts/run-migration.js",
+    "migrate:railway": "node scripts/migrate-railway.js",
+    "seed:admin": "node scripts/create-admin-seed.js",
     "setup:smtp": "node scripts/setup-smtp-vendor.js",
-    "test:email": "node scripts/test-email-send.js"
+    "test:email": "node scripts/test-email-send.js",
+    "deploy:frontend": "cd frontend && npx vercel --prod"
   },
   "devDependencies": {
-    "concurrently": "^9.2.4"
+    "concurrently": "^9.2.4",
+    "pg": "^8.23.1",
+    "vercel": "^64.0.2"
   },
   "keywords": [
     "notification-service",

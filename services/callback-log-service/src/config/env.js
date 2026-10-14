@@ -3,17 +3,23 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-const findEnv = () => {
+const findEnv = (filename = '.env') => {
   let dir = path.dirname(fileURLToPath(import.meta.url));
   while (dir !== path.parse(dir).root) {
-    const envPath = path.join(dir, '.env');
+    const envPath = path.join(dir, filename);
     if (fs.existsSync(envPath)) return envPath;
     dir = path.dirname(dir);
   }
   return null;
 };
 
-dotenv.config({ path: findEnv() });
+// 1. Muat .env sebagai base
+const baseEnv = findEnv('.env');
+if (baseEnv) dotenv.config({ path: baseEnv });
+
+// 2. Muat .env.local untuk override lokal jika ada
+const localEnv = findEnv('.env.local');
+if (localEnv) dotenv.config({ path: localEnv, override: true });
 
 import { buildBullMQConnection } from '@notification-gateway/shared';
 
