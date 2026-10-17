@@ -155,6 +155,12 @@ export default function ClientWaSessionPage() {
         </div>
       )}
 
+      {session.lastError && (
+        <div className="mt-4 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm">
+          {session.lastError}
+        </div>
+      )}
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <div className="rounded-xl border border-[var(--neutral-border)] bg-[var(--neutral-surface)] p-6">

@@ -7,7 +7,7 @@ import Alert from "@/components/shared/Alert";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useToast } from "@/lib/toast-context";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+import { API_URL } from "@/lib/config";
 const STORAGE_KEY = "ngw_broadcast_apikey";
 
 /**

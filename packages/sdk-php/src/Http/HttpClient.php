@@ -32,8 +32,9 @@ final class HttpClient
         private readonly string $baseUrl,
         private readonly float $timeout = 10.0,
         private readonly int $maxRetries = 2,
+        ?Client $client = null,
     ) {
-        $this->guzzle = new Client([
+        $this->guzzle = $client ?? new Client([
             'base_uri' => rtrim($baseUrl, '/') . '/',
             'timeout'  => $timeout,
             'headers'  => [
@@ -56,34 +57,48 @@ final class HttpClient
      */
     public function post(string $path, array $payload): array
     {
+        return $this->request('POST', $path, $payload);
+    }
+
+    public function get(string $path): array
+    {
+        return $this->request('GET', $path);
+    }
+
+    private function request(string $method, string $path, ?array $payload = null): array
+    {
         $lastException = null;
 
         for ($attempt = 0; $attempt <= $this->maxRetries; $attempt++) {
             try {
-                $response = $this->guzzle->post(ltrim($path, '/'), ['json' => $payload]);
+                $response = $this->guzzle->request($method, ltrim($path, '/'), $payload === null ? [] : ['json' => $payload]);
                 $body = json_decode((string) $response->getBody(), true) ?? [];
                 return $body;
 
             } catch (ClientException $e) {
                 $statusCode = $e->getResponse()->getStatusCode();
                 $body = json_decode((string) $e->getResponse()->getBody(), true) ?? [];
-                $message = $body['error'] ?? "Request gagal dengan status {$statusCode}";
+                $error = $body['error'] ?? null;
+                $message = (is_array($error) ? ($error['message'] ?? null) : $error) ?? "Request gagal dengan status {$statusCode}";
+                $errorCode = is_array($error) ? ($error['code'] ?? null) : null;
 
                 if ($statusCode === 401) {
-                    throw new AuthenticationException($message, $statusCode, previous: $e);
+                    throw new AuthenticationException($message, $statusCode, $errorCode, previous: $e);
                 }
                 if ($statusCode === 429) {
-                    $lastException = new RateLimitException($message, $statusCode, previous: $e);
+                    $lastException = new RateLimitException($message, $statusCode, $errorCode, previous: $e);
                 } else {
                     // Error 4xx lainnya — tidak di-retry
-                    throw new NotificationException($message, $statusCode, previous: $e);
+                    throw new NotificationException($message, $statusCode, $errorCode, previous: $e);
                 }
 
             } catch (ServerException $e) {
                 $statusCode = $e->getResponse()->getStatusCode();
                 $body = json_decode((string) $e->getResponse()->getBody(), true) ?? [];
-                $message = $body['error'] ?? "Server error dengan status {$statusCode}";
-                $lastException = new NotificationException($message, $statusCode, previous: $e);
+                $error = $body['error'] ?? null;
+                $message = (is_array($error) ? ($error['message'] ?? null) : $error) ?? "Request gagal dengan status {$statusCode}";
+                $errorCode = is_array($error) ? ($error['code'] ?? null) : null;
+                $lastException = new NotificationException($message, $statusCode, $errorCode, previous: $e);
 
             } catch (TransferException $e) {
                 $lastException = new NotificationException($e->getMessage(), previous: $e);

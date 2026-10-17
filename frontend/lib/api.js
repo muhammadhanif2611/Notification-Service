@@ -7,7 +7,7 @@
 // - Timeout otomatis 10s (mencegah fetch menggantung)
 // =============================================================================
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:3001";
+import { API_URL } from "./config";
 const REQUEST_TIMEOUT_MS = 10000;
 
 // In-flight GET request deduplication cache: urlKey -> Promise
@@ -53,7 +53,10 @@ async function handleErrorResponse(res) {
     }
   }
 
-  throw new Error(message);
+  const apiError = new Error(message);
+  apiError.status = res.status;
+  apiError.code = error.error?.code;
+  throw apiError;
 }
 
 /**

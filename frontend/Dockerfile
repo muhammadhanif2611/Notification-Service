@@ -20,7 +20,7 @@ COPY frontend ./frontend
 COPY --from=deps /app/frontend/node_modules ./frontend/node_modules
 
 # API URL dibaca saat build (bisa dioverride via build-arg)
-ARG NEXT_PUBLIC_API_URL=http://127.0.0.1:3001
+ARG NEXT_PUBLIC_API_URL=https://gateway-service-production-9201.up.railway.app
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 

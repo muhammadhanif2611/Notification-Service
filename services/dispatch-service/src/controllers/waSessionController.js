@@ -44,7 +44,8 @@ function mergeSessionStatuses(projects) {
     projectId: project.id,
     projectName: project.name,
     status: statusMap.get(project.id)?.status || 'DISCONNECTED',
-    connectedAt: statusMap.get(project.id)?.connectedAt || null
+    connectedAt: statusMap.get(project.id)?.connectedAt || null,
+    lastError: statusMap.get(project.id)?.lastError || null
   }));
 }
 

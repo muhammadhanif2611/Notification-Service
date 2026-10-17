@@ -21,7 +21,7 @@ use NotificationGateway\Webhook\WebhookVerifier;
  *
  * $client = new NotificationClient(
  *     apiKey: 'ngw_prod_xxxxxxxxxxxxxxxx',
- *     baseUrl: 'https://gateway.perusahaan.com',
+ *     baseUrl: 'https://gateway-service-production-9201.up.railway.app',
  * );
  *
  * // Kirim WhatsApp
@@ -65,6 +65,8 @@ final class NotificationClient
     /** Verifier Webhook — `$client->webhooks->verify(...)` */
     public readonly WebhookVerifier $webhooks;
 
+    private readonly HttpClient $http;
+
     /**
      * @param string $apiKey     API Key dari dashboard (``ngw_prod_...`` atau ``ngw_sand_...``).
      * @param string $baseUrl    URL base Gateway API.
@@ -75,7 +77,7 @@ final class NotificationClient
      */
     public function __construct(
         string $apiKey,
-        string $baseUrl = 'http://localhost:3001',
+        string $baseUrl = 'https://gateway-service-production-9201.up.railway.app',
         float $timeout = 10.0,
         int $maxRetries = 2,
     ) {
@@ -84,10 +86,20 @@ final class NotificationClient
         }
 
         $http = new HttpClient($apiKey, $baseUrl, $timeout, $maxRetries);
+        $this->http = $http;
 
         $this->whatsapp  = new WhatsAppClient($http);
         $this->email     = new EmailClient($http);
         $this->broadcast = new BroadcastClient($http);
         $this->webhooks  = new WebhookVerifier();
+    }
+    public function ping(): array
+    {
+        return $this->http->get('/v1/notifications/ping');
+    }
+
+    public function testConnection(): array
+    {
+        return $this->ping();
     }
 }

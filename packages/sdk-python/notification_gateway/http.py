@@ -11,7 +11,7 @@ from typing import Any
 
 from notification_gateway.exceptions import AuthenticationError, NotificationError, RateLimitError
 
-_DEFAULT_BASE_URL = "http://localhost:3001"
+_DEFAULT_BASE_URL = "https://gateway-service-production-9201.up.railway.app"
 _DEFAULT_TIMEOUT = 10.0
 _DEFAULT_MAX_RETRIES = 2
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -24,14 +24,16 @@ def _build_headers(api_key: str) -> dict[str, str]:
     }
 
 
+def _response_error(status_code: int, body: dict[str, Any]) -> NotificationError:
+    error = body.get("error")
+    message = error.get("message") if isinstance(error, dict) else error
+    code = error.get("code") if isinstance(error, dict) else None
+    exception = AuthenticationError if status_code == 401 else RateLimitError if status_code == 429 else NotificationError
+    return exception(message or f"Request gagal dengan status {status_code}", status_code=status_code, code=code)
+
+
 def _raise_for_response(status_code: int, body: dict[str, Any]) -> None:
-    """Mengonversi HTTP error menjadi exception yang tepat."""
-    message = body.get("error") or f"Request gagal dengan status {status_code}"
-    if status_code == 401:
-        raise AuthenticationError(message, status_code=status_code)
-    if status_code == 429:
-        raise RateLimitError(message, status_code=status_code)
-    raise NotificationError(message, status_code=status_code)
+    raise _response_error(status_code, body)
 
 
 class HttpClient:
@@ -43,7 +45,7 @@ class HttpClient:
 
     Args:
         api_key: API Key dari dashboard (``ngw_prod_...`` atau ``ngw_sand_...``).
-        base_url: URL Gateway API. Default: ``http://localhost:3001``.
+        base_url: URL Gateway API. Default: ``https://gateway-service-production-9201.up.railway.app``.
         timeout: Timeout request dalam detik. Default: ``10.0``.
         max_retries: Jumlah percobaan ulang. Default: ``2``.
     """
@@ -60,7 +62,13 @@ class HttpClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
+    def get(self, path: str) -> dict[str, Any]:
+        return self._request("GET", path)
+
     def post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", path, payload)
+
+    def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Mengirim POST request ke Gateway API (sync).
 
@@ -84,16 +92,13 @@ class HttpClient:
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
+                response = requests.request(method, url, json=payload, headers=headers, timeout=self.timeout)
                 body: dict[str, Any] = response.json() if response.content else {}
 
                 if not response.ok:
                     if response.status_code not in _RETRYABLE_STATUS_CODES:
                         _raise_for_response(response.status_code, body)
-                    last_error = NotificationError(
-                        body.get("error") or f"Status {response.status_code}",
-                        status_code=response.status_code,
-                    )
+                    last_error = _response_error(response.status_code, body)
                 else:
                     return body
 
@@ -121,7 +126,7 @@ class AsyncHttpClient:
 
     Args:
         api_key: API Key dari dashboard.
-        base_url: URL Gateway API. Default: ``http://localhost:3001``.
+        base_url: URL Gateway API. Default: ``https://gateway-service-production-9201.up.railway.app``.
         timeout: Timeout request dalam detik. Default: ``10.0``.
         max_retries: Jumlah percobaan ulang. Default: ``2``.
     """
@@ -138,7 +143,13 @@ class AsyncHttpClient:
         self.timeout = timeout
         self.max_retries = max_retries
 
+    async def get(self, path: str) -> dict[str, Any]:
+        return await self._request("GET", path)
+
     async def post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", path, payload)
+
+    async def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Mengirim POST request ke Gateway API (async).
 
@@ -165,16 +176,13 @@ class AsyncHttpClient:
         for attempt in range(self.max_retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(url, json=payload, headers=headers)
+                    response = await client.request(method, url, json=payload, headers=headers)
                     body: dict[str, Any] = response.json() if response.content else {}
 
                     if not response.is_success:
                         if response.status_code not in _RETRYABLE_STATUS_CODES:
                             _raise_for_response(response.status_code, body)
-                        last_error = NotificationError(
-                            body.get("error") or f"Status {response.status_code}",
-                            status_code=response.status_code,
-                        )
+                        last_error = _response_error(response.status_code, body)
                     else:
                         return body
 

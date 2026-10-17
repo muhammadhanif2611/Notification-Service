@@ -5,13 +5,13 @@ export class HttpClient {
   /**
    * @param {object} configuration
    * @param {string} configuration.apiKey - API Key untuk autentikasi
-   * @param {string} [configuration.baseUrl='http://localhost:3001'] - URL Gateway API
+   * @param {string} [configuration.baseUrl='https://gateway-service-production-9201.up.railway.app'] - URL Gateway API
    * @param {number} [configuration.timeout=10000] - Timeout dalam milidetik
    * @param {number} [configuration.maxRetries=2] - Jumlah percobaan ulang untuk network error
    */
   constructor(configuration) {
     this.apiKey = configuration.apiKey;
-    this.baseUrl = (configuration.baseUrl || 'http://localhost:3001').replace(/\/$/, '');
+    this.baseUrl = (configuration.baseUrl || 'https://gateway-service-production-9201.up.railway.app').replace(/\/$/, '');
     this.timeoutMilliseconds = configuration.timeout || 10000;
     this.maxRetries = configuration.maxRetries ?? 2;
     this.mode = configuration.mode;

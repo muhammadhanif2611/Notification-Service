@@ -5,7 +5,9 @@ import { Activity, RefreshCw, Cpu, ExternalLink } from "lucide-react";
 import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
 
-const BULL_BOARD_URL = process.env.NEXT_PUBLIC_BULL_BOARD_URL || "http://127.0.0.1:3001/admin/queues";
+import { API_URL } from "@/lib/config";
+
+const BULL_BOARD_URL = process.env.NEXT_PUBLIC_BULL_BOARD_URL || `${API_URL}/admin/queues`;
 
 export default function MonitoringPage() {
   // Hanya ambil scope 'statistics' untuk menghemat bandwidth & beban server

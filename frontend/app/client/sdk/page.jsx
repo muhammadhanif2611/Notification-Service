@@ -1,5 +1,7 @@
 "use client";
 
+import { API_URL } from "@/lib/config";
+
 import { useState, useEffect, useCallback } from "react";
 import {
   Code2, Copy, Check, Package, KeyRound, MessageSquare,
@@ -87,9 +89,9 @@ const SDK_LANGS = [
 ];
 
 const INSTALL_SNIPPETS = {
-  js:     `npm install notification-gateway-sdk`,
-  python: `pip install notification-gateway-sdk`,
-  php:    `composer require notification-gateway/sdk`,
+  "js": "npm install \"https://github.com/muhammadhanif2611/Notification-Service/releases/download/sdk%2Fv1.0.1/notification-gateway-sdk-1.0.1.tgz\"",
+  "python": "pip install \"https://github.com/muhammadhanif2611/Notification-Service/releases/download/sdk%2Fv1.0.1/notification_gateway_sdk-1.0.1-py3-none-any.whl\"",
+  "php": "composer config repositories.notification-gateway composer https://raw.githubusercontent.com/muhammadhanif2611/Notification-Service/refs/tags/sdk/v1.0.1/packages/sdk-php\ncomposer require notification-gateway/sdk:1.0.1"
 };
 
 const INIT_SNIPPETS = {
@@ -97,7 +99,7 @@ const INIT_SNIPPETS = {
 
 const client = new NotificationClient({
   apiKey: process.env.NGW_API_KEY,   // ngw_prod_... atau ngw_sand_...
-  baseUrl: 'http://localhost:3001',  // Ganti dengan production URL
+  baseUrl: '${API_URL}',  // URL Gateway produksi
   timeout: 10000,
 });`,
   python: `from notification_gateway import NotificationClient
@@ -105,7 +107,7 @@ import os
 
 client = NotificationClient(
     api_key=os.environ["NGW_API_KEY"],   # ngw_prod_... atau ngw_sand_...
-    base_url="http://localhost:3001",    # Ganti dengan production URL
+    base_url="${API_URL}",    # URL Gateway produksi
 )`,
   php: `<?php
 
@@ -113,7 +115,7 @@ use NotificationGateway\\NotificationClient;
 
 $client = new NotificationClient(
     apiKey: $_ENV['NGW_API_KEY'],     // ngw_prod_... atau ngw_sand_...
-    baseUrl: 'http://localhost:3001', // Ganti dengan production URL
+    baseUrl: '${API_URL}', // URL Gateway produksi
 );`,
 };
 
@@ -319,7 +321,7 @@ const REST_SNIPPETS = {
 # Endpoint:
 #   POST /v1/notifications/send        → kirim 1 pesan
 #   POST /v1/notifications/broadcast   → kirim ke banyak penerima`,
-  send: `curl -X POST http://localhost:3001/v1/notifications/send \\
+  send: `curl -X POST ${API_URL}/v1/notifications/send \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ngw_prod_xxxxxxxx" \\
   -d '{
@@ -330,7 +332,7 @@ const REST_SNIPPETS = {
 
 # Respons sukses (HTTP 202):
 # { "success": true, "data": { "messageId": "msg_...", "status": "QUEUED" } }`,
-  broadcast: `curl -X POST http://localhost:3001/v1/notifications/broadcast \\
+  broadcast: `curl -X POST ${API_URL}/v1/notifications/broadcast \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ngw_prod_xxxxxxxx" \\
   -d '{
@@ -454,7 +456,7 @@ export default function SdkPage() {
             <div className="text-zinc-200">
               NGW_API_KEY={activeKey ? `${activeKey.key_prefix}••••••••${activeKey.key_preview}` : "ngw_prod_xxxxxxxx"}
             </div>
-            <div className="text-zinc-200">NGW_BASE_URL=http://localhost:3001</div>
+            <div className="text-zinc-200">NGW_BASE_URL={API_URL}</div>
             <div className="pt-2 text-zinc-500 text-[11px]">// 2. Uji handshake koneksi SDK:</div>
             <div className="text-emerald-400">const res = await client.ping();</div>
             <div className="text-zinc-400">console.log(res);</div>
@@ -527,6 +529,7 @@ export default function SdkPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
+            <BadgeLink href="https://github.com/muhammadhanif2611/Notification-Service/releases/tag/sdk%2Fv1.0.1" label="Download v1.0.1" color="zinc" />
             <BadgeLink href="https://www.npmjs.com/package/notification-gateway-sdk" label="npm" color="red" />
             <BadgeLink href="https://pypi.org/project/notification-gateway-sdk/" label="PyPI" color="blue" />
             <BadgeLink href="https://packagist.org/packages/notification-gateway/sdk" label="Packagist" color="orange" />

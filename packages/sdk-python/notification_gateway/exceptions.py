@@ -3,6 +3,9 @@ Exceptions untuk Notification Gateway SDK.
 """
 
 
+from __future__ import annotations
+
+
 class NotificationError(Exception):
     """Base exception untuk semua error dari Notification Gateway SDK."""
 

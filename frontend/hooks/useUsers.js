@@ -21,7 +21,7 @@ export function useUsers() {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiGet("/v1/auth/users");
+      const response = await apiGet("/v1/auth/users", { skipDedupe: true });
       const data = response?.data;
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -38,9 +38,14 @@ export function useUsers() {
    * @returns {Promise<Object>} Created user
    */
   const createUser = async (payload) => {
-    const response = await apiPost("/v1/auth/users", payload);
-    await fetchUsers();
-    return response.data;
+    try {
+      const response = await apiPost("/v1/auth/users", payload);
+      return response.data;
+    } finally {
+      // A failed or timed-out response can follow a successful database insert.
+      // Refresh without converting a duplicate response into a successful creation.
+      await fetchUsers();
+    }
   };
 
   /**

@@ -1,5 +1,7 @@
 "use client";
 
+import { API_URL } from "@/lib/config";
+
 import { useState, useEffect } from "react";
 import {
   FolderKanban,
@@ -425,47 +427,47 @@ export default function AdminProjectsPage() {
         isOpen={!!approvingProject}
         onClose={() => setApprovingProject(null)}
         title={approveResult ? "Proyek Berhasil Disetujui!" : `Persetujuan Proyek: ${approvingProject?.name || ""}`}
-        maxWidth="max-w-lg"
+        maxWidth={approveResult ? "max-w-2xl" : "max-w-lg"}
       >
         {approveResult ? (
           /* Tampilan Sukses & Kredensial Onboarding */
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <Alert variant="success" title="Kredensial Resmi Telah Diterbitkan">
               Proyek ini sekarang aktif. Bagikan konfigurasi di bawah ke developer klien untuk dipasang ke file <code className="font-mono">.env</code> aplikasi mereka.
             </Alert>
 
             {approveResult.rawApiKey ? (
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
                     API Key Klien (Hanya Tampil 1 Kali)
                   </label>
-                  <code className="block p-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-emerald-600 dark:text-emerald-400 break-all select-all">
+                  <code className="block w-full max-w-full whitespace-pre-wrap break-all p-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-emerald-600 dark:text-emerald-400 select-all">
                     {approveResult.rawApiKey}
                   </code>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-1">
                     <label className="text-xs font-medium text-[var(--text-secondary)]">
                       Paket Konfigurasi .env Siap Salin
                     </label>
                     <button
                       type="button"
                       onClick={() => {
-                        const envSnippet = `NGW_API_KEY=${approveResult.rawApiKey}\nNGW_BASE_URL=http://localhost:3001`;
+                        const envSnippet = `NGW_API_KEY=${approveResult.rawApiKey}\nNGW_BASE_URL=${API_URL}`;
                         navigator.clipboard.writeText(envSnippet);
                         setCopiedEnv(true);
                         setTimeout(() => setCopiedEnv(false), 2000);
                       }}
-                      className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      className="inline-flex shrink-0 items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     >
                       {copiedEnv ? <><Check size={12} className="text-emerald-500" /> Disalin!</> : <><Copy size={12} /> Salin .env</>}
                     </button>
                   </div>
-                  <pre className="p-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-[var(--text-primary)]">
+                  <pre className="w-full max-w-full whitespace-pre-wrap break-all p-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-[var(--text-primary)]">
 {`NGW_API_KEY=${approveResult.rawApiKey}
-NGW_BASE_URL=http://localhost:3001`}
+NGW_BASE_URL=${API_URL}`}
                   </pre>
                 </div>
               </div>

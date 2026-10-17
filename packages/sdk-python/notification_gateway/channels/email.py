@@ -26,8 +26,8 @@ class EmailClient:
     def send(
         self,
         to: str,
-        subject: str,
-        body: str,
+        subject: str | None = None,
+        body: str | None = None,
         template_code: str | None = None,
         variables: dict[str, str] | None = None,
     ) -> dict[str, Any]:
@@ -54,8 +54,8 @@ class EmailClient:
     async def send_async(
         self,
         to: str,
-        subject: str,
-        body: str,
+        subject: str | None = None,
+        body: str | None = None,
         template_code: str | None = None,
         variables: dict[str, str] | None = None,
     ) -> dict[str, Any]:
@@ -79,17 +79,16 @@ class EmailClient:
     @staticmethod
     def _build_payload(
         to: str,
-        subject: str,
-        body: str,
+        subject: str | None,
+        body: str | None,
         template_code: str | None,
         variables: dict[str, str] | None,
     ) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "channel": "EMAIL",
-            "recipient": to,
-            "subject": subject,
-            "body": body,
-        }
+        payload: dict[str, Any] = {"channel": "EMAIL", "recipient": to}
+        if subject is not None:
+            payload["subject"] = subject
+        if body is not None:
+            payload["body"] = body
         if template_code:
             payload["templateCode"] = template_code
         if variables:

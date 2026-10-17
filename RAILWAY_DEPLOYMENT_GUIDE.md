@@ -1,3 +1,5 @@
+> Deployment aktif: dashboard di Vercel (https://notification-gateway.vercel.app), backend di Railway. Set `CORS_ALLOWED_ORIGINS=https://notification-gateway.vercel.app` pada gateway Railway dan `NEXT_PUBLIC_API_URL=https://gateway-service-production-9201.up.railway.app` pada environment Production Vercel, lalu redeploy. Bagian frontend Railway di bawah hanya alternatif hosting.
+
 # 🚂 Panduan Deployment Notification Gateway ke Railway (Multi-Service)
 
 Dokumen ini memandu proses deployment sistem **Notification Gateway** ke platform **Railway** dengan arsitektur **Multi-Service**, termasuk pemisahan environment antara lokal dan produksi, serta inisialisasi database PostgreSQL & PostgREST di Railway.
@@ -132,7 +134,7 @@ Untuk setiap service backend di bawah ini, lakukan:
 
 | Nama Service | Dockerfile Path | Variables Khusus | Networking |
 |---|---|---|---|
-| **`gateway-service`** | `services/gateway-service/Dockerfile` | `PORT=3001`<br>`AUTH_SERVICE_URL=http://${{auth-service.RAILWAY_PRIVATE_DOMAIN}}:3002`<br>`CLIENT_SERVICE_URL=http://${{client-service.RAILWAY_PRIVATE_DOMAIN}}:3003`<br>`NOTIFICATION_SERVICE_URL=http://${{notification-service.RAILWAY_PRIVATE_DOMAIN}}:3004`<br>`CALLBACK_LOG_SERVICE_URL=http://${{callback-log-service.RAILWAY_PRIVATE_DOMAIN}}:3005`<br>`CORS_ALLOWED_ORIGINS=https://${{frontend.RAILWAY_PUBLIC_DOMAIN}}` | **Public Domain** (Generate di tab Networking) |
+| **`gateway-service`** | `services/gateway-service/Dockerfile` | `PORT=3001`<br>`AUTH_SERVICE_URL=http://${{auth-service.RAILWAY_PRIVATE_DOMAIN}}:3002`<br>`CLIENT_SERVICE_URL=http://${{client-service.RAILWAY_PRIVATE_DOMAIN}}:3003`<br>`NOTIFICATION_SERVICE_URL=http://${{notification-service.RAILWAY_PRIVATE_DOMAIN}}:3004`<br>`CALLBACK_LOG_SERVICE_URL=http://${{callback-log-service.RAILWAY_PRIVATE_DOMAIN}}:3005`<br>`CORS_ALLOWED_ORIGINS=https://notification-gateway.vercel.app` | **Public Domain** (Generate di tab Networking) |
 | **`auth-service`** | `services/auth-service/Dockerfile` | `PORT=3002` | Private |
 | **`client-service`** | `services/client-service/Dockerfile` | `PORT=3003` | Private |
 | **`notification-service`** | `services/notification-service/Dockerfile` | `PORT=3004` | Private |

@@ -5,6 +5,7 @@ import { startWhatsAppWorker } from './whatsapp/worker.js';
 import { startEmailWorker } from './email/worker.js';
 import waSessionRoutes from './routes/waSessionRoutes.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { restoreProjectSessions } from './whatsapp/session-manager.js';
 
 const logger = createLogger('dispatch-service');
 
@@ -12,9 +13,11 @@ const logger = createLogger('dispatch-service');
 startWhatsAppWorker(config.redis);
 startEmailWorker(config.redis);
 
-// Sesi WhatsApp multi-project: lazy-connect saat ada job masuk atau client request via HTTP.
-// Tidak ada auto-connect global di startup.
-logger.info('Dispatch Service started — WhatsApp sessions will connect on demand');
+// New projects pair on demand; paired sessions recover after a restart.
+restoreProjectSessions().catch((err) =>
+  logger.error({ err: err.message }, 'Could not restore saved WhatsApp sessions')
+);
+logger.info('Dispatch Service started — restoring paired WhatsApp sessions');
 
 // ── HTTP Server: endpoints manajemen sesi WhatsApp per-project ──────────────
 const app = express();

@@ -10,6 +10,14 @@ SDK Python resmi untuk **Notification Gateway** — kirim WhatsApp, Email, dan B
 
 ## Instalasi
 
+Rilis 1.0.1 tersedia melalui [GitHub Release](https://github.com/muhammadhanif2611/Notification-Service/releases/tag/sdk%2Fv1.0.1):
+
+```bash
+pip install "https://github.com/muhammadhanif2611/Notification-Service/releases/download/sdk%2Fv1.0.1/notification_gateway_sdk-1.0.1-py3-none-any.whl"
+```
+
+Perintah registry di bawah memerlukan paket sudah diterbitkan ke registry tersebut.
+
 ```bash
 pip install notification-gateway-sdk
 ```
@@ -33,7 +41,7 @@ from notification_gateway import NotificationClient
 
 client = NotificationClient(
     api_key="ngw_prod_xxxxxxxxxxxxxxxx",   # API Key dari dashboard
-    base_url="http://localhost:3001",       # URL Gateway (ganti production URL)
+    base_url="https://gateway-service-production-9201.up.railway.app",       # URL Gateway (dapat diubah untuk deployment lain)
 )
 
 # Kirim WhatsApp
@@ -172,7 +180,7 @@ def webhook_handler():
 | Parameter | Tipe | Default | Deskripsi |
 |---|---|---|---|
 | `api_key` | `str` | *wajib* | API Key dari dashboard (`ngw_prod_...` / `ngw_sand_...`) |
-| `base_url` | `str` | `http://localhost:3001` | URL Gateway |
+| `base_url` | `str` | `https://gateway-service-production-9201.up.railway.app` | URL Gateway |
 | `timeout` | `float` | `10.0` | Timeout request dalam detik |
 | `max_retries` | `int` | `2` | Jumlah retry untuk error 5xx/jaringan |
 
@@ -255,6 +263,17 @@ Returns `dict` (payload ter-parse) atau raises `WebhookVerificationError`.
 
 ---
 
+## Verifikasi koneksi
+
+```python
+client.ping()                         # sync: {"success": True, "data": {...}}
+await client.ping_async()             # async
+client.test_connection()              # alias ping
+await client.test_connection_async()  # alias ping_async
+```
+
+Ping tidak mengirim pesan. Error API mempertahankan `str(error)`, `error.status_code`, dan `error.code`. URL lokal tetap dapat diberikan lewat `base_url="http://localhost:3001"`.
+
 ## Publish ke PyPI
 
 ```bash
@@ -264,7 +283,8 @@ python -m hatch build
 
 # Upload ke PyPI
 pip install twine
-twine upload dist/*
+twine check ../../artifacts/python/*
+twine upload ../../artifacts/python/*
 ```
 
 Atau gunakan GitHub Actions (`.github/workflows/publish-pypi.yml`).

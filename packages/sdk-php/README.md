@@ -10,6 +10,15 @@ SDK PHP resmi untuk **Notification Gateway** — kirim WhatsApp, Email, dan Broa
 
 ## Instalasi
 
+Rilis 1.0.1 tersedia melalui [GitHub Release](https://github.com/muhammadhanif2611/Notification-Service/releases/tag/sdk%2Fv1.0.1):
+
+```bash
+composer config repositories.notification-gateway composer https://raw.githubusercontent.com/muhammadhanif2611/Notification-Service/refs/tags/sdk/v1.0.1/packages/sdk-php
+composer require notification-gateway/sdk:1.0.1
+```
+
+Perintah registry di bawah memerlukan paket sudah diterbitkan ke registry tersebut.
+
 ```bash
 composer require notification-gateway/sdk
 ```
@@ -25,7 +34,7 @@ use NotificationGateway\NotificationClient;
 
 $client = new NotificationClient(
     apiKey: 'ngw_prod_xxxxxxxxxxxxxxxx',   // API Key dari dashboard
-    baseUrl: 'http://localhost:3001',       // URL Gateway (ganti production URL)
+    baseUrl: 'https://gateway-service-production-9201.up.railway.app',       // URL Gateway (dapat diubah untuk deployment lain)
 );
 
 // Kirim WhatsApp
@@ -55,7 +64,7 @@ class NotificationGatewayServiceProvider extends ServiceProvider
     {
         $this->app->singleton(NotificationClient::class, fn() => new NotificationClient(
             apiKey: config('services.notification_gateway.api_key'),
-            baseUrl: config('services.notification_gateway.base_url', 'http://localhost:3001'),
+            baseUrl: config('services.notification_gateway.base_url', 'https://gateway-service-production-9201.up.railway.app'),
         ));
     }
 }
@@ -65,7 +74,7 @@ class NotificationGatewayServiceProvider extends ServiceProvider
 // config/services.php
 'notification_gateway' => [
     'api_key'  => env('NGW_API_KEY'),
-    'base_url' => env('NGW_BASE_URL', 'http://localhost:3001'),
+    'base_url' => env('NGW_BASE_URL', 'https://gateway-service-production-9201.up.railway.app'),
 ],
 ```
 
@@ -155,7 +164,7 @@ final class NotificationService
 
     public function __construct(
         #[Autowire(env: 'NGW_API_KEY')] string $apiKey,
-        #[Autowire(env: 'NGW_BASE_URL')] string $baseUrl = 'http://localhost:3001',
+        #[Autowire(env: 'NGW_BASE_URL')] string $baseUrl = 'https://gateway-service-production-9201.up.railway.app',
     ) {
         $this->client = new NotificationClient(apiKey: $apiKey, baseUrl: $baseUrl);
     }
@@ -252,7 +261,7 @@ echo json_encode(['received' => true]);
 | Parameter | Tipe | Default | Deskripsi |
 |---|---|---|---|
 | `apiKey` | `string` | *wajib* | API Key (`ngw_prod_...` / `ngw_sand_...`) |
-| `baseUrl` | `string` | `http://localhost:3001` | URL Gateway |
+| `baseUrl` | `string` | `https://gateway-service-production-9201.up.railway.app` | URL Gateway |
 | `timeout` | `float` | `10.0` | Timeout dalam detik |
 | `maxRetries` | `int` | `2` | Retry untuk error 5xx/jaringan |
 
@@ -278,6 +287,15 @@ echo json_encode(['received' => true]);
 | — | `WebhookVerificationException` | Signature webhook tidak valid |
 
 ---
+
+## Verifikasi koneksi
+
+```php
+$result = $client->ping();           // ['success' => true, 'data' => [...]]
+$result = $client->testConnection(); // alias ping
+```
+
+Ping tidak mengirim pesan. Error API mempertahankan `getMessage()`, `getStatusCode()`, dan `getErrorCode()`. URL lokal tetap dapat diberikan lewat `baseUrl: 'http://localhost:3001'`.
 
 ## Publish ke Packagist
 

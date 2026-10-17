@@ -31,18 +31,22 @@ final class EmailClient
      */
     public function send(
         string $to,
-        string $subject,
-        string $body,
+        ?string $subject = null,
+        ?string $body = null,
         ?string $templateCode = null,
         array $variables = [],
     ): array {
         $payload = [
             'channel'   => 'EMAIL',
             'recipient' => $to,
-            'subject'   => $subject,
-            'body'      => $body,
         ];
 
+        if ($subject !== null) {
+            $payload['subject'] = $subject;
+        }
+        if ($body !== null) {
+            $payload['body'] = $body;
+        }
         if ($templateCode !== null) {
             $payload['templateCode'] = $templateCode;
         }

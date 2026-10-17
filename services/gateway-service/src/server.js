@@ -6,6 +6,7 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
 import { createLogger } from '@notification-gateway/shared';
 import { config } from './config/env.js';
+import { createCorsOptions } from './config/cors.js';
 import { apiKeyAuth, jwtAuth, roleCheck } from './middlewares/auth.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { forwardProxyRequest } from './services/proxyService.js';
@@ -21,46 +22,7 @@ const SERVICES = {
   DISPATCH: process.env.DISPATCH_SERVICE_URL || 'http://localhost:3006'
 };
 
-const allowedOrigins = config.corsOrigins || [];
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // 1. Izinkan request non-browser (Node.js SDK, server-to-server, cURL, Mobile App)
-    if (!origin) return callback(null, true);
-
-    // 2. Izinkan jika wildcard, terdaftar di env, mode development, atau port localhost mana pun
-    if (
-      allowedOrigins.includes('*') ||
-      allowedOrigins.includes(origin) ||
-      config.environment === 'development' ||
-      origin.startsWith('http://localhost:') ||
-      origin.startsWith('http://127.0.0.1:')
-    ) {
-      return callback(null, true);
-    }
-
-    logger.warn({ origin }, 'Origin rejected by CORS policy');
-    return callback(new Error(`CORS policy: Origin ${origin} not allowed`));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'x-api-key',
-    'x-user-id',
-    'x-user-role',
-    'x-project-id',
-    'x-environment',
-    'x-webhook-signature',
-    'webhook-id',
-    'webhook-timestamp',
-    'webhook-signature',
-    'Accept'
-  ],
-  exposedHeaders: ['Content-Range', 'X-Content-Range', 'ETag'],
-  maxAge: 86400 // Cache preflight OPTIONS 24 jam untuk hemat latency
-};
+const corsOptions = createCorsOptions(config);
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));

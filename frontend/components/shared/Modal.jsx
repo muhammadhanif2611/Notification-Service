@@ -44,7 +44,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = "ma
 
       {/* Dialog */}
       <div
-        className={`relative w-full ${maxWidth} bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl shadow-xl`}
+        className={`relative min-w-0 w-full ${maxWidth} bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl shadow-xl`}
         style={{ boxShadow: "var(--shadow-xl)" }}
       >
         {/* Header */}

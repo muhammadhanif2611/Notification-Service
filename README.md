@@ -120,17 +120,20 @@ npm run dev:callback     # Port 3005 (Callback & Logs)
 
 Channel WhatsApp memakai **[Baileys](https://github.com/WhiskeySockets/Baileys)** (WhatsApp Web multi-device), **bukan** Meta Cloud API. Karena itu perlu **pairing satu kali** via QR code:
 
-1. **Jalankan dispatch-service** (`npm run dev:dispatch`). Saat pertama kali, **QR code akan muncul di terminal/log**.
-2. **Scan QR** dari HP: WhatsApp → **Settings → Linked Devices → Link a Device**.
-3. Setelah tersambung, status berubah jadi `CONNECTED` dan sesi tersimpan di folder `wa-sessions/` (persisten, QR tidak perlu di-scan ulang saat restart).
-4. **Kelola lewat Dashboard Admin** → menu **WhatsApp Session** (`/admin/wa-session`):
-   - Lihat status koneksi real-time
-   - Tampilkan QR pairing tanpa buka terminal
-   - **Reset Sesi** (logout + hapus auth state + QR baru)
+1. Jalankan backend/dispatch-service. Startup memulihkan sesi yang sudah pernah dipasangkan; project baru belum terhubung otomatis.
+2. Login sebagai **Client**, pilih project, lalu buka **WhatsApp Session** (`/client/wa-session`). Klik **Hubungkan** untuk membuat QR.
+3. Pada HP, buka WhatsApp ? **Linked Devices ? Link a Device**, lalu scan QR dari dashboard. Tunggu status **Terhubung**.
+4. Halaman **Admin ? WhatsApp Sessions** (`/admin/wa-session`) memantau sesi semua project dan dapat memutus koneksi. Pairing dan reset dilakukan di halaman Client.
+5. Jika sesi keluar atau kredensial tidak valid, klik **Reset Sesi** pada halaman Client dan scan QR baru.
 
-> **Endpoint API** (admin only):
-> - `GET /v1/clients/wa-session` → status & QR string
-> - `POST /v1/clients/wa-session/reset` → reset sesi
+**Deployment Railway yang dipakai saat ini:** seluruh backend berjalan di satu service `gateway-service` melalui `scripts/start-backend.js`. Gateway menghubungi dispatch lewat `http://127.0.0.1:3006`; tidak perlu domain publik dispatch.
+
+Supaya pairing bertahan saat redeploy, pasang volume pada service `gateway-service` dengan mount path `/app/wa-sessions` dan set `WA_SESSION_PATH=/app/wa-sessions`. Untuk volume milik root dan image yang memakai user non-root, ikuti [pengaturan izin volume Railway](https://docs.railway.com/volumes#permissions). Jangan jalankan beberapa instance menggunakan folder sesi yang sama.
+
+Endpoint client (JWT dan kepemilikan project diperiksa):
+- `GET /v1/clients/wa-session?projectId=<UUID>` ? status dan QR.
+- `POST /v1/clients/wa-session/connect` dengan body `{"projectId":"<UUID>"}` ? mulai pairing.
+- `POST /v1/clients/wa-session/reset` dengan body yang sama ? reset pairing.
 
 > **Sandbox mode** (API key `ngw_sand_...`) tidak memanggil Baileys sama sekali — pesan hanya disimulasikan, jadi tidak perlu pairing untuk testing.
 

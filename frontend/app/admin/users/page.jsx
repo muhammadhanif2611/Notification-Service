@@ -102,6 +102,7 @@ export default function UsersPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setFormError(null);
     setSubmitting(true);
     try {
@@ -119,7 +120,9 @@ export default function UsersPage() {
       setCreatedCreds({ email: payload.email, password: payload.password, name: payload.name, role: payload.role });
       resetForm();
     } catch (err) {
-      setFormError(err.message || "Gagal membuat akun.");
+      setFormError(err.code === "USER_EXISTS"
+        ? "Email ini sudah terdaftar. Tutup form lalu cari akun tersebut di daftar pengguna."
+        : err.message || "Gagal membuat akun.");
     } finally {
       setSubmitting(false);
     }

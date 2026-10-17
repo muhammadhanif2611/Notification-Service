@@ -34,8 +34,11 @@ function createSessionState() {
     status: WHATSAPP_SESSION_STATUS.DISCONNECTED,
     lastQrCode: null,
     connectionPromise: null,
+    credentialsPromise: Promise.resolve(),
     reconnectAttempts: 0,
     reconnectTimer: null,
+    generation: 0,
+    lastError: null,
     connectedAt: null
   };
 }
@@ -62,7 +65,10 @@ function getOrCreateState(projectId) {
  */
 function resolveProjectSessionPath(projectId) {
   const baseDir = path.resolve(process.env.WA_SESSION_PATH || './wa-sessions');
-  const sessionDir = path.join(baseDir, String(projectId));
+  const sessionDir = path.resolve(baseDir, String(projectId));
+  if (path.dirname(sessionDir) !== baseDir) {
+    throw new Error('Invalid WhatsApp project session path');
+  }
   fs.mkdirSync(sessionDir, { recursive: true });
   return sessionDir;
 }
@@ -83,11 +89,16 @@ function resolveReconnectDelay(attempts) {
  */
 async function connectSocket(projectId) {
   const state = getOrCreateState(projectId);
+  const generation = state.generation;
+  state.status = WHATSAPP_SESSION_STATUS.CONNECTING;
+  state.lastQrCode = null;
+  state.lastError = null;
+  await state.credentialsPromise;
+  if (state.generation !== generation) return null;
   const sessionPath = resolveProjectSessionPath(projectId);
   const { state: authState, saveCreds } = await useMultiFileAuthState(sessionPath);
-  const { version } = await fetchLatestBaileysVersion();
-
-  state.status = WHATSAPP_SESSION_STATUS.CONNECTING;
+  const { version } = await fetchLatestBaileysVersion({ timeout: 5000 });
+  if (state.generation !== generation) return null;
 
   state.socket = makeWASocket({
     version,
@@ -97,8 +108,21 @@ async function connectSocket(projectId) {
     browser: ['Notification Gateway', 'Chrome', '1.0.0']
   });
 
-  state.socket.ev.on('creds.update', saveCreds);
-  state.socket.ev.on('connection.update', (update) => handleConnectionUpdate(projectId, update));
+  const socket = state.socket;
+  socket.ev.on('creds.update', () => {
+    if (state.socket !== socket) return;
+    state.credentialsPromise = state.credentialsPromise.then(() => {
+      if (state.generation === generation) return saveCreds();
+    }).catch((err) => {
+      if (state.generation === generation) {
+        state.lastError = 'Gagal menyimpan sesi WhatsApp. Periksa penyimpanan service.';
+      }
+      logger.error({ projectId, err: err.message }, 'WhatsApp credentials could not be saved');
+    });
+  });
+  socket.ev.on('connection.update', (update) => {
+    if (state.socket === socket) handleConnectionUpdate(projectId, update);
+  });
 
   return state.socket;
 }
@@ -116,14 +140,17 @@ function scheduleReconnect(projectId) {
   }
   const delay = resolveReconnectDelay(state.reconnectAttempts);
   state.reconnectAttempts += 1;
+  state.status = WHATSAPP_SESSION_STATUS.CONNECTING;
 
   logger.warn({ projectId, delay, attempt: state.reconnectAttempts }, 'WhatsApp connection closed — scheduling debounced reconnect');
 
   state.reconnectTimer = setTimeout(() => {
     state.reconnectTimer = null;
-    connectSocket(projectId).catch((err) =>
-      logger.error({ projectId, err: err.message }, 'WhatsApp reconnect failed')
-    );
+    const generation = state.generation;
+    connectProject(projectId).catch((err) => {
+      logger.error({ projectId, err: err.message }, 'WhatsApp reconnect failed');
+      if (state.generation === generation) scheduleReconnect(projectId);
+    });
   }, delay);
 }
 
@@ -150,18 +177,29 @@ function handleConnectionUpdate(projectId, update) {
     state.lastQrCode = null;
     state.reconnectAttempts = 0;
     state.connectedAt = new Date().toISOString();
+    state.lastError = null;
     logger.info({ projectId }, 'WhatsApp session connected');
   }
 
   if (connection === 'close') {
     state.status = WHATSAPP_SESSION_STATUS.DISCONNECTED;
+    state.socket = null;
+    state.lastQrCode = null;
     state.connectedAt = null;
     const statusCode = lastDisconnect?.error?.output?.statusCode;
-    const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+    const requiresAction = [
+      DisconnectReason.loggedOut,
+      DisconnectReason.badSession,
+      DisconnectReason.connectionReplaced,
+      DisconnectReason.multideviceMismatch,
+      DisconnectReason.forbidden,
+    ].includes(statusCode);
 
-    if (isLoggedOut) {
-      logger.warn({ projectId }, 'WhatsApp session logged out — reset sesi dan scan ulang QR');
-      state.socket = null;
+    if (requiresAction) {
+      state.lastError = statusCode === DisconnectReason.connectionReplaced
+        ? 'Sesi dipakai oleh koneksi lain. Pastikan hanya satu service yang memakai sesi ini.'
+        : 'Sesi WhatsApp perlu ditautkan ulang. Klik Reset Sesi lalu scan QR baru.';
+      logger.warn({ projectId, statusCode }, 'WhatsApp session needs attention');
       return;
     }
 
@@ -176,9 +214,25 @@ function handleConnectionUpdate(projectId, update) {
  */
 export async function connectProject(projectId) {
   const state = getOrCreateState(projectId);
-  if (state.socket && state.status === WHATSAPP_SESSION_STATUS.CONNECTED) return state.socket;
+  if (state.socket) return state.socket;
   if (state.connectionPromise) return state.connectionPromise;
-  state.connectionPromise = connectSocket(projectId).finally(() => { state.connectionPromise = null; });
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
+  const generation = state.generation;
+  const promise = connectSocket(projectId).catch((err) => {
+    if (state.generation === generation) {
+      state.status = WHATSAPP_SESSION_STATUS.DISCONNECTED;
+      state.lastError = err.code === 'EACCES'
+        ? 'Penyimpanan sesi WhatsApp tidak dapat ditulis. Periksa izin volume service.'
+        : 'Gagal memulai koneksi WhatsApp. Coba Hubungkan kembali.';
+    }
+    throw err;
+  }).finally(() => {
+    if (state.connectionPromise === promise) state.connectionPromise = null;
+  });
+  state.connectionPromise = promise;
   return state.connectionPromise;
 }
 
@@ -190,6 +244,10 @@ export async function connectProject(projectId) {
  */
 export async function disconnectProject(projectId) {
   const state = getOrCreateState(projectId);
+  const socket = state.socket;
+  state.generation += 1;
+  state.socket = null;
+  state.connectionPromise = null;
 
   if (state.reconnectTimer) {
     clearTimeout(state.reconnectTimer);
@@ -197,7 +255,7 @@ export async function disconnectProject(projectId) {
   }
 
   try {
-    state.socket?.end(undefined);
+    socket?.end(undefined);
   } catch (err) {
     logger.warn({ projectId, err: err.message }, 'WhatsApp socket end failed (session may already be closed)');
   }
@@ -206,6 +264,7 @@ export async function disconnectProject(projectId) {
   state.status = WHATSAPP_SESSION_STATUS.DISCONNECTED;
   state.lastQrCode = null;
   state.connectedAt = null;
+  state.lastError = null;
 
   logger.info({ projectId }, 'WhatsApp session disconnected');
   return { success: true };
@@ -222,7 +281,8 @@ export function getProjectSessionStatus(projectId) {
     projectId,
     status: state?.status || WHATSAPP_SESSION_STATUS.DISCONNECTED,
     qr: state?.lastQrCode || null,
-    connectedAt: state?.connectedAt || null
+    connectedAt: state?.connectedAt || null,
+    lastError: state?.lastError || null
   };
 }
 
@@ -241,6 +301,11 @@ export function getAllSessionStatuses() {
  */
 export async function resetProjectSession(projectId) {
   const state = getOrCreateState(projectId);
+  const socket = state.socket;
+  const pendingConnection = state.connectionPromise;
+  state.generation += 1;
+  state.socket = null;
+  state.connectionPromise = null;
 
   if (state.reconnectTimer) {
     clearTimeout(state.reconnectTimer);
@@ -248,7 +313,7 @@ export async function resetProjectSession(projectId) {
   }
 
   try {
-    await state.socket?.logout();
+    await socket?.logout();
   } catch (err) {
     logger.warn({ projectId, err: err.message }, 'WhatsApp logout failed (session may already be closed)');
   }
@@ -258,11 +323,46 @@ export async function resetProjectSession(projectId) {
   state.lastQrCode = null;
   state.connectedAt = null;
   state.reconnectAttempts = 0;
+  state.lastError = null;
+
+  // Wait until an older setup stops writing before removing its auth directory.
+  await pendingConnection?.catch(() => {});
+  await state.credentialsPromise;
 
   fs.rmSync(resolveProjectSessionPath(projectId), { recursive: true, force: true });
 
   logger.info({ projectId }, 'WhatsApp session reset — generating new QR');
   await connectProject(projectId);
   return { success: true };
+}
+
+// Restore only previously paired sessions; unpaired projects still connect on demand.
+export async function restoreProjectSessions() {
+  const baseDir = path.resolve(process.env.WA_SESSION_PATH || './wa-sessions');
+  let entries;
+  try {
+    entries = await fs.promises.readdir(baseDir, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return;
+    throw err;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(entry.name)) continue;
+    try {
+      const credentials = JSON.parse(await fs.promises.readFile(path.join(baseDir, entry.name, 'creds.json'), 'utf8'));
+      if (!credentials.registered) continue;
+    } catch (err) {
+      logger.warn({ projectId: entry.name, err: err.message }, 'Could not read saved WhatsApp session');
+      continue;
+    }
+    try {
+      await connectProject(entry.name);
+      logger.info({ projectId: entry.name }, 'Restoring saved WhatsApp connection');
+    } catch (err) {
+      logger.error({ projectId: entry.name, err: err.message }, 'Could not restore WhatsApp connection');
+      scheduleReconnect(entry.name);
+    }
+  }
 }
 

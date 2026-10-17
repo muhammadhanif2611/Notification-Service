@@ -72,3 +72,12 @@ bab2_landasan_teori.md
 daftar_pustaka.md
 
 wa-sessions/
+
+# SDK build and validation outputs
+.tools/
+artifacts/
+**/vendor/
+**/__pycache__/
+packages/sdk-python/dist/
+packages/sdk-php/composer.lock
+*.tgz

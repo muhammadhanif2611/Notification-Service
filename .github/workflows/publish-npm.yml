@@ -1,6 +1,7 @@
 name: Publish npm
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'sdk-js/v*'
@@ -18,6 +19,11 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Validate SDK
+        run: |
+          npm test
+          npm pack --dry-run
 
       - name: Publish ke npm
         run: npm publish --access public

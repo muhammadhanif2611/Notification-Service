@@ -2,8 +2,15 @@
     "name": "notification-gateway/sdk",
     "description": "Official PHP SDK for Notification Gateway — kirim WhatsApp, Email, dan Broadcast notifikasi.",
     "type": "library",
-    "keywords": ["notification", "whatsapp", "email", "broadcast", "gateway", "sdk"],
-    "homepage": "https://github.com/your-org/notification-service",
+    "keywords": [
+        "notification",
+        "whatsapp",
+        "email",
+        "broadcast",
+        "gateway",
+        "sdk"
+    ],
+    "homepage": "https://github.com/muhammadhanif2611/Notification-Service",
     "license": "MIT",
     "authors": [
         {
@@ -34,5 +41,13 @@
         "optimize-autoloader": true
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "archive": {
+        "exclude": [
+            "/vendor",
+            "/tests",
+            "/composer.lock",
+            "/packages.json"
+        ]
+    }
 }

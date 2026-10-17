@@ -1,4 +1,4 @@
-# 📦 @notification-gateway/sdk (Pure JavaScript)
+# 📦 notification-gateway-sdk (Pure JavaScript)
 
 Developer Client SDK resmi berbasis **100% Pure JavaScript (Node.js)** untuk mempermudah integrasi pengiriman notifikasi multi-channel pada aplikasi internal perusahaan.
 
@@ -12,10 +12,18 @@ Developer Client SDK resmi berbasis **100% Pure JavaScript (Node.js)** untuk mem
 
 ## 🚀 Instalasi
 
+Rilis 1.0.1 tersedia melalui [GitHub Release](https://github.com/muhammadhanif2611/Notification-Service/releases/tag/sdk%2Fv1.0.1):
+
 ```bash
-npm install @notification-gateway/sdk
+npm install "https://github.com/muhammadhanif2611/Notification-Service/releases/download/sdk%2Fv1.0.1/notification-gateway-sdk-1.0.1.tgz"
+```
+
+Perintah registry di bawah memerlukan paket sudah diterbitkan ke registry tersebut.
+
+```bash
+npm install notification-gateway-sdk
 # atau
-pnpm add @notification-gateway/sdk
+pnpm add notification-gateway-sdk
 ```
 
 ---
@@ -25,11 +33,11 @@ pnpm add @notification-gateway/sdk
 ### 1. Inisialisasi SDK Client
 
 ```javascript
-import { NotificationClient } from '@notification-gateway/sdk';
+import { NotificationClient } from 'notification-gateway-sdk';
 
 const client = new NotificationClient({
   apiKey: 'ngw_prod_hris_98a71b2c3d4e...', // Dapatkan dari Dashboard
-  baseUrl: 'https://gateway.company.com', // Opsional (default: http://localhost:3001)
+  baseUrl: 'https://gateway-service-production-9201.up.railway.app', // Opsional (default: https://gateway-service-production-9201.up.railway.app)
   timeout: 10000,                          // Opsional (default: 10000ms)
   mode: 'cors',                           // Opsional (default: cors)
   credentials: 'omit'                     // Opsional (default: omit)

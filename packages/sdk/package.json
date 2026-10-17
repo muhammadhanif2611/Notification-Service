@@ -1,9 +1,12 @@
 {
   "name": "notification-gateway-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official JavaScript/Node.js SDK for Notification Gateway — send WhatsApp, Email, and Broadcast notifications with ease.",
   "main": "src/index.js",
   "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
   "exports": {
     ".": "./src/index.js"
   },
@@ -30,11 +33,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-org/notification-service.git",
+    "url": "git+https://github.com/muhammadhanif2611/Notification-Service.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/your-org/notification-service/tree/main/packages/sdk#readme",
+  "homepage": "https://github.com/muhammadhanif2611/Notification-Service/tree/main/packages/sdk#readme",
   "bugs": {
-    "url": "https://github.com/your-org/notification-service/issues"
+    "url": "https://github.com/muhammadhanif2611/Notification-Service/issues"
   }
 }
