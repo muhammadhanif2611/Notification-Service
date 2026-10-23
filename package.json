@@ -26,7 +26,6 @@
     "migrate:railway": "node scripts/migrate-railway.js",
     "seed:admin": "node scripts/create-admin-seed.js",
     "setup:smtp": "node scripts/setup-smtp-vendor.js",
-    "test:email": "node scripts/test-email-send.js",
     "deploy:frontend": "cd frontend && npx vercel --prod"
   },
   "devDependencies": {

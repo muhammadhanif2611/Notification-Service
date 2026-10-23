@@ -244,7 +244,6 @@ export async function POST(req) {
 | `UNAUTHORIZED` | 401 | API Key salah/expired |
 | `PROJECT_NOT_FOUND` | 404 | Project tidak ditemukan |
 | `TEMPLATE_NOT_FOUND` | 404 | Template tidak ditemukan |
-| `TEMPLATE_NOT_APPROVED` | 422 | Template belum di-approve |
 | `DAILY_QUOTA_EXCEEDED` | 429 | Kuota harian habis |
 | `RATE_LIMIT_EXCEEDED` | 429 | Rate limit per menit terlampaui |
 | `SERVICE_UNAVAILABLE` | 502 | Service internal down |

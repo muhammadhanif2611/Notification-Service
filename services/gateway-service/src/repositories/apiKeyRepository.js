@@ -5,7 +5,7 @@ import { supabase } from '@notification-gateway/database';
 export async function findActiveByPrefix(keyPrefix) {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('*, projects(*)')
+    .select('*, projects(*, profiles(is_active))')
     .eq('key_prefix', keyPrefix)
     .eq('is_active', true);
   if (error) throw error;
@@ -17,7 +17,7 @@ export async function findActiveByPrefix(keyPrefix) {
 export async function findActiveByPrefixAndPreview(keyPrefix, keyPreview) {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('*, projects(*)')
+    .select('*, projects(*, profiles(is_active))')
     .eq('key_prefix', keyPrefix)
     .eq('key_preview', keyPreview)
     .eq('is_active', true);

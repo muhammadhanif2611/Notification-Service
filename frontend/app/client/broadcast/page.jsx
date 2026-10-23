@@ -5,6 +5,7 @@ import { Send, Plus, X, Eye, EyeOff, Upload, Download, FileSpreadsheet, Trash2 }
 import * as XLSX from "xlsx";
 import Alert from "@/components/shared/Alert";
 import { useTemplates } from "@/hooks/useTemplates";
+import { useProjectContext } from "@/lib/project-context";
 import { useToast } from "@/lib/toast-context";
 
 import { API_URL } from "@/lib/config";
@@ -20,7 +21,8 @@ export default function BroadcastPage() {
   const [apiKey, setApiKey] = useState(() => (typeof window !== "undefined" ? sessionStorage.getItem(STORAGE_KEY) || "" : ""));
   const [showApiKey, setShowApiKey] = useState(false);
   const [channel, setChannel] = useState("WHATSAPP");
-  const { templates } = useTemplates(null);
+  const { activeProjectId } = useProjectContext();
+  const { templates } = useTemplates(activeProjectId);
   const [templateCode, setTemplateCode] = useState("");
   const [body, setBody] = useState("");
   const [subject, setSubject] = useState("");

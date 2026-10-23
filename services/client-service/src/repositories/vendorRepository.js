@@ -1,7 +1,4 @@
-import { supabase } from '@notification-gateway/database';
-
-// Repository: akses database tabel 'vendors'
-
+import { supabase } from '@notification-gateway/database';
 const VENDOR_METADATA = 'id, name, channel, priority, is_active, created_at';
 
 export async function findAllOrderedByPriority() {

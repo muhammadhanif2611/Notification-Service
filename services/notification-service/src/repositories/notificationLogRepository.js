@@ -1,8 +1,5 @@
 import { supabase } from '@notification-gateway/database';
-import { NOTIFICATION_STATUS } from '@notification-gateway/shared';
-
-// Repository: akses database tabel 'notification_logs'
-
+import { NOTIFICATION_STATUS } from '@notification-gateway/shared';
 export async function countTodayByProject(projectId) {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);

@@ -1,11 +1,10 @@
 import { supabase } from '@notification-gateway/database';
 
-// Repository: akses database tabel 'templates'
-
-export async function findAll(projectId = null) {
-  let query = supabase.from('templates').select('*, projects(name)');
+export async function findAll(projectId = null, ownerId = null) {
+  let query = supabase.from('templates').select('*, projects!inner(id, name, owner_id, profiles(name, email))');
   if (projectId) query = query.eq('project_id', projectId);
-  const { data, error } = await query;
+  if (ownerId) query = query.eq('projects.owner_id', ownerId);
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
@@ -30,13 +29,14 @@ export async function findById(templateId) {
   return data;
 }
 
-export async function updateById(templateId, updateData) {
+export async function updateById(templateId, updateData, updatedAt) {
   const { data, error } = await supabase
     .from('templates')
     .update({ ...updateData, updated_at: new Date().toISOString() })
     .eq('id', templateId)
+    .eq('updated_at', updatedAt)
     .select()
-    .single();
+    .maybeSingle();
   if (error) throw error;
   return data;
 }

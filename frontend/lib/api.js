@@ -4,11 +4,28 @@
 // Utility untuk memanggil backend API dari frontend dengan proteksi:
 // - In-flight request deduplication (mencegah request ganda simultan)
 // - Debounce & cooldown mechanism (mencegah spam polling berulang)
-// - Timeout otomatis 10s (mencegah fetch menggantung)
+// - Timeout otomatis 30s (memberi waktu backend produksi merespons)
 // =============================================================================
 
-import { API_URL } from "./config";
-const REQUEST_TIMEOUT_MS = 10000;
+import { API_URL } from "./config.js";
+const REQUEST_TIMEOUT_MS = 30000;
+
+async function requestJson(url, init) {
+  try {
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    if (!response.ok) await handleErrorResponse(response);
+    return await response.json();
+  } catch (failure) {
+    if (failure.name !== "TimeoutError" && failure.status !== 504) throw failure;
+    const outcomeUnknown = init.method !== "GET";
+    const error = new Error(outcomeUnknown
+      ? "Respons server melewati batas waktu. Perubahan mungkin sudah tersimpan. Periksa daftar sebelum mencoba lagi."
+      : "Server belum merespons dalam batas waktu. Silakan muat ulang data.");
+    error.code = "REQUEST_TIMEOUT";
+    error.outcomeUnknown = outcomeUnknown;
+    throw error;
+  }
+}
 
 // In-flight GET request deduplication cache: urlKey -> Promise
 const inFlightRequests = new Map();
@@ -80,15 +97,11 @@ export async function apiGet(path, options = {}) {
 
   const requestPromise = (async () => {
     try {
-      const res = await fetch(url, {
+      return await requestJson(url, {
         method: "GET",
         headers: buildHeaders(options),
-        credentials: "include",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        credentials: "include"
       });
-
-      if (!res.ok) await handleErrorResponse(res);
-      return await res.json();
     } finally {
       inFlightRequests.delete(cacheKey);
     }
@@ -141,45 +154,33 @@ export function debouncedApiGet(path, waitMs = 300, options = {}) {
  * @returns {Promise<any>} Response JSON
  */
 export async function apiPost(path, body, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
+  return requestJson(`${API_URL}${path}`, {
     method: "POST",
     headers: buildHeaders(options),
     credentials: "include",
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    body: JSON.stringify(body)
   });
-
-  if (!res.ok) await handleErrorResponse(res);
-  return res.json();
 }
 
 /**
  * PUT request ke backend API.
  */
 export async function apiPut(path, body, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
+  return requestJson(`${API_URL}${path}`, {
     method: "PUT",
     headers: buildHeaders(options),
     credentials: "include",
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    body: JSON.stringify(body)
   });
-
-  if (!res.ok) await handleErrorResponse(res);
-  return res.json();
 }
 
 /**
  * DELETE request ke backend API.
  */
 export async function apiDelete(path, options = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
+  return requestJson(`${API_URL}${path}`, {
     method: "DELETE",
     headers: buildHeaders(options),
-    credentials: "include",
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    credentials: "include"
   });
-
-  if (!res.ok) await handleErrorResponse(res);
-  return res.json();
 }

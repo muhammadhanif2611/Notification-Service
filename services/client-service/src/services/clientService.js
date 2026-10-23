@@ -8,8 +8,6 @@ import {
   updateProjectSchema,
   createApiKeySchema,
   updateApiKeySchema,
-  createTemplateSchema,
-  updateTemplateSchema,
   createVendorSchema,
   updateVendorSchema,
   createLogger
@@ -17,30 +15,20 @@ import {
 import { AppError } from '../middlewares/errorHandler.js';
 import * as projectRepository from '../repositories/projectRepository.js';
 import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
-import * as templateRepository from '../repositories/templateRepository.js';
 import * as vendorRepository from '../repositories/vendorRepository.js';
 
-const logger = createLogger('client-service');
-
-// Layanan mengambil daftar project berdasarkan owner (client) atau semua (admin)
-export async function listProjects(user = null) {
+const logger = createLogger('client-service');export async function listProjects(user = null) {
   if (user?.role === 'admin') {
     return await projectRepository.findAll();
   }
   return await projectRepository.findByOwnerId(user?.userId);
-}
-
-// Layanan mengambil detail project berdasarkan ID
-export async function getProjectById(projectId) {
+}export async function getProjectById(projectId) {
   const project = await projectRepository.findByIdWithApiKeys(projectId);
   if (!project) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
   }
   return project;
-}
-
-// Layanan membuat project baru dengan validasi skema
-// Model 2: Pengajuan Mandiri (Self-Service Request)
+}// Model 2: Pengajuan Mandiri (Self-Service Request)
 // Jika dibuat oleh role 'user' (client), proyek berstatus PENDING (is_active = false) menunggu persetujuan admin.
 // Jika dibuat oleh 'admin', proyek bisa langsung aktif.
 export async function createProject(payload, userId = null, userRole = null) {
@@ -79,10 +67,7 @@ export async function createProject(payload, userId = null, userRole = null) {
     }
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
-}
-
-// Layanan memperbarui data project
-export async function updateProject(projectId, updateData, userId = null) {
+}export async function updateProject(projectId, updateData, userId = null) {
   const validation = updateProjectSchema.safeParse(updateData);
   if (!validation.success) {
     throw new AppError('Invalid project payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -106,10 +91,7 @@ export async function updateProject(projectId, updateData, userId = null) {
   logger.info({ projectId }, 'Project updated');
   writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
   return updatedProject;
-}
-
-// Layanan menyetujui pengajuan project oleh Admin (Model 2: Approval Flow)
-export async function approveProject(projectId, payload = {}, adminUserId = null) {
+}export async function approveProject(projectId, payload = {}, adminUserId = null) {
   const existingProject = await projectRepository.findByIdWithApiKeys(projectId);
   if (!existingProject) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
@@ -150,15 +132,9 @@ export async function approveProject(projectId, payload = {}, adminUserId = null
     rawApiKey: generatedKey?.rawApiKey || null,
     apiKeyInfo: generatedKey?.apiKeyInfo || null
   };
-}
-
-// Layanan mengambil daftar semua API Key (metadata, tanpa hash)
-export async function listApiKeys() {
+}export async function listApiKeys() {
   return await apiKeyRepository.findAll();
-}
-
-// Layanan membuat API Key baru untuk project
-export async function generateApiKey(payload, userId = null) {
+}export async function generateApiKey(payload, userId = null) {
   const validation = createApiKeySchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -189,10 +165,7 @@ export async function generateApiKey(payload, userId = null) {
   logger.info({ keyId: apiKeyRecord.id, projectId }, 'API Key generated');
   writeAuditLog({ userId, action: 'GENERATE_API_KEY', targetEntity: 'api_keys', detail: `Generated key '${name}' for project '${project.name}'` });
   return { rawApiKey, apiKeyInfo: apiKeyRecord };
-}
-
-// Layanan meregenerasi API Key yang sudah ada
-export async function regenerateApiKey(keyId, userId = null) {
+}export async function regenerateApiKey(keyId, userId = null) {
   const existingKey = await apiKeyRepository.findByIdWithProject(keyId);
   if (!existingKey) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
@@ -213,10 +186,7 @@ export async function regenerateApiKey(keyId, userId = null) {
   logger.info({ keyId }, 'API Key regenerated');
   writeAuditLog({ userId, action: 'REGENERATE_API_KEY', targetEntity: 'api_keys', detail: `Regenerated key '${existingKey.name}'` });
   return { rawApiKey, apiKeyInfo: updatedKey };
-}
-
-// Layanan menonaktifkan API Key
-export async function deactivateApiKey(keyId, userId = null) {
+}export async function deactivateApiKey(keyId, userId = null) {
   const deactivatedKey = await apiKeyRepository.updateById(keyId, { is_active: false, revoked_at: new Date().toISOString() }, '*');
   if (!deactivatedKey) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
@@ -225,10 +195,7 @@ export async function deactivateApiKey(keyId, userId = null) {
   logger.info({ keyId }, 'API Key deactivated');
   writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
   return deactivatedKey;
-}
-
-// Layanan mengganti nama/label API Key
-export async function updateApiKey(keyId, payload, userId = null) {
+}export async function updateApiKey(keyId, payload, userId = null) {
   const validation = updateApiKeySchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -242,10 +209,7 @@ export async function updateApiKey(keyId, payload, userId = null) {
   logger.info({ keyId }, 'API Key renamed');
   writeAuditLog({ userId, action: 'UPDATE_API_KEY', targetEntity: 'api_keys', detail: `Renamed key ID ${keyId} to '${validation.data.name}'` });
   return updatedKey;
-}
-
-// Layanan menghapus API Key secara permanen
-export async function deleteApiKey(keyId, userId = null) {
+}export async function deleteApiKey(keyId, userId = null) {
   const existing = await apiKeyRepository.findByIdWithProject(keyId);
   if (!existing) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
@@ -255,10 +219,7 @@ export async function deleteApiKey(keyId, userId = null) {
   logger.info({ keyId }, 'API Key deleted');
   writeAuditLog({ userId, action: 'DELETE_API_KEY', targetEntity: 'api_keys', detail: `Deleted key '${existing.name}' (ID ${keyId})` });
   return { deleted: true };
-}
-
-// Layanan menghapus project beserta seluruh data terkait (API key, template, dst.)
-export async function deleteProject(projectId, userId = null) {
+}export async function deleteProject(projectId, userId = null) {
   const existing = await projectRepository.findSlugAndNameById(projectId);
   if (!existing) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
@@ -270,81 +231,10 @@ export async function deleteProject(projectId, userId = null) {
   return { deleted: true };
 }
 
-// Layanan mengedit isi template pesan
-export async function updateTemplate(templateId, payload, userId = null) {
-  const validation = updateTemplateSchema.safeParse(payload);
-  if (!validation.success) {
-    throw new AppError('Invalid template payload', 400, 'VALIDATION_ERROR', validation.error.errors);
-  }
-
-  const existing = await templateRepository.findById(templateId);
-  if (!existing) {
-    throw new AppError('Template not found', 404, 'NOT_FOUND');
-  }
-
-  const updatedTemplate = await templateRepository.updateById(templateId, validation.data);
-
-  logger.info({ templateId }, 'Template updated');
-  writeAuditLog({ userId, action: 'UPDATE_TEMPLATE', targetEntity: 'templates', detail: `Updated template ID ${templateId}` });
-  return updatedTemplate;
-}
-
-// Layanan menghapus template pesan
-export async function deleteTemplate(templateId, userId = null) {
-  const existing = await templateRepository.findById(templateId);
-  if (!existing) {
-    throw new AppError('Template not found', 404, 'NOT_FOUND');
-  }
-
-  await templateRepository.deleteById(templateId);
-  logger.info({ templateId }, 'Template deleted');
-  writeAuditLog({ userId, action: 'DELETE_TEMPLATE', targetEntity: 'templates', detail: `Deleted template '${existing.name}' (ID ${templateId})` });
-  return { deleted: true };
-}
-
-// Layanan mengambil daftar template pesan
-export async function listTemplates(projectId = null) {
-  return await templateRepository.findAll(projectId);
-}
-
-// Layanan membuat template pesan baru
-export async function createTemplate(payload, userId = null) {
-  const validation = createTemplateSchema.safeParse(payload);
-  if (!validation.success) {
-    throw new AppError('Invalid template payload', 400, 'VALIDATION_ERROR', validation.error.errors);
-  }
-
-  const { projectId, name, code, channel, subject, body, variables } = validation.data;
-  try {
-    const createdTemplate = await templateRepository.insert({
-      project_id: projectId,
-      name,
-      code: code.toLowerCase().trim(),
-      channel: channel.toUpperCase(),
-      subject,
-      body,
-      variables: variables || []
-    });
-
-    logger.info({ templateId: createdTemplate.id, code: createdTemplate.code }, 'Template created');
-    writeAuditLog({ userId, action: 'CREATE_TEMPLATE', targetEntity: 'templates', detail: `Created template '${name}'` });
-    return createdTemplate;
-  } catch (error) {
-    if (error.code === '23505') {
-      throw new AppError('Template code already exists', 409, 'TEMPLATE_CODE_EXISTS');
-    }
-    throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
-  }
-}
-
-// Layanan mengambil daftar metadata vendor
-export async function listVendors() {
+export { listTemplates, createTemplate, updateTemplate, deleteTemplate } from './templateService.js';export async function listVendors() {
   const vendors = await vendorRepository.findAllOrderedByPriority();
   return vendors.map(({ credential_encrypted, credential_iv, credential_auth_tag, ...meta }) => meta);
-}
-
-// Layanan mendaftarkan vendor baru dengan enkripsi credentials
-export async function createVendor(payload, userId = null) {
+}export async function createVendor(payload, userId = null) {
   const validation = createVendorSchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -366,10 +256,7 @@ export async function createVendor(payload, userId = null) {
   logger.info({ vendorId: registeredVendor.id, channel: registeredVendor.channel }, 'Vendor registered');
   writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
   return registeredVendor;
-}
-
-// Layanan memperbarui kredensial/metadata vendor (enkripsi ulang jika credentials diubah)
-export async function updateVendor(vendorId, payload, userId = null) {
+}export async function updateVendor(vendorId, payload, userId = null) {
   const validation = updateVendorSchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -398,10 +285,7 @@ export async function updateVendor(vendorId, payload, userId = null) {
   logger.info({ vendorId }, 'Vendor updated');
   writeAuditLog({ userId, action: 'UPDATE_VENDOR', targetEntity: 'vendors', detail: `Updated vendor ID ${vendorId}${credentials !== undefined ? ' (credentials rotated)' : ''}` });
   return updatedVendor;
-}
-
-// Layanan menghapus vendor
-export async function deleteVendor(vendorId, userId = null) {
+}export async function deleteVendor(vendorId, userId = null) {
   const deletedVendor = await vendorRepository.deleteById(vendorId);
   if (!deletedVendor) {
     throw new AppError('Vendor not found', 404, 'NOT_FOUND');

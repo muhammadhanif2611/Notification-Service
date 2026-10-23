@@ -1,7 +1,4 @@
-import { supabase } from '@notification-gateway/database';
-
-// Repository: akses database tabel 'api_keys'
-
+import { supabase } from '@notification-gateway/database';
 const API_KEY_SELECT = 'id, project_id, name, key_prefix, key_preview, environment, is_active, created_at';
 
 export async function findByIdWithProject(keyId) {

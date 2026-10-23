@@ -1,7 +1,4 @@
-import * as notificationService from '../services/notificationService.js';
-
-// Controller: pemrosesan tunggal notifikasi
-// Project & environment dibaca dari header yang di-forward gateway — body murni business payload.
+import * as notificationService from '../services/notificationService.js';// Project & environment dibaca dari header yang di-forward gateway — body murni business payload.
 export async function process(req, res, next) {
   try {
     const context = {
@@ -13,10 +10,7 @@ export async function process(req, res, next) {
     const data = await notificationService.processNotification(context);
     return res.status(202).json({ success: true, data });
   } catch (err) { next(err); }
-}
-
-// Controller: pemrosesan broadcast notifikasi
-export async function broadcast(req, res, next) {
+}export async function broadcast(req, res, next) {
   try {
     const { channel, recipients, templateCode, body, subject, variables, recipientVariables } = req.body;
     const data = await notificationService.processBroadcast({
@@ -26,10 +20,7 @@ export async function broadcast(req, res, next) {
     });
     return res.status(202).json({ success: true, data });
   } catch (err) { next(err); }
-}
-
-// Controller: mengambil riwayat log notifikasi
-export async function getLogs(req, res, next) {
+}export async function getLogs(req, res, next) {
   try {
     const { projectId } = req.params;
     const { page = 1, limit = 20, status, channel } = req.query;
@@ -42,10 +33,7 @@ export async function getLogs(req, res, next) {
     });
     return res.json({ success: true, data: result.data, pagination: result.pagination });
   } catch (err) { next(err); }
-}
-
-// Controller: mengambil detail notifikasi by message ID
-export async function getByMessageId(req, res, next) {
+}export async function getByMessageId(req, res, next) {
   try {
     const data = await notificationService.getNotificationByMessageId(req.params.messageId);
     return res.json({ success: true, data });

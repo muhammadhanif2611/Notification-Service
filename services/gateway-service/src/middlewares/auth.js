@@ -1,5 +1,6 @@
 import { verifyApiKey, verifyAuthToken, extractKeyPreview, createLogger } from '@notification-gateway/shared';
 import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
+import * as profileRepository from '../repositories/profileRepository.js';
 
 const logger = createLogger('gateway-service');
 
@@ -32,6 +33,10 @@ export async function apiKeyAuth(req, res, next) {
       return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid API Key or associated project is inactive.' } });
     }
 
+    if (matchedKey.projects.owner_id && matchedKey.projects.profiles?.is_active !== true) {
+      return res.status(401).json({ success: false, error: { code: 'ACCOUNT_INACTIVE', message: 'Client account is inactive.' } });
+    }
+
     req.project = matchedKey.projects;
     req.apiKeyRecord = matchedKey;
     req.environment = matchedKey.environment;
@@ -47,7 +52,7 @@ export async function apiKeyAuth(req, res, next) {
 }
 
 // Middleware: autentikasi via JWT Bearer token
-export function jwtAuth(req, res, next) {
+export async function jwtAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, error: { code: 'MISSING_TOKEN', message: 'Authorization Bearer token is required.' } });
@@ -58,8 +63,17 @@ export function jwtAuth(req, res, next) {
     return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Token is invalid or expired.' } });
   }
 
-  req.user = decoded;
-  next();
+  try {
+    const profile = await profileRepository.findAccessById(decoded.userId);
+    if (!profile?.is_active) {
+      return res.status(401).json({ success: false, error: { code: 'ACCOUNT_INACTIVE', message: 'Account is inactive or no longer exists.' } });
+    }
+    req.user = { ...decoded, role: profile.role };
+    next();
+  } catch (error) {
+    logger.error({ err: error.message }, 'User authentication lookup failed');
+    return res.status(503).json({ success: false, error: { code: 'AUTH_UNAVAILABLE', message: 'Authentication is temporarily unavailable.' } });
+  }
 }
 
 // Middleware: cek role user

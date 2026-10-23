@@ -1,8 +1,6 @@
 import { supabase } from '@notification-gateway/database';
 
-// Repository: akses database tabel 'templates' (notification-service)
-
-export async function findApprovedTemplate(code, channel, projectId) {
+export async function findTemplate(code, channel, projectId) {
   const { data, error } = await supabase
     .from('templates')
     .select('body, subject')

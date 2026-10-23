@@ -2,8 +2,8 @@ import { createLogger } from '@notification-gateway/shared';
 
 const logger = createLogger('gateway-service:proxy');
 
-// Timeout standar untuk panggilan proxy internal microservice (10 detik)
-const PROXY_TIMEOUT_MS = 10000;
+// Lebih pendek daripada timeout dashboard (30 detik), agar error gateway dapat diterima.
+const PROXY_TIMEOUT_MS = 20000;
 
 /**
  * Meneruskan request HTTP dari Gateway ke microservice tujuan.
@@ -53,7 +53,7 @@ export async function forwardProxyRequest(targetUrl, req, res) {
     return res.status(response.status).send(text);
   } catch (err) {
     if (err.name === 'TimeoutError') {
-      logger.error({ targetUrl, method: req.method }, 'Proxy request timed out after 10s');
+      logger.error({ targetUrl, method: req.method }, 'Proxy request timed out after 20s');
       return res.status(504).json({
         success: false,
         error: { code: 'GATEWAY_TIMEOUT', message: 'Target microservice request timed out' }

@@ -1,7 +1,11 @@
 import { supabase } from '@notification-gateway/database';
 
-// Repository: akses database tabel 'projects'
-
+export async function findOwnershipById(projectId) {
+  const { data, error } = await supabase.from('projects')
+    .select('id, owner_id').eq('id', projectId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
 export async function findAll() {
   const { data, error } = await supabase
     .from('projects')

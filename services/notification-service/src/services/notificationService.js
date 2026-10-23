@@ -7,28 +7,16 @@ import { randomBytes } from 'node:crypto';
 const logger = createLogger('notification-service');
 import * as templateRepository from '../repositories/templateRepository.js';
 import * as projectRepository from '../repositories/projectRepository.js';
-import * as notificationLogRepository from '../repositories/notificationLogRepository.js';
-
-// Helper membuat ID pesan unik
-function generateMessageId() {
+import * as notificationLogRepository from '../repositories/notificationLogRepository.js';function generateMessageId() {
   return `msg_${Date.now()}_${randomBytes(4).toString('hex')}`;
-}
-
-// Helper membuat ID broadcast unik
-function generateBroadcastId() {
+}function generateBroadcastId() {
   return `bcast_${Date.now()}_${randomBytes(4).toString('hex')}`;
-}
-
-// Helper mengecek status mode sandbox
-function isSandboxMode(apiKeyPrefix, environment) {
+}function isSandboxMode(apiKeyPrefix, environment) {
   return environment === 'sandbox' || apiKeyPrefix === 'ngw_sand_';
-}
-
-// Helper menyelesaikan isi konten pesan dari template
-async function resolveMessageContent(projectId, channel, templateCode, body, variables) {
+}async function resolveMessageContent(projectId, channel, templateCode, body, variables) {
   if (!templateCode) return { resolvedBody: body, resolvedSubject: null };
 
-  const template = await templateRepository.findApprovedTemplate(templateCode, channel, projectId);
+  const template = await templateRepository.findTemplate(templateCode, channel, projectId);
   if (!template) {
     throw new AppError(`Template '${templateCode}' not found for this project/channel.`, 404, 'TEMPLATE_NOT_FOUND');
   }
@@ -45,16 +33,13 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
 async function resolveRawBody(projectId, channel, templateCode, body) {
   if (!templateCode) return { rawBody: body, resolvedSubject: null };
 
-  const template = await templateRepository.findApprovedTemplate(templateCode, channel, projectId);
+  const template = await templateRepository.findTemplate(templateCode, channel, projectId);
   if (!template) {
     throw new AppError(`Template '${templateCode}' not found for this project/channel.`, 404, 'TEMPLATE_NOT_FOUND');
   }
 
   return { rawBody: template.body, resolvedSubject: template.subject ?? null };
-}
-
-// Helper replace placeholder {{key}} dalam body dengan nilai variabel
-function replaceTemplateVariables(body, variables) {
+}function replaceTemplateVariables(body, variables) {
   if (!variables || typeof variables !== 'object') return body;
   let result = body;
   for (const [key, value] of Object.entries(variables)) {
@@ -124,10 +109,7 @@ async function persistAndEnqueue({ messageId, projectId, channel, recipient, pay
   } else {
     await emailQueue.add('send-email', jobPayload);
   }
-}
-
-// Layanan memproses pengiriman notifikasi tunggal
-export async function processNotification({ body: reqBody, project, environment, apiKeyPrefix }) {
+}export async function processNotification({ body: reqBody, project, environment, apiKeyPrefix }) {
   const validation = sendNotificationSchema.safeParse(reqBody);
   if (!validation.success) {
     throw new AppError('Invalid notification payload.', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -166,10 +148,7 @@ export async function processNotification({ body: reqBody, project, environment,
     isSandbox,
     acceptedAt: new Date().toISOString()
   };
-}
-
-// Layanan memproses pengiriman notifikasi masal (broadcast)
-// Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
+}// Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
 export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, recipientVariables, project, isSandbox = false }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new AppError('recipients must be a non-empty array.', 400, 'VALIDATION_ERROR');
@@ -270,19 +249,13 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     recipients: queuedResults,
     acceptedAt: createdAt
   };
-}
-
-// Layanan mengambil daftar riwayat log notifikasi
-export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
+}export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
   const { data, count } = await notificationLogRepository.findPaginated({ projectId, page, limit, status, channel });
   return {
     data,
     pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) }
   };
-}
-
-// Layanan mengambil detail notifikasi by message ID
-export async function getNotificationByMessageId(messageId) {
+}export async function getNotificationByMessageId(messageId) {
   const notification = await notificationLogRepository.findByMessageId(messageId);
   if (!notification) {
     throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');

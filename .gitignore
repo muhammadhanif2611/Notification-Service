@@ -60,16 +60,11 @@ AGENTS.md
 **/AGENTS.md
 **/.agents/
 
-# local documentation — hanya untuk development, tidak perlu di-push
-CLIENT_INTEGRATION_GUIDE.md
-CLIENT_SIDE_SUMMARY.md
-SETUP_GUIDE.md
+# local documentation & reports — abaikan docs/ dan file markdown di root kecuali README.md
+docs/
+/*.md
+!/README.md
 scripts/README.md
-
-# laporan KP — hanya lokal, tidak di-push ke GitHub
-bab1_pendahuluan_revisi_final.md
-bab2_landasan_teori.md
-daftar_pustaka.md
 
 wa-sessions/
 

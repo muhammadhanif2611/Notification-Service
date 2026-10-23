@@ -1,61 +1,58 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 
-/**
- * useTemplates — Kelola template pesan (buat + lihat) untuk sebuah project.
- * Pembuatan template lewat dashboard (JWT), langsung bisa digunakan tanpa persetujuan admin.
- * @param {string|null} projectId - ID project yang dipilih
- */
 export function useTemplates(projectId) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const latestRequest = useRef(0);
 
   const fetchTemplates = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    if (!projectId) { setTemplates([]); setError(null); setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
-      const query = projectId ? `?projectId=${projectId}` : "";
-      const res = await apiGet(`/v1/clients/templates${query}`);
+      const query = `?projectId=${encodeURIComponent(projectId)}`;
+      const res = await apiGet(`/v1/clients/templates${query}`, { skipDedupe: true });
+      if (requestId !== latestRequest.current) return;
       const d = res?.data;
       setTemplates(Array.isArray(d) ? d : d?.data || []);
     } catch (err) {
-      setError(err.message);
-      setTemplates([]);
+      if (requestId === latestRequest.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
   }, [projectId]);
 
   const createTemplate = async (payload) => {
     const res = await apiPost("/v1/clients/templates", payload);
-    await fetchTemplates();
+    if (res?.data) setTemplates((previous) => [res.data, ...previous.filter((item) => item.id !== res.data.id)]);
+    void fetchTemplates();
     return res?.data;
-  };
-
-  // Edit isi template
-  const updateTemplate = async (id, payload) => {
+  };  const updateTemplate = async (id, payload) => {
     const res = await apiPut(`/v1/clients/templates/${id}`, payload);
-    await fetchTemplates();
+    if (res?.data) setTemplates((previous) => previous.map((item) => item.id === id ? res.data : item));
+    void fetchTemplates();
+    return res?.data;
+  };  const deleteTemplate = async (id) => {
+    const res = await apiDelete(`/v1/clients/templates/${id}`);
+    setTemplates((previous) => previous.filter((item) => item.id !== id));
+    void fetchTemplates();
     return res?.data;
   };
 
-  // Hapus template
-  const deleteTemplate = async (id) => {
-    const res = await apiDelete(`/v1/clients/templates/${id}`);
-    await fetchTemplates();
-    return res?.data;
-  };
+  const cancelPendingRequests = useCallback(() => { latestRequest.current++; }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!cancelled) await fetchTemplates();
     })();
-    return () => { cancelled = true; };
-  }, [fetchTemplates]);
+    return () => { cancelled = true; cancelPendingRequests(); };
+  }, [fetchTemplates, cancelPendingRequests]);
 
-  return { templates, loading, error, createTemplate, updateTemplate, deleteTemplate, refetch: fetchTemplates };
+  return { templates: templates.filter((template) => template.project_id === projectId), loading, error, createTemplate, updateTemplate, deleteTemplate, refetch: fetchTemplates };
 }

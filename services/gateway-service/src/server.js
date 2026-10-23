@@ -68,6 +68,8 @@ const ROUTE_TABLE = [
   ['post', '/v1/clients/templates', [], 'CLIENT', '/clients/templates'],
   ['put', '/v1/clients/templates/:id', [], 'CLIENT', (req) => `/clients/templates/${req.params.id}`],
   ['delete', '/v1/clients/templates/:id', [], 'CLIENT', (req) => `/clients/templates/${req.params.id}`],
+  ['get', '/v1/admin/clients', ['admin'], 'CLIENT', '/clients/admin/clients'],
+  ['get', '/v1/admin/clients/:id', ['admin'], 'CLIENT', (req) => `/clients/admin/clients/${req.params.id}`],
 
   // Client Service — Vendors (admin only)
   ['get', '/v1/clients/vendors', ['admin'], 'CLIENT', '/clients/vendors'],

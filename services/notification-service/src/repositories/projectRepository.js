@@ -1,7 +1,4 @@
-import { supabase } from '@notification-gateway/database';
-
-// Repository: akses database tabel 'projects' (notification-service)
-
+import { supabase } from '@notification-gateway/database';
 export async function findByIdWithQuota(projectId) {
   const { data, error } = await supabase
     .from('projects')

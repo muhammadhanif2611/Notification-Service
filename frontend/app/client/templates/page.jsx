@@ -1,27 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Plus, Copy, Check, Pencil, Trash2 } from "lucide-react";
+import { FileText, Plus, Copy, Check, Pencil, Trash2, RefreshCw } from "lucide-react";
 import DataTable from "@/components/shared/DataTable";
 import Modal from "@/components/shared/Modal";
 import { useProjectContext } from "@/lib/project-context";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useToast } from "@/lib/toast-context";
 
-/**
- * TemplatesPage - Template Pesan per project aktif (konteks global sidebar).
- * Template langsung bisa digunakan tanpa persetujuan admin. Placeholder: {{nama}}, {{otp}}.
- */
 export default function TemplatesPage() {
   const toast = useToast();
   const { activeProject } = useProjectContext();
   const projectId = activeProject?.id || null;
-  const { templates, loading, createTemplate, updateTemplate, deleteTemplate } = useTemplates(projectId);
+  const { templates, loading, error, createTemplate, updateTemplate, deleteTemplate, refetch } = useTemplates(projectId);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [submissionWarning, setSubmissionWarning] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
   const emptyForm = { name: "", code: "", channel: "WHATSAPP", subject: "", body: "", variables: "" };
   const [form, setForm] = useState(emptyForm);
@@ -34,7 +31,7 @@ export default function TemplatesPage() {
 
   const parseVariables = () => form.variables.split(",").map((v) => v.trim()).filter(Boolean);
 
-  const openCreate = () => { setForm(emptyForm); setShowModal(true); };
+  const openCreate = () => { setForm(emptyForm); setSubmissionWarning(null); setShowModal(true); };
   const openEdit = (t) => {
     setEditing(t);
     setForm({
@@ -46,6 +43,7 @@ export default function TemplatesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving || submissionWarning) return;
     if (!projectId) { toast.warning("Pilih project terlebih dahulu dari sidebar."); return; }
     setSaving(true);
     try {
@@ -56,7 +54,13 @@ export default function TemplatesPage() {
         body: form.body, variables: parseVariables(),
       });
       setShowModal(false); setForm(emptyForm);
-    } catch (err) { toast.error("Gagal membuat template: " + err.message); } finally { setSaving(false); }
+      toast.success("Template berhasil dibuat dan siap digunakan.");
+    } catch (err) {
+      if (err.outcomeUnknown) {
+        setSubmissionWarning(err.message);
+        toast.warning({ title: "Status Penyimpanan Belum Diketahui", message: err.message });
+      } else { toast.error("Gagal membuat template: " + err.message); }
+    } finally { setSaving(false); }
   };
 
   const handleUpdate = async (e) => {
@@ -69,6 +73,7 @@ export default function TemplatesPage() {
         body: form.body, variables: parseVariables(),
       });
       setEditing(null);
+      toast.success("Template berhasil diperbarui dan siap digunakan.");
     } catch (err) { toast.error("Gagal mengedit template: " + err.message); } finally { setSaving(false); }
   };
 
@@ -155,24 +160,26 @@ export default function TemplatesPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Template Pesan</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Template untuk project <span className="font-semibold text-[var(--text-primary)]">{activeProject.name}</span>. Template baru langsung aktif dan bisa digunakan.
+            Template untuk project <span className="font-semibold text-[var(--text-primary)]">{activeProject.name}</span>. Template langsung dapat digunakan setelah disimpan.
           </p>
         </div>
-        <button
+        <div className="flex flex-wrap gap-2"><button type="button" onClick={refetch} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[var(--neutral-border)] px-3 py-2 text-xs disabled:opacity-50"><RefreshCw size={14} className={loading ? "animate-spin" : ""} />Refresh</button><button
           onClick={openCreate}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
         >
           <Plus size={14} /> Buat Template
         </button>
+        </div>
       </div>
+
+      {error && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <DataTable
         columns={columns}
         data={templates}
         emptyTitle="Belum ada template"
-        emptyDescription="Buat template pertama untuk project ini guna mempercepat pengiriman dan menjaga konsistensi pesan."
+        emptyDescription={loading ? "Memuat template..." : "Buat template pesan untuk project ini."}
       />
-      {/* Modal Buat Template */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Buat Template Baru" maxWidth="max-w-xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -225,17 +232,17 @@ export default function TemplatesPage() {
               placeholder="Halo {{nama}}, kode OTP Anda adalah {{otp}}."
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]" />
           </div>
+          {submissionWarning && <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm"><p>{submissionWarning}</p><button type="button" onClick={() => { setShowModal(false); void refetch(); }} className="mt-2 font-medium underline">Periksa Daftar Template</button></div>}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowModal(false)}
               className="px-4 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--neutral-bg)]">Batal</button>
-            <button type="submit" disabled={saving}
+            <button type="submit" disabled={saving || Boolean(submissionWarning)}
               className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50">
               {saving ? "Menyimpan..." : "Simpan Template"}
             </button>
           </div>
         </form>
       </Modal>
-      {/* Modal Edit Template */}
       <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Template" maxWidth="max-w-xl">
         <form onSubmit={handleUpdate} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -282,7 +289,6 @@ export default function TemplatesPage() {
         </form>
       </Modal>
 
-      {/* Modal Hapus Template */}
       <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Hapus Template" maxWidth="max-w-md">
         <div className="space-y-4">
           <p className="text-sm text-[var(--text-secondary)]">

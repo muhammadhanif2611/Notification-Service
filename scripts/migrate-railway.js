@@ -5,6 +5,7 @@
  *   node scripts/migrate-railway.js "<DATABASE_URL>"
  *   npm run migrate:railway -- "<DATABASE_URL>"
  *   atau set DATABASE_URL di .env.local lalu jalankan: npm run migrate:railway
+ *   Existing database: npm run migrate:template-review
  */
 
 import { readFileSync, existsSync } from 'fs';
@@ -20,7 +21,8 @@ if (existsSync(join(rootDir, '.env'))) dotenv.config({ path: join(rootDir, '.env
 if (existsSync(join(rootDir, '.env.local'))) dotenv.config({ path: join(rootDir, '.env.local'), override: true });
 
 // Gabungkan argumen jika npm/PowerShell memecah string URL di karakter '@'
-let rawArgs = process.argv.slice(2).join('');
+const templateReviewOnly = process.argv.includes('--template-review-only');
+let rawArgs = process.argv.slice(2).filter((arg) => arg !== '--template-review-only').join('');
 rawArgs = rawArgs.replace(/^["']+|["']+$/g, '').trim();
 
 // Prioritas: Argumen CLI > DATABASE_PUBLIC_URL (akses luar Railway) > DATABASE_URL
@@ -30,7 +32,9 @@ async function main() {
   console.log('\n🚂 Notification Gateway — Railway Database Migration');
   console.log('====================================================\n');
 
-  const sqlFilePath = join(__dirname, 'railway-init.sql');
+  const migrationPath = join(rootDir, 'packages', 'database', 'supabase', 'migrations');
+  const removeApprovalMigrationPath = join(migrationPath, '20261023_remove_template_approval.sql');
+  const sqlFilePath = templateReviewOnly ? removeApprovalMigrationPath : join(__dirname, 'railway-init.sql');
   if (!existsSync(sqlFilePath)) {
     console.error(`❌ File ${sqlFilePath} tidak ditemukan.`);
     process.exit(1);
@@ -93,9 +97,11 @@ async function main() {
   try {
     await client.connect();
     console.log('✅ Berhasil terhubung ke database.');
-    console.log('⏳ Menjalankan scripts/railway-init.sql...\n');
+    console.log(`⏳ Menjalankan ${templateReviewOnly ? 'migrasi penghapusan approval template' : 'inisialisasi skema Railway'}...\n`);
 
     await client.query(sql);
+    await client.query(readFileSync(removeApprovalMigrationPath, 'utf8'));
+    console.log('Skema template tanpa approval dan monitoring client siap.');
 
     console.log('====================================================');
     console.log('✅ Migrasi skema Railway PostgreSQL BERHASIL!');
