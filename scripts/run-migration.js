@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-/**
- * Script untuk menjalankan migration database ke Supabase
- * Usage: node scripts/run-migration.js
- */
 
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
@@ -24,70 +20,165 @@ const MIGRATIONS = [
   '20260813_phase5_webhooks_log.sql',
   '20260814_vendor_provider.sql',
   '20260821_add_owner_id_to_projects.sql',
-  '20261023_remove_template_approval.sql'
+  '20260822_notification_log_stats_rpc.sql',
+  '20260827_drop_template_status.sql',
+  '20261023_remove_template_approval.sql',
+  '20261101_phase6_alert_rules.sql',
+  '20261101_phase6_mta_domain.sql',
+  '20261101_phase6_stats_trend.sql',
+  '20261101_phase6_suppression_list.sql',
+  '20261101_phase6_webhook_events.sql'
 ];
 
-async function runMigration(filename) {
-  const filepath = join(__dirname, '..', 'packages', 'database', 'supabase', 'migrations', filename);
-  console.log(`\nðŸ“„ Running: ${filename}`);
-  
-  try {
-    const sql = readFileSync(filepath, 'utf8');
-    const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
-    
+const REQUIRED_RELATIONS = [
+  'profiles',
+  'audit_logs',
+  'projects',
+  'api_keys',
+  'templates',
+  'vendors',
+  'notification_logs',
+  'webhooks_log',
+  'suppression_list',
+  'alert_rules',
+  'alert_history',
+  'mta_domains',
+  'ip_pools',
+  'admin_project_usage',
+  'admin_client_overview',
+  'admin_client_summary'
+];
+
+const REQUIRED_RPCS = [
+  { name: 'get_notification_log_stats', args: { p_project_id: null } },
+  { name: 'get_notification_daily_trend', args: { p_project_id: null, p_days: 7 } },
+  { name: 'get_notification_channel_breakdown', args: { p_project_id: null } }
+];
+
+async function verifySchema() {
+  console.log('\nVerifying remote Supabase schema status...');
+  const missingRelations = [];
+
+  for (const relation of REQUIRED_RELATIONS) {
+    const { error } = await supabase.from(relation).select('*').limit(1);
     if (error) {
-      // Coba direct query jika RPC tidak tersedia
-      const { error: directError } = await supabase.from('_migrations').select('*').limit(1);
-      if (directError) {
-        console.log(`   âš ï¸  Cannot run migration automatically. Please run manually in Supabase SQL Editor.`);
-        console.log(`   File: ${filepath}`);
-        return false;
-      }
+      missingRelations.push(`${relation} (${error.message})`);
+      console.log(`   [MISSING] Table/View: ${relation} -> ${error.message}`);
+    } else {
+      console.log(`   [OK]      Table/View: ${relation}`);
     }
-    
-    console.log(`   âœ… Success`);
-    return true;
-  } catch (err) {
-    console.log(`   âŒ Error: ${err.message}`);
-    return false;
+  }
+
+  for (const rpc of REQUIRED_RPCS) {
+    const { error } = await supabase.rpc(rpc.name, rpc.args);
+    if (error) {
+      missingRelations.push(`RPC ${rpc.name} (${error.message})`);
+      console.log(`   [MISSING] RPC: ${rpc.name} -> ${error.message}`);
+    } else {
+      console.log(`   [OK]      RPC: ${rpc.name}`);
+    }
+  }
+
+  return missingRelations;
+}
+
+async function seedDefaultData() {
+  const { data: existingRules, error: rulesErr } = await supabase
+    .from('alert_rules')
+    .select('id')
+    .limit(1);
+
+  if (!rulesErr && existingRules && existingRules.length === 0) {
+    await supabase.from('alert_rules').insert([
+      {
+        name: 'High Failure Rate',
+        description: 'Alert ketika failure rate melebihi threshold dalam jendela waktu terakhir',
+        metric: 'failure_rate',
+        operator: '>',
+        threshold: 5,
+        unit: '%',
+        window_minutes: 5,
+        enabled: true
+      },
+      {
+        name: 'Queue Overload',
+        description: 'Alert ketika antrean tertunda melebihi batas pesan',
+        metric: 'queue_pending',
+        operator: '>',
+        threshold: 5000,
+        unit: 'pesan',
+        window_minutes: 5,
+        enabled: true
+      },
+      {
+        name: 'High Latency',
+        description: 'Alert ketika rata-rata latency pengiriman melebihi threshold',
+        metric: 'avg_latency',
+        operator: '>',
+        threshold: 500,
+        unit: 'ms',
+        window_minutes: 10,
+        enabled: false
+      }
+    ]);
+    console.log('   [SEEDED] Default alert_rules');
+  }
+
+  const { data: existingDomains, error: domainsErr } = await supabase
+    .from('mta_domains')
+    .select('id')
+    .limit(1);
+
+  if (!domainsErr && existingDomains && existingDomains.length === 0) {
+    await supabase.from('mta_domains').insert([
+      {
+        domain: 'mail.gateway.com',
+        is_primary: true,
+        dns_records: [
+          { type: 'SPF', expected: 'v=spf1' },
+          { type: 'MX', expected: null },
+          { type: 'DMARC', expected: 'v=DMARC1' },
+          { type: 'DKIM', expected: null, selector: 'default._domainkey' }
+        ]
+      }
+    ]);
+    console.log('   [SEEDED] Default mta_domains');
   }
 }
 
 async function main() {
-  console.log('ðŸš€ Notification Gateway â€” Database Migration');
-  console.log('==========================================\n');
-  
-  console.log(`Supabase URL: ${process.env.SUPABASE_URL ? 'âœ… Set' : 'âŒ Missing'}`);
-  console.log(`Service Key: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'âœ… Set' : 'âŒ Missing'}\n`);
-  
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('âŒ Missing Supabase credentials in .env');
+    console.error('Missing Supabase credentials in .env');
     process.exit(1);
   }
-  
-  // Test connection
-  const { data, error } = await supabase.from('projects').select('count', { count: 'exact', head: true });
-  if (error) {
-    console.error('âŒ Cannot connect to Supabase:', error.message);
-    process.exit(1);
+
+  const probeSql = readFileSync(
+    join(__dirname, '..', 'packages', 'database', 'supabase', 'migrations', MIGRATIONS[0]),
+    'utf8'
+  );
+  const { error: probeError } = await supabase.rpc('exec_sql', { sql_query: probeSql });
+
+  if (!probeError) {
+    console.log(`Applied: ${MIGRATIONS[0]}`);
+    for (const migration of MIGRATIONS.slice(1)) {
+      const sql = readFileSync(
+        join(__dirname, '..', 'packages', 'database', 'supabase', 'migrations', migration),
+        'utf8'
+      );
+      const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
+      console.log(error ? `Failed ${migration}: ${error.message}` : `Applied: ${migration}`);
+    }
+  } else {
+    console.log('Note: Direct DDL via PostgREST RPC (public.exec_sql) is not enabled on this Supabase instance.');
   }
-  console.log('âœ… Connected to Supabase\n');
-  
-  // Run migrations
-  let successCount = 0;
-  for (const migration of MIGRATIONS) {
-    const success = await runMigration(migration);
-    if (success) successCount++;
-  }
-  
-  console.log(`\n==========================================`);
-  console.log(`âœ… Migration complete: ${successCount}/${MIGRATIONS.length} successful`);
-  
-  if (successCount < MIGRATIONS.length) {
-    console.log('\nâš ï¸  Some migrations failed. Please run manually in Supabase SQL Editor:');
-    console.log('   1. Go to https://supabase.com â†’ Your Project â†’ SQL Editor');
-    console.log('   2. Copy content from packages/database/supabase/migrations/');
-    console.log('   3. Run each migration file in order');
+
+  const missing = await verifySchema();
+  await seedDefaultData();
+
+  if (missing.length > 0) {
+    console.log('\nTo synchronize missing tables/views/RPCs on Supabase, run scripts/RUN_THIS_MIGRATION.sql in the Supabase SQL Editor.');
+  } else {
+    console.log('\nAll Phase 1-6 tables, views, and RPC functions are synchronized on Supabase!');
   }
 }
 

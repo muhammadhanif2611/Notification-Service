@@ -1,5 +1,6 @@
 import { supabase } from '@notification-gateway/database';
-import { NOTIFICATION_STATUS } from '@notification-gateway/shared';
+import { NOTIFICATION_STATUS } from '@notification-gateway/shared';
+
 export async function countTodayByProject(projectId) {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
@@ -63,4 +64,14 @@ export async function findByMessageId(messageId) {
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+export async function findSuppressedContacts(contacts, channel) {
+  const { data, error } = await supabase
+    .from('suppression_list')
+    .select('contact, reason')
+    .eq('channel', channel)
+    .in('contact', contacts);
+  if (error) return [];
+  return data || [];
 }

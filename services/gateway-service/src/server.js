@@ -10,6 +10,7 @@ import { createCorsOptions } from './config/cors.js';
 import { apiKeyAuth, jwtAuth, roleCheck } from './middlewares/auth.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { forwardProxyRequest } from './services/proxyService.js';
+import { getClusterHealth, getQueueMetrics } from './services/infraMonitorService.js';
 
 const logger = createLogger('gateway-service');
 const app = express();
@@ -89,6 +90,29 @@ const ROUTE_TABLE = [
   // Callback Log Service (dengan auth untuk scoping)
   ['get', '/v1/logs', [], 'CALLBACK_LOG', '/logs'],
   ['get', '/v1/statistics', [], 'CALLBACK_LOG', '/statistics'],
+
+  // Callback Log Service — Suppression List (admin only)
+  ['get', '/v1/suppressions', ['admin'], 'CALLBACK_LOG', '/suppressions'],
+  ['post', '/v1/suppressions', ['admin'], 'CALLBACK_LOG', '/suppressions'],
+  ['delete', '/v1/suppressions/:id', ['admin'], 'CALLBACK_LOG', (req) => `/suppressions/${req.params.id}`],
+
+  // Callback Log Service — Threshold Alert (admin only)
+  ['get', '/v1/alert-rules', ['admin'], 'CALLBACK_LOG', '/alert-rules'],
+  ['post', '/v1/alert-rules', ['admin'], 'CALLBACK_LOG', '/alert-rules'],
+  ['put', '/v1/alert-rules/:id', ['admin'], 'CALLBACK_LOG', (req) => `/alert-rules/${req.params.id}`],
+  ['delete', '/v1/alert-rules/:id', ['admin'], 'CALLBACK_LOG', (req) => `/alert-rules/${req.params.id}`],
+  ['get', '/v1/alert-history', ['admin'], 'CALLBACK_LOG', '/alert-history'],
+  ['post', '/v1/alert-history/:id/resolve', ['admin'], 'CALLBACK_LOG', (req) => `/alert-history/${req.params.id}/resolve`],
+
+  // Client Service — Domain & MTA (admin only)
+  ['get', '/v1/admin/mta/domains', ['admin'], 'CLIENT', '/clients/admin/mta/domains'],
+  ['post', '/v1/admin/mta/domains/:id/verify', ['admin'], 'CLIENT', (req) => `/clients/admin/mta/domains/${req.params.id}/verify`],
+  ['get', '/v1/admin/mta/ip-pools', ['admin'], 'CLIENT', '/clients/admin/mta/ip-pools'],
+  ['post', '/v1/admin/mta/ip-pools', ['admin'], 'CLIENT', '/clients/admin/mta/ip-pools'],
+  ['delete', '/v1/admin/mta/ip-pools/:id', ['admin'], 'CLIENT', (req) => `/clients/admin/mta/ip-pools/${req.params.id}`],
+
+  // Client Service — Webhook health check (pemilik project)
+  ['get', '/v1/clients/projects/:projectId/webhook-health', [], 'CLIENT', (req) => `/clients/projects/${req.params.projectId}/webhook-health`],
 ];
 
 // Daftarkan seluruh route dari tabel — auth jwtAuth selalu aktif kecuali rute publik auth
@@ -137,6 +161,17 @@ app.get('/v1/notifications/ping', apiKeyAuth, (req, res) => {
 app.get('/v1/admin/vendors', jwtAuth, roleCheck(['admin']), (req, res) =>
   forwardProxyRequest(`${SERVICES.CLIENT}/clients/vendors`, req, res)
 );
+
+// Telemetri infrastruktur live: kesehatan cluster & metrik antrean
+app.get('/v1/admin/cluster-health', jwtAuth, roleCheck(['admin']), async (req, res) => {
+  const data = await getClusterHealth(SERVICES, config);
+  return res.json({ success: true, data });
+});
+
+app.get('/v1/admin/queue-metrics', jwtAuth, roleCheck(['admin']), async (req, res) => {
+  const data = await getQueueMetrics(config);
+  return res.json({ success: true, data });
+});
 
 // ── Bull Board (Queue Monitoring UI) ───────────────────────────────────────
 if (process.env.NODE_ENV !== 'production') {

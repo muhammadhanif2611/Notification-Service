@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Activity,
   Server,
@@ -11,9 +11,38 @@ import {
 import MetricCard from "@/components/shared/MetricCard";
 import ClusterHealthCard from "@/components/admin/ClusterHealthCard";
 import { useAdminData } from "@/hooks/useAdminData";
+import { apiGet } from "@/lib/api";
+
+// Pemetaan node cluster: key layanan -> nama tampilan di kartu health
+const SERVICE_LABELS = {
+  AUTH: "Auth Service",
+  CLIENT: "Client Service",
+  NOTIFICATION: "Notification Service",
+  CALLBACK_LOG: "Callback & Log Service",
+  DISPATCH: "Dispatch Service",
+};
 
 export default function ControlCenterPage() {
-  const { statistics, logs, vendors, health, loading, refetch } = useAdminData();
+  const { statistics, logs, vendors, loading, refetch } = useAdminData();
+  const [cluster, setCluster] = useState(null);
+
+  const fetchCluster = useCallback(async () => {
+    const [healthRes, queueRes] = await Promise.allSettled([
+      apiGet("/v1/admin/cluster-health", { skipDedupe: true }),
+      apiGet("/v1/admin/queue-metrics", { skipDedupe: true }),
+    ]);
+    if (healthRes.status === "fulfilled" && queueRes.status === "fulfilled") {
+      setCluster({ ...healthRes.value?.data, ...queueRes.value?.data });
+    } else if (healthRes.status === "fulfilled") {
+      setCluster(healthRes.value?.data || null);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => { if (!cancelled) await fetchCluster(); })();
+    return () => { cancelled = true; };
+  }, [fetchCluster]);
 
   // Refresh data di-handle via trigger: initial mount, tombol Refresh (manual),
   // dan Tab Visibility trigger saat tab aktif kembali (useAdminData).
@@ -49,7 +78,7 @@ export default function ControlCenterPage() {
           </p>
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={() => { refetch(); fetchCluster(); }}
           disabled={loading}
           className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
         >
@@ -76,18 +105,14 @@ export default function ControlCenterPage() {
         <MetricCard
           icon={<Clock size={16} />}
           label="Avg Latency"
-          value={loading ? "..." : "28ms"}
-          subtitle="Rata-rata cluster"
-          trend="-4ms"
-          trendDirection="up"
+          value={cluster ? `${cluster.gateway.latency_ms}ms` : "—"}
+          subtitle="Gateway node"
         />
         <MetricCard
           icon={<HardDrive size={16} />}
           label="Queue Memory"
-          value={loading ? "..." : "128MB"}
-          subtitle="Redis allocation"
-          trend="42%"
-          trendDirection="neutral"
+          value={cluster ? `${cluster.queue_memory_mb ?? 0}MB` : "—"}
+          subtitle="Proses gateway (RSS)"
         />
       </div>
 
@@ -98,32 +123,26 @@ export default function ControlCenterPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <ClusterHealthCard
             name="Main Gateway"
-            status={health?.status === "ok" ? "healthy" : "down"}
-            latency="12ms"
-            uptime="99.98%"
-            detail={`Port 3001 · ${health ? "Online" : "Checking..."}`}
+            status={cluster ? "healthy" : "down"}
+            latency={cluster ? `${cluster.gateway.latency_ms}ms` : undefined}
+            uptime={cluster?.gateway.uptime}
+            detail={`Port 3001 · ${cluster ? "Online" : "Checking..."}`}
           />
           <ClusterHealthCard
             name="Redis Worker Pool"
-            status="healthy"
-            latency="3ms"
-            uptime="99.99%"
-            detail="6379 · 128MB alloc"
+            status={cluster?.redis.status || "down"}
+            latency={cluster?.redis.latency_ms != null ? `${cluster.redis.latency_ms}ms` : undefined}
+            detail="BullMQ queue backend"
           />
-          <ClusterHealthCard
-            name="Database Cluster"
-            status="healthy"
-            latency="45ms"
-            uptime="99.95%"
-            detail="Supabase PostgreSQL"
-          />
-          <ClusterHealthCard
-            name="Outbound MTA"
-            status="degraded"
-            latency="180ms"
-            uptime="98.2%"
-            detail="1 node warming up"
-          />
+          {Object.entries(SERVICE_LABELS).map(([key, label]) => (
+            <ClusterHealthCard
+              key={key}
+              name={label}
+              status={cluster?.services?.[key]?.status || "down"}
+              latency={cluster?.services?.[key]?.latency_ms != null ? `${cluster.services[key].latency_ms}ms` : undefined}
+              detail={cluster?.services?.[key]?.status === "healthy" ? "Online" : "Tidak merespons"}
+            />
+          ))}
         </div>
       </div>
 

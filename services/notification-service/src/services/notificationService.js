@@ -7,13 +7,21 @@ import { randomBytes } from 'node:crypto';
 const logger = createLogger('notification-service');
 import * as templateRepository from '../repositories/templateRepository.js';
 import * as projectRepository from '../repositories/projectRepository.js';
-import * as notificationLogRepository from '../repositories/notificationLogRepository.js';function generateMessageId() {
+import * as notificationLogRepository from '../repositories/notificationLogRepository.js';
+
+function generateMessageId() {
   return `msg_${Date.now()}_${randomBytes(4).toString('hex')}`;
-}function generateBroadcastId() {
+}
+
+function generateBroadcastId() {
   return `bcast_${Date.now()}_${randomBytes(4).toString('hex')}`;
-}function isSandboxMode(apiKeyPrefix, environment) {
+}
+
+function isSandboxMode(apiKeyPrefix, environment) {
   return environment === 'sandbox' || apiKeyPrefix === 'ngw_sand_';
-}async function resolveMessageContent(projectId, channel, templateCode, body, variables) {
+}
+
+async function resolveMessageContent(projectId, channel, templateCode, body, variables) {
   if (!templateCode) return { resolvedBody: body, resolvedSubject: null };
 
   const template = await templateRepository.findTemplate(templateCode, channel, projectId);
@@ -39,7 +47,9 @@ async function resolveRawBody(projectId, channel, templateCode, body) {
   }
 
   return { rawBody: template.body, resolvedSubject: template.subject ?? null };
-}function replaceTemplateVariables(body, variables) {
+}
+
+function replaceTemplateVariables(body, variables) {
   if (!variables || typeof variables !== 'object') return body;
   let result = body;
   for (const [key, value] of Object.entries(variables)) {
@@ -109,7 +119,9 @@ async function persistAndEnqueue({ messageId, projectId, channel, recipient, pay
   } else {
     await emailQueue.add('send-email', jobPayload);
   }
-}export async function processNotification({ body: reqBody, project, environment, apiKeyPrefix }) {
+}
+
+export async function processNotification({ body: reqBody, project, environment, apiKeyPrefix }) {
   const validation = sendNotificationSchema.safeParse(reqBody);
   if (!validation.success) {
     throw new AppError('Invalid notification payload.', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -119,6 +131,11 @@ async function persistAndEnqueue({ messageId, projectId, channel, recipient, pay
   const projectId = project?.id;
   const isSandbox = isSandboxMode(apiKeyPrefix, environment);
   const normalizedChannel = channel.toUpperCase();
+
+  const suppressed = await notificationLogRepository.findSuppressedContacts([recipient], normalizedChannel);
+  if (suppressed.length > 0) {
+    throw new AppError(`Recipient '${recipient}' is in the suppression list (${suppressed[0].reason}).`, 422, 'RECIPIENT_SUPPRESSED');
+  }
 
   if (!isSandbox) {
     await checkProjectThreshold(projectId);
@@ -148,7 +165,9 @@ async function persistAndEnqueue({ messageId, projectId, channel, recipient, pay
     isSandbox,
     acceptedAt: new Date().toISOString()
   };
-}// Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
+}
+
+// Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
 export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, recipientVariables, project, isSandbox = false }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new AppError('recipients must be a non-empty array.', 400, 'VALIDATION_ERROR');
@@ -161,11 +180,18 @@ export async function processBroadcast({ channel, recipients, templateCode, body
   const normalizedChannel = channel.toUpperCase();
   const broadcastId = generateBroadcastId();
 
+  const suppressedRows = await notificationLogRepository.findSuppressedContacts(recipients, normalizedChannel);
+  const suppressedSet = new Set(suppressedRows.map((r) => r.contact));
+  const activeRecipients = recipients.filter((r) => !suppressedSet.has(r));
+  if (activeRecipients.length === 0) {
+    throw new AppError('All recipients are in the suppression list.', 422, 'RECIPIENT_SUPPRESSED');
+  }
+
   if (!isSandbox) {
     const { project: projectRecord, todayCount } = await checkProjectThreshold(projectId);
     const remainingQuota = projectRecord.daily_quota - todayCount;
-    if (recipients.length > remainingQuota) {
-      throw new AppError(`Broadcast exceeds quota. Remaining: ${remainingQuota}, Requested: ${recipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
+    if (activeRecipients.length > remainingQuota) {
+      throw new AppError(`Broadcast exceeds quota. Remaining: ${remainingQuota}, Requested: ${activeRecipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
     }
 
     // Rate limit anti-spam untuk broadcast: N recipient memesan N slot pada jendela 1 menit.
@@ -175,13 +201,13 @@ export async function processBroadcast({ channel, recipients, templateCode, body
       key: `ratelimit:project:${projectId}`,
       limit: perMinuteLimit,
       windowMs: 60000,
-      count: recipients.length,
+      count: activeRecipients.length,
       redisConfig: config.redis
     });
     if (!rateResult.allowed) {
       const retryAfterSec = Math.ceil(rateResult.retryAfterMs / 1000);
       throw new AppError(
-        `Broadcast ${recipients.length} pesan melebihi rate limit ${perMinuteLimit} pesan/menit (sisa ${rateResult.remaining}). Coba lagi dalam ${retryAfterSec} detik atau pecah menjadi batch lebih kecil.`,
+        `Broadcast ${activeRecipients.length} pesan melebihi rate limit ${perMinuteLimit} pesan/menit (sisa ${rateResult.remaining}). Coba lagi dalam ${retryAfterSec} detik atau pecah menjadi batch lebih kecil.`,
         429,
         'RATE_LIMIT_EXCEEDED'
       );
@@ -193,7 +219,7 @@ export async function processBroadcast({ channel, recipients, templateCode, body
   const finalSubject = resolvedSubject ?? subject;
 
   // Siapkan seluruh messageId, log rows, dan job payloads sekaligus
-  const queuedResults = recipients.map((recipient) => {
+  const queuedResults = activeRecipients.map((recipient) => {
     const messageId = generateMessageId();
 
     // Personalisasi: gabungkan variabel global + variabel khusus penerima ini
@@ -245,17 +271,22 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     broadcastId,
     channel: normalizedChannel,
     totalQueued: queuedResults.length,
+    suppressedCount: suppressedSet.size,
     isSandbox,
     recipients: queuedResults,
     acceptedAt: createdAt
   };
-}export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
+}
+
+export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
   const { data, count } = await notificationLogRepository.findPaginated({ projectId, page, limit, status, channel });
   return {
     data,
     pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) }
   };
-}export async function getNotificationByMessageId(messageId) {
+}
+
+export async function getNotificationByMessageId(messageId) {
   const notification = await notificationLogRepository.findByMessageId(messageId);
   if (!notification) {
     throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');

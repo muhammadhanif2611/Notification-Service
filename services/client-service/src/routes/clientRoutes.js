@@ -1,6 +1,7 @@
 import express from 'express';
 import * as clientController from '../controllers/clientController.js';
 import * as adminClientController from '../controllers/adminClientController.js';
+import * as adminDomainController from '../controllers/adminDomainController.js';
 
 const router = express.Router();router.get('/projects', clientController.getProjects);
 router.get('/projects/:id', clientController.getProjectById);
@@ -22,5 +23,15 @@ router.get('/admin/clients/:id', adminClientController.getClientDetails);router
 router.post('/vendors', clientController.createVendor);
 router.put('/vendors/:id', clientController.updateVendor);
 router.delete('/vendors/:id', clientController.deleteVendor);
+
+// Admin: Domain & MTA (verifikasi DNS dinamis + manajemen IP pool)
+router.get('/admin/mta/domains', adminDomainController.getDomainOverview);
+router.post('/admin/mta/domains/:id/verify', adminDomainController.verifyDomain);
+router.get('/admin/mta/ip-pools', adminDomainController.listIpPools);
+router.post('/admin/mta/ip-pools', adminDomainController.createIpPool);
+router.delete('/admin/mta/ip-pools/:id', adminDomainController.deleteIpPool);
+
+// Client: cek kesehatan endpoint webhook project
+router.get('/projects/:projectId/webhook-health', adminDomainController.checkWebhookHealth);
 
 export default router;

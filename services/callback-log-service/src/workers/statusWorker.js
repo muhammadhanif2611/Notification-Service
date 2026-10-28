@@ -30,12 +30,31 @@ export function startStatusWorker(redisConfig) {
       sent_at: status === 'SENT' ? new Date().toISOString() : null
     });
 
-    // 2. Cek apakah project mengonfigurasi webhook callback
+    // 2. Auto-suppression: kontak yang hard bounce diblokir dari pengiriman berikutnya
+    if (status === 'FAILED' && job.data.recipient && job.data.channel) {
+      try {
+        await callbackLogRepository.insertSuppression({
+          contact: job.data.recipient,
+          channel: job.data.channel,
+          reason: 'HARD_BOUNCE',
+          notes: error || null
+        });
+      } catch (err) {
+        logger.error({ messageId, err: err.message }, 'Failed to insert suppression entry');
+      }
+    }
+
+    // 3. Cek apakah project mengonfigurasi webhook callback
     if (!projectId) return;
 
     try {
       const projectRecord = await callbackLogRepository.findProjectWebhook(projectId);
       if (projectRecord?.webhook_url) {
+        // Hormati filter event yang dipilih klien di konfigurasi webhook project
+        const eventType = status === 'SENT' ? 'message.delivered' : 'message.failed';
+        const subscribed = projectRecord.webhook_events;
+        if (Array.isArray(subscribed) && subscribed.length > 0 && !subscribed.includes(eventType)) return;
+
         // Alirkan ke webhook debouncer: tidak menembak HTTP terus menerus
         queueDebouncedWebhook({
           projectId,

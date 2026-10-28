@@ -51,11 +51,11 @@ export function startEmailWorker(redisConfig) {
       const credentials = resolveVendorCredentials(vendorRecord);
 
       const sendResult = await sendEmail({ recipient, subject, body, credentials, isSandbox });
-      await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendorRecord?.id });
+      await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendorRecord?.id, recipient, channel: 'EMAIL' });
       return sendResult;
     } catch (error) {
       logger.error({ messageId, err: error.message }, 'Email job failed');
-      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message });
+      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message, recipient, channel: 'EMAIL' });
       throw error;
     }
   }, {

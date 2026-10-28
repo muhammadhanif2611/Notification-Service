@@ -9,14 +9,17 @@ import {
 import MetricCard from "@/components/shared/MetricCard";
 import EmptyState from "@/components/shared/EmptyState";
 import { apiGet } from "@/lib/api";
+import { useProjectContext } from "@/lib/project-context";
 
 const CHANNEL_COLORS = { WHATSAPP: "#10B981", EMAIL: "#3B82F6", SMS: "#8B5CF6" };
-const STATUS_COLORS = { delivered: "#10B981", queued: "#F59E0B", failed: "#EF4444" };
+const STATUS_COLORS = { sent: "#10B981", delivered: "#10B981", read: "#10B981", queued: "#F59E0B", pending: "#F59E0B", processing: "#3B82F6", failed: "#EF4444" };
 const TT = { backgroundColor: "var(--neutral-surface)", border: "1px solid var(--neutral-border)", borderRadius: 8, fontSize: 12 };
 const TICK = { fontSize: 11, fill: "var(--text-muted)" };
 
-/** StatistikPage â€” Grafik statistik pengiriman (Recharts, DESIGN.md 6A). */
+/** StatistikPage — Grafik statistik pengiriman (Recharts, DESIGN.md 6A). */
 export default function StatistikPage() {
+  const { activeProject } = useProjectContext();
+  const projectId = activeProject?.id;
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState("7d");
@@ -24,10 +27,12 @@ export default function StatistikPage() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet(`/v1/statistics?range=${range}`);
-      setStats(res?.data || null);
+      const params = new URLSearchParams({ range });
+      if (projectId) params.set("projectId", projectId);
+      const res = await apiGet(`/v1/statistics?${params}`);
+      setStats(res?.stats || res?.data || null);
     } catch { setStats(null); } finally { setLoading(false); }
-  }, [range]);
+  }, [range, projectId]);
 
   useEffect(() => {
     let cancelled = false;
