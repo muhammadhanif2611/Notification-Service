@@ -14,11 +14,11 @@ export function startWhatsAppWorker(redisConfig) {
 
     try {
       const sendResult = await sendWhatsApp({ projectId, recipient, body, isSandbox });
-      await statusQueue.add('status-update', { messageId, projectId, status: 'SENT' });
+      await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', recipient, channel: 'WHATSAPP' });
       return sendResult;
     } catch (error) {
       logger.error({ messageId, err: error.message }, 'WhatsApp job failed');
-      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message });
+      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message, recipient, channel: 'WHATSAPP' });
       throw error;
     }
   }, {

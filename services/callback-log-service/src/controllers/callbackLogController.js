@@ -69,8 +69,8 @@ export async function getLogs(req, res, next) {
  */
 export async function getStatistics(req, res, next) {
   try {
-    const { projectId } = req.query;
-    const stats = await callbackLogService.getLogStatistics(projectId || null);
+    const { projectId, range = '7d' } = req.query;
+    const stats = await callbackLogService.getLogStatistics(projectId || null, range);
     return res.json({ success: true, stats });
   } catch (err) {
     next(err);

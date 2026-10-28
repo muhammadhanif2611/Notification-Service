@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Activity, RefreshCw, Cpu, ExternalLink } from "lucide-react";
 import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
+import { apiGet } from "@/lib/api";
 
 import { API_URL } from "@/lib/config";
 
@@ -14,20 +15,32 @@ export default function MonitoringPage() {
   const scopeConfig = useMemo(() => ({ scope: ["statistics"] }), []);
   const { statistics, loading, refetch } = useAdminData(scopeConfig);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [queueMetrics, setQueueMetrics] = useState(null);
+
+  const fetchQueueMetrics = useCallback(async () => {
+    try {
+      const res = await apiGet("/v1/admin/queue-metrics", { skipDedupe: true });
+      setQueueMetrics(res?.data || null);
+    } catch {
+      setQueueMetrics(null);
+    }
+  }, []);
 
   // Auto-refresh cerdas: hanya berjalan saat user mengaktifkannya dan tab sedang aktif terlihat
   useEffect(() => {
+    fetchQueueMetrics();
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
       // Jangan trigger request jika browser di-minimize atau tab sedang tidak aktif
       if (document.visibilityState === "visible") {
         refetch();
+        fetchQueueMetrics();
       }
     }, 20000); // 20 detik interval aman, bukan 5 detik buta
 
     return () => clearInterval(interval);
-  }, [autoRefresh, refetch]);
+  }, [autoRefresh, refetch, fetchQueueMetrics]);
 
   const total = statistics?.total || 0;
   const sent = statistics?.sent || 0;
@@ -57,7 +70,7 @@ export default function MonitoringPage() {
             {autoRefresh ? "Auto-refresh (20s) ON" : "Auto-refresh OFF"}
           </button>
           <button
-            onClick={() => refetch()}
+            onClick={() => { refetch(); fetchQueueMetrics(); }}
             disabled={loading}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
           >
@@ -70,29 +83,27 @@ export default function MonitoringPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           icon={<Activity size={16} />}
-          label="Messages / Second"
-          value={loading ? "..." : "—"}
-          subtitle="Real-time TPS"
+          label="Jobs Waiting"
+          value={queueMetrics ? queueMetrics.waiting.toLocaleString("id-ID") : "—"}
+          subtitle="Menunggu diproses worker"
         />
         <MetricCard
           icon={<Cpu size={16} />}
-          label="Active Workers"
-          value={loading ? "..." : "5 / 6"}
-          subtitle="1 idle"
+          label="Jobs Active"
+          value={queueMetrics ? queueMetrics.active.toLocaleString("id-ID") : "—"}
+          subtitle="Sedang diproses worker"
         />
         <MetricCard
           label="Dead Letter Queue"
-          value={loading ? "..." : "0"}
-          subtitle="Semua sudah diproses"
-          trend="Clean"
-          trendDirection="up"
+          value={queueMetrics ? queueMetrics.dead_letter.toLocaleString("id-ID") : "—"}
+          subtitle={queueMetrics?.dead_letter > 0 ? "Perlu investigasi" : "Semua sudah diproses"}
+          trend={queueMetrics?.dead_letter > 0 ? "Warning" : "Clean"}
+          trendDirection={queueMetrics?.dead_letter > 0 ? "down" : "up"}
         />
         <MetricCard
-          label="Avg Processing Time"
-          value={loading ? "..." : "180ms"}
-          subtitle="Per job rata-rata"
-          trend="-22ms"
-          trendDirection="up"
+          label="Queue Memory"
+          value={queueMetrics ? `${queueMetrics.queue_memory_mb}MB` : "—"}
+          subtitle="Proses gateway (RSS)"
         />
       </div>
 

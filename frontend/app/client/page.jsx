@@ -23,6 +23,7 @@ export default function ClientDashboardPage() {
   const { activeProject } = useProjectContext();
   const [stats, setStats] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
+  const [webhookHealth, setWebhookHealth] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const projectId = activeProject?.id;
@@ -31,15 +32,17 @@ export default function ClientDashboardPage() {
     if (!projectId) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [statsRes, logsRes] = await Promise.allSettled([
+      const [statsRes, logsRes, webhookRes] = await Promise.allSettled([
         apiGet(`/v1/statistics?projectId=${projectId}`),
         apiGet(`/v1/logs?projectId=${projectId}&limit=5`),
+        apiGet(`/v1/clients/projects/${projectId}/webhook-health`),
       ]);
-      if (statsRes.status === "fulfilled") setStats(statsRes.value?.data || null);
+      if (statsRes.status === "fulfilled") setStats(statsRes.value?.stats || statsRes.value?.data || null);
       if (logsRes.status === "fulfilled") {
         const d = logsRes.value?.data;
         setRecentLogs(Array.isArray(d) ? d : d?.data || []);
       }
+      if (webhookRes.status === "fulfilled") setWebhookHealth(webhookRes.value?.data || null);
     } catch {
       // Service belum berjalan — tampilkan empty state
     } finally {
@@ -74,7 +77,7 @@ export default function ClientDashboardPage() {
           <Link href="/client/api-keys" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
             <Key size={14} /> Buat API Key
           </Link>
-          <Link href="/client/webhook" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors">
+          <Link href="/client/broadcast" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors">
             <Zap size={14} /> Test Broadcast
           </Link>
         </div>
@@ -85,7 +88,26 @@ export default function ClientDashboardPage() {
         <MetricCard icon={<Activity size={16} />} label="Total Terkirim" value={loading ? "..." : totalSent.toLocaleString("id-ID")} subtitle="24 jam terakhir" />
         <MetricCard icon={<CheckCircle size={16} />} label="Success Rate" value={loading ? "..." : `${successRate}%`} subtitle="Delivery rate" />
         <MetricCard icon={<Clock size={16} />} label="Avg Latency" value={loading ? "..." : `${avgLatency}ms`} subtitle="Rata-rata dispatch" />
-        <MetricCard icon={<Webhook size={16} />} label="Webhook Status" value="200 OK" subtitle="Endpoint aktif" />
+        <MetricCard
+          icon={<Webhook size={16} />}
+          label="Webhook Status"
+          value={
+            !activeProject?.webhook_url
+              ? "Belum diset"
+              : webhookHealth
+                ? webhookHealth.reachable
+                  ? `${webhookHealth.http_status} OK`
+                  : "Down"
+                : "Checking..."
+          }
+          subtitle={
+            !activeProject?.webhook_url
+              ? "Atur di menu Webhook"
+              : webhookHealth
+                ? `Latency ${webhookHealth.latency_ms}ms`
+                : "Mengecek endpoint..."
+          }
+        />
       </div>
 
       {/* Charts */}

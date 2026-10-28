@@ -79,8 +79,13 @@ export async function createProject(payload, userId = null, userRole = null) {
   if (validation.data.description !== undefined) dbData.description = validation.data.description;
   if (validation.data.rateLimitPerMin !== undefined) dbData.rate_limit_per_min = validation.data.rateLimitPerMin;
   if (validation.data.dailyQuota !== undefined) dbData.daily_quota = validation.data.dailyQuota;
-  if (validation.data.webhookUrl !== undefined) dbData.webhook_url = validation.data.webhookUrl;
-  if (validation.data.webhookSecret !== undefined) dbData.webhook_secret = validation.data.webhookSecret;
+  // Terima kedua konvensi penamaan (camelCase & snake_case) untuk kompatibilitas payload klien
+  const webhookUrl = validation.data.webhookUrl ?? validation.data.webhook_url;
+  const webhookSecret = validation.data.webhookSecret ?? validation.data.webhook_secret;
+  const webhookEvents = validation.data.webhookEvents ?? validation.data.webhook_events;
+  if (webhookUrl !== undefined) dbData.webhook_url = webhookUrl;
+  if (webhookSecret !== undefined) dbData.webhook_secret = webhookSecret;
+  if (webhookEvents !== undefined) dbData.webhook_events = webhookEvents;
   if (validation.data.isActive !== undefined) dbData.is_active = validation.data.isActive;
 
   const updatedProject = await projectRepository.updateById(projectId, dbData);

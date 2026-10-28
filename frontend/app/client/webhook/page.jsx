@@ -102,6 +102,7 @@ export default function WebhookPage() {
     setSyncedProjectId(projectId);
     setUrl(activeProject.webhook_url || "");
     setSecret(activeProject.webhook_secret || "");
+    setEvents(Array.isArray(activeProject.webhook_events) ? activeProject.webhook_events : ["message.delivered", "message.failed"]);
   }
 
   const loading = projectLoading || (!!projectId && projectId !== syncedProjectId);
@@ -120,7 +121,7 @@ export default function WebhookPage() {
     if (!activeProject?.id) { setError("Pilih project terlebih dahulu."); return; }
     setSaving(true); setError(null);
     try {
-      await apiPut("/v1/clients/projects/" + activeProject.id, { webhook_url: url || null, webhook_secret: secret || null });
+      await apiPut("/v1/clients/projects/" + activeProject.id, { webhook_url: url || null, webhook_secret: secret || null, webhook_events: events });
       setSaved(true); setTimeout(() => setSaved(false), 2500);
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };

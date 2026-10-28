@@ -42,7 +42,9 @@ export const nodemailerCredentialsSchema = z.object({
   user: z.string().min(1, 'SMTP user is required'),
   pass: z.string().min(1, 'SMTP password is required'),
   from: z.string().optional()
-});export const updateProjectSchema = z.object({
+});export const WEBHOOK_EVENTS = ['message.delivered', 'message.failed', 'message.queued', 'message.read'];
+
+export const updateProjectSchema = z.object({
   name: z.string().min(2).optional(),
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens').optional(),
   description: z.string().optional().nullable(),
@@ -50,6 +52,10 @@ export const nodemailerCredentialsSchema = z.object({
   dailyQuota: z.number().int().positive().optional(),
   webhookUrl: z.string().url().optional().or(z.literal('')),
   webhookSecret: z.string().optional().nullable(),
+  webhookEvents: z.array(z.enum(WEBHOOK_EVENTS)).optional(),
+  webhook_url: z.string().url().optional().or(z.literal('')).nullable(),
+  webhook_secret: z.string().optional().nullable(),
+  webhook_events: z.array(z.enum(WEBHOOK_EVENTS)).optional(),
   isActive: z.boolean().optional()
 });export const updateApiKeySchema = z.object({
   name: z.string().min(2, 'API key name must be at least 2 characters')
