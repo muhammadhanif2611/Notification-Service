@@ -1,17 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Activity, RefreshCw, Cpu, ExternalLink } from "lucide-react";
+import { Activity, RefreshCw, Cpu } from "lucide-react";
 import MetricCard from "@/components/shared/MetricCard";
 import { useAdminData } from "@/hooks/useAdminData";
 import { apiGet } from "@/lib/api";
 
-import { API_URL } from "@/lib/config";
-
-const BULL_BOARD_URL = process.env.NEXT_PUBLIC_BULL_BOARD_URL || `${API_URL}/admin/queues`;
-
+// Halaman Queue Telemetry Admin untuk memantau antrean Redis, worker aktif, dan statistik pesan.
 export default function MonitoringPage() {
-  // Hanya ambil scope 'statistics' untuk menghemat bandwidth & beban server
   const scopeConfig = useMemo(() => ({ scope: ["statistics"] }), []);
   const { statistics, loading, refetch } = useAdminData(scopeConfig);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -26,20 +22,28 @@ export default function MonitoringPage() {
     }
   }, []);
 
-  // Auto-refresh cerdas: hanya berjalan saat user mengaktifkannya dan tab sedang aktif terlihat
   useEffect(() => {
-    fetchQueueMetrics();
-    if (!autoRefresh) return;
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchQueueMetrics();
+    })();
+    if (!autoRefresh) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const interval = setInterval(() => {
-      // Jangan trigger request jika browser di-minimize atau tab sedang tidak aktif
       if (document.visibilityState === "visible") {
         refetch();
         fetchQueueMetrics();
       }
-    }, 20000); // 20 detik interval aman, bukan 5 detik buta
+    }, 20000);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [autoRefresh, refetch, fetchQueueMetrics]);
 
   const total = statistics?.total || 0;
@@ -51,9 +55,7 @@ export default function MonitoringPage() {
     <>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-            Queue Telemetry
-          </h2>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Queue Telemetry</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             Monitoring real-time queue Redis dan worker performance.
           </p>
@@ -70,7 +72,10 @@ export default function MonitoringPage() {
             {autoRefresh ? "Auto-refresh (20s) ON" : "Auto-refresh OFF"}
           </button>
           <button
-            onClick={() => { refetch(); fetchQueueMetrics(); }}
+            onClick={() => {
+              refetch();
+              fetchQueueMetrics();
+            }}
             disabled={loading}
             className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
           >
@@ -108,17 +113,8 @@ export default function MonitoringPage() {
       </div>
 
       <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-[var(--neutral-border)] flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-[var(--neutral-border)]">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">Queue Statistics</h3>
-          <a
-            href={BULL_BOARD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <ExternalLink size={12} />
-            Buka Bull Board
-          </a>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

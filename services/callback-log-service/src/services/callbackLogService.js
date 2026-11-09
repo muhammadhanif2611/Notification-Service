@@ -1,14 +1,27 @@
 import * as callbackLogRepository from '../repositories/callbackLogRepository.js';
 
-// Layanan mengambil daftar log notifikasi terbaru (scoped per project)
-export async function getRecentLogs({ projectId = null, limit = 100, page = 1 } = {}) {
-  return await callbackLogRepository.findRecentLogs({ projectId, limit, page });
-}
-
+// Kelompok status yang dipakai filter Riwayat Pesan.
+const STATUS_GROUPS = {
+  SENT: ['SENT', 'DELIVERED', 'READ'],
+  DELIVERED: ['SENT', 'DELIVERED', 'READ'],
+  QUEUED: ['PENDING', 'QUEUED', 'PROCESSING'],
+  FAILED: ['FAILED']
+};
+const VALID_CHANNELS = ['WHATSAPP', 'EMAIL'];
 const RANGE_DAYS = { '7d': 7, '14d': 14, '30d': 30 };
 
-// Statistik ringkasan + tren harian + breakdown channel & status
-// Agregasi dilakukan di database via GROUP BY — tidak fetch seluruh row ke memori Node.js
+// Layanan riwayat log (dengan filter project, channel, status) dan statistik pengiriman.
+export async function getRecentLogs({ projectId = null, channel = null, status = null, limit = 100, page = 1 } = {}) {
+  const normalizedChannel = channel?.toUpperCase();
+  return await callbackLogRepository.findRecentLogs({
+    projectId,
+    channel: VALID_CHANNELS.includes(normalizedChannel) ? normalizedChannel : null,
+    statuses: STATUS_GROUPS[status?.toUpperCase()] || null,
+    limit,
+    page
+  });
+}
+
 export async function getLogStatistics(projectId = null, range = '7d') {
   const days = RANGE_DAYS[range] || RANGE_DAYS['7d'];
   const [rows, trendRows, channelRows, avgLatencyMs] = await Promise.all([
@@ -27,9 +40,9 @@ export async function getLogStatistics(projectId = null, range = '7d') {
   for (const row of rows) {
     const count = Number(row.count) || 0;
     stats.total += count;
-    if (row.status === 'SENT' || row.status === 'DELIVERED' || row.status === 'READ') stats.sent += count;
+    if (STATUS_GROUPS.SENT.includes(row.status)) stats.sent += count;
     if (row.status === 'FAILED') stats.failed += count;
-    if (row.status === 'PENDING' || row.status === 'QUEUED' || row.status === 'PROCESSING') stats.pending += count;
+    if (STATUS_GROUPS.QUEUED.includes(row.status)) stats.pending += count;
     if (row.channel === 'WHATSAPP') stats.whatsapp += count;
     if (row.channel === 'EMAIL') stats.email += count;
     stats.status_breakdown[row.status] = (stats.status_breakdown[row.status] || 0) + count;

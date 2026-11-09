@@ -10,6 +10,9 @@ import {
   updateApiKeySchema,
   createVendorSchema,
   updateVendorSchema,
+  generateWebhookSignature,
+  signWebhookPayload,
+  generateWebhookMessageId,
   createLogger
 } from '@notification-gateway/shared';
 import { AppError } from '../middlewares/errorHandler.js';
@@ -17,20 +20,25 @@ import * as projectRepository from '../repositories/projectRepository.js';
 import * as apiKeyRepository from '../repositories/apiKeyRepository.js';
 import * as vendorRepository from '../repositories/vendorRepository.js';
 
-const logger = createLogger('client-service');export async function listProjects(user = null) {
+const logger = createLogger('client-service');
+const WEBHOOK_CHECK_TIMEOUT_MS = 8000;
+
+// Layanan bisnis untuk pengelolaan proyek, persetujuan admin, API key, vendor SMTP, dan pengecekan webhook.
+export async function listProjects(user = null) {
   if (user?.role === 'admin') {
     return await projectRepository.findAll();
   }
   return await projectRepository.findByOwnerId(user?.userId);
-}export async function getProjectById(projectId) {
+}
+
+export async function getProjectById(projectId) {
   const project = await projectRepository.findByIdWithApiKeys(projectId);
   if (!project) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
   }
   return project;
-}// Model 2: Pengajuan Mandiri (Self-Service Request)
-// Jika dibuat oleh role 'user' (client), proyek berstatus PENDING (is_active = false) menunggu persetujuan admin.
-// Jika dibuat oleh 'admin', proyek bisa langsung aktif.
+}
+
 export async function createProject(payload, userId = null, userRole = null) {
   const validation = createProjectSchema.safeParse(payload);
   if (!validation.success) {
@@ -67,7 +75,9 @@ export async function createProject(payload, userId = null, userRole = null) {
     }
     throw new AppError(`Database error: ${error.message}`, 500, 'DATABASE_ERROR');
   }
-}export async function updateProject(projectId, updateData, userId = null) {
+}
+
+export async function updateProject(projectId, updateData, userId = null) {
   const validation = updateProjectSchema.safeParse(updateData);
   if (!validation.success) {
     throw new AppError('Invalid project payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -79,7 +89,7 @@ export async function createProject(payload, userId = null, userRole = null) {
   if (validation.data.description !== undefined) dbData.description = validation.data.description;
   if (validation.data.rateLimitPerMin !== undefined) dbData.rate_limit_per_min = validation.data.rateLimitPerMin;
   if (validation.data.dailyQuota !== undefined) dbData.daily_quota = validation.data.dailyQuota;
-  // Terima kedua konvensi penamaan (camelCase & snake_case) untuk kompatibilitas payload klien
+
   const webhookUrl = validation.data.webhookUrl ?? validation.data.webhook_url;
   const webhookSecret = validation.data.webhookSecret ?? validation.data.webhook_secret;
   const webhookEvents = validation.data.webhookEvents ?? validation.data.webhook_events;
@@ -96,7 +106,9 @@ export async function createProject(payload, userId = null, userRole = null) {
   logger.info({ projectId }, 'Project updated');
   writeAuditLog({ userId, action: 'UPDATE_PROJECT', targetEntity: 'projects', detail: `Updated project ID ${projectId}` });
   return updatedProject;
-}export async function approveProject(projectId, payload = {}, adminUserId = null) {
+}
+
+export async function approveProject(projectId, payload = {}, adminUserId = null) {
   const existingProject = await projectRepository.findByIdWithApiKeys(projectId);
   if (!existingProject) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
@@ -106,14 +118,12 @@ export async function createProject(payload, userId = null, userRole = null) {
   const rateLimitPerMin = payload.rateLimitPerMin ? Number(payload.rateLimitPerMin) : (existingProject.rate_limit_per_min || 100);
   const environment = payload.environment || 'production';
 
-  // 1. Update project menjadi aktif dengan kuota yang disetujui
   const updatedProject = await projectRepository.updateById(projectId, {
     is_active: true,
     daily_quota: dailyQuota,
     rate_limit_per_min: rateLimitPerMin
   });
 
-  // 2. Terbitkan API Key awal secara otomatis jika belum ada API Key aktif
   let generatedKey = null;
   const activeKeys = (existingProject.api_keys || []).filter(k => k.is_active);
   if (activeKeys.length === 0) {
@@ -137,9 +147,81 @@ export async function createProject(payload, userId = null, userRole = null) {
     rawApiKey: generatedKey?.rawApiKey || null,
     apiKeyInfo: generatedKey?.apiKeyInfo || null
   };
-}export async function listApiKeys() {
-  return await apiKeyRepository.findAll();
-}export async function generateApiKey(payload, userId = null) {
+}
+
+export async function checkWebhookHealth(projectId) {
+  const project = await projectRepository.findByIdWithApiKeys(projectId);
+  if (!project) {
+    throw new AppError('Project not found', 404, 'NOT_FOUND');
+  }
+  if (!project.webhook_url) {
+    throw new AppError('Project has no webhook URL configured', 400, 'NO_WEBHOOK');
+  }
+
+  const startedAt = Date.now();
+  let httpStatus = 0;
+  let reachable = false;
+  let responseBody = '';
+
+  const payload = {
+    type: 'notification.status_update',
+    created_at: new Date().toISOString(),
+    data: {
+      messageId: `msg_test_${Date.now()}`,
+      status: 'SENT',
+      error: null,
+      _test: true
+    }
+  };
+  const body = JSON.stringify(payload);
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (project.webhook_secret) {
+    const webhookId = generateWebhookMessageId();
+    const webhookTimestamp = Math.floor(Date.now() / 1000).toString();
+    headers['webhook-id'] = webhookId;
+    headers['webhook-timestamp'] = webhookTimestamp;
+    headers['webhook-signature'] = signWebhookPayload({
+      id: webhookId,
+      timestamp: webhookTimestamp,
+      body,
+      secret: project.webhook_secret
+    });
+    headers['X-Gateway-Signature'] = generateWebhookSignature(payload, project.webhook_secret);
+  }
+
+  try {
+    const response = await fetch(project.webhook_url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(WEBHOOK_CHECK_TIMEOUT_MS)
+    });
+    httpStatus = response.status;
+    reachable = response.ok;
+    responseBody = (await response.text()).slice(0, 200);
+  } catch (fetchErr) {
+    reachable = false;
+    responseBody = fetchErr.message;
+  }
+
+  return {
+    reachable,
+    http_status: httpStatus,
+    latency_ms: Date.now() - startedAt,
+    body: responseBody,
+    checked_at: new Date().toISOString()
+  };
+}
+
+export async function listApiKeys(projectId = null, userId = null, userRole = 'user') {
+  return await apiKeyRepository.findAll({
+    ownerId: userRole === 'admin' ? null : userId,
+    projectId
+  });
+}
+
+export async function generateApiKey(payload, userId = null) {
   const validation = createApiKeySchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -170,7 +252,9 @@ export async function createProject(payload, userId = null, userRole = null) {
   logger.info({ keyId: apiKeyRecord.id, projectId }, 'API Key generated');
   writeAuditLog({ userId, action: 'GENERATE_API_KEY', targetEntity: 'api_keys', detail: `Generated key '${name}' for project '${project.name}'` });
   return { rawApiKey, apiKeyInfo: apiKeyRecord };
-}export async function regenerateApiKey(keyId, userId = null) {
+}
+
+export async function regenerateApiKey(keyId, userId = null) {
   const existingKey = await apiKeyRepository.findByIdWithProject(keyId);
   if (!existingKey) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
@@ -191,7 +275,9 @@ export async function createProject(payload, userId = null, userRole = null) {
   logger.info({ keyId }, 'API Key regenerated');
   writeAuditLog({ userId, action: 'REGENERATE_API_KEY', targetEntity: 'api_keys', detail: `Regenerated key '${existingKey.name}'` });
   return { rawApiKey, apiKeyInfo: updatedKey };
-}export async function deactivateApiKey(keyId, userId = null) {
+}
+
+export async function deactivateApiKey(keyId, userId = null) {
   const deactivatedKey = await apiKeyRepository.updateById(keyId, { is_active: false, revoked_at: new Date().toISOString() }, '*');
   if (!deactivatedKey) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
@@ -200,7 +286,9 @@ export async function createProject(payload, userId = null, userRole = null) {
   logger.info({ keyId }, 'API Key deactivated');
   writeAuditLog({ userId, action: 'DEACTIVATE_API_KEY', targetEntity: 'api_keys', detail: `Deactivated key ID ${keyId}` });
   return deactivatedKey;
-}export async function updateApiKey(keyId, payload, userId = null) {
+}
+
+export async function updateApiKey(keyId, payload, userId = null) {
   const validation = updateApiKeySchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid API key payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -214,7 +302,9 @@ export async function createProject(payload, userId = null, userRole = null) {
   logger.info({ keyId }, 'API Key renamed');
   writeAuditLog({ userId, action: 'UPDATE_API_KEY', targetEntity: 'api_keys', detail: `Renamed key ID ${keyId} to '${validation.data.name}'` });
   return updatedKey;
-}export async function deleteApiKey(keyId, userId = null) {
+}
+
+export async function deleteApiKey(keyId, userId = null) {
   const existing = await apiKeyRepository.findByIdWithProject(keyId);
   if (!existing) {
     throw new AppError('API Key not found', 404, 'NOT_FOUND');
@@ -224,7 +314,9 @@ export async function createProject(payload, userId = null, userRole = null) {
   logger.info({ keyId }, 'API Key deleted');
   writeAuditLog({ userId, action: 'DELETE_API_KEY', targetEntity: 'api_keys', detail: `Deleted key '${existing.name}' (ID ${keyId})` });
   return { deleted: true };
-}export async function deleteProject(projectId, userId = null) {
+}
+
+export async function deleteProject(projectId, userId = null) {
   const existing = await projectRepository.findSlugAndNameById(projectId);
   if (!existing) {
     throw new AppError('Project not found', 404, 'NOT_FOUND');
@@ -236,10 +328,14 @@ export async function createProject(payload, userId = null, userRole = null) {
   return { deleted: true };
 }
 
-export { listTemplates, createTemplate, updateTemplate, deleteTemplate } from './templateService.js';export async function listVendors() {
+export { listTemplates, createTemplate, updateTemplate, deleteTemplate } from './templateService.js';
+
+export async function listVendors() {
   const vendors = await vendorRepository.findAllOrderedByPriority();
   return vendors.map(({ credential_encrypted, credential_iv, credential_auth_tag, ...meta }) => meta);
-}export async function createVendor(payload, userId = null) {
+}
+
+export async function createVendor(payload, userId = null) {
   const validation = createVendorSchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -261,7 +357,9 @@ export { listTemplates, createTemplate, updateTemplate, deleteTemplate } from '.
   logger.info({ vendorId: registeredVendor.id, channel: registeredVendor.channel }, 'Vendor registered');
   writeAuditLog({ userId, action: 'CREATE_VENDOR', targetEntity: 'vendors', detail: `Registered vendor '${name}' for channel ${channel}` });
   return registeredVendor;
-}export async function updateVendor(vendorId, payload, userId = null) {
+}
+
+export async function updateVendor(vendorId, payload, userId = null) {
   const validation = updateVendorSchema.safeParse(payload);
   if (!validation.success) {
     throw new AppError('Invalid vendor payload', 400, 'VALIDATION_ERROR', validation.error.errors);
@@ -274,7 +372,6 @@ export { listTemplates, createTemplate, updateTemplate, deleteTemplate } from '.
   if (priority !== undefined) updateData.priority = priority;
   if (is_active !== undefined) updateData.is_active = is_active;
 
-  // Enkripsi ulang hanya jika admin mengirim credentials baru
   if (credentials !== undefined) {
     const { encryptedData, iv, authTag } = encryptAES(JSON.stringify(credentials));
     updateData.credential_encrypted = encryptedData;
@@ -290,7 +387,9 @@ export { listTemplates, createTemplate, updateTemplate, deleteTemplate } from '.
   logger.info({ vendorId }, 'Vendor updated');
   writeAuditLog({ userId, action: 'UPDATE_VENDOR', targetEntity: 'vendors', detail: `Updated vendor ID ${vendorId}${credentials !== undefined ? ' (credentials rotated)' : ''}` });
   return updatedVendor;
-}export async function deleteVendor(vendorId, userId = null) {
+}
+
+export async function deleteVendor(vendorId, userId = null) {
   const deletedVendor = await vendorRepository.deleteById(vendorId);
   if (!deletedVendor) {
     throw new AppError('Vendor not found', 404, 'NOT_FOUND');

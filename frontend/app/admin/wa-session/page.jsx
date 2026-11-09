@@ -19,6 +19,7 @@ const STATUS_LABEL = {
   DISCONNECTED: "Terputus",
 };
 
+// Halaman WhatsApp Sessions Admin untuk memantau status koneksi seluruh sesi project dan force-disconnect.
 export default function AdminWaSessionsPage() {
   const toast = useToast();
   const [sessions, setSessions] = useState([]);
@@ -42,12 +43,16 @@ export default function AdminWaSessionsPage() {
     }
   }, []);
 
-  // Initial fetch saat halaman dimuat
   useEffect(() => {
-    fetchSessions();
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchSessions();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchSessions]);
 
-  // Tab visibility trigger: refresh saat pengguna kembali ke tab (cooldown 30s)
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -62,7 +67,6 @@ export default function AdminWaSessionsPage() {
     return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [fetchSessions]);
 
-  // Controlled auto-refresh (hanya saat user mengaktifkannya dan tab aktif)
   useEffect(() => {
     if (!autoRefresh) return;
 
@@ -139,9 +143,7 @@ export default function AdminWaSessionsPage() {
             Memuat data sesi...
           </div>
         ) : sessions.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[var(--text-muted)]">
-            Belum ada project terdaftar.
-          </div>
+          <div className="py-16 text-center text-sm text-[var(--text-muted)]">Belum ada project terdaftar.</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -157,7 +159,11 @@ export default function AdminWaSessionsPage() {
                 <tr key={s.projectId} className="border-b border-[var(--neutral-border)] last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
                   <td className="px-6 py-4 font-medium text-[var(--text-primary)]">{s.projectName}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLE[s.status] || STATUS_STYLE.DISCONNECTED}`}>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                        STATUS_STYLE[s.status] || STATUS_STYLE.DISCONNECTED
+                      }`}
+                    >
                       {s.status === "CONNECTED" ? <Wifi size={12} /> : <WifiOff size={12} />}
                       {STATUS_LABEL[s.status] || s.status}
                     </span>

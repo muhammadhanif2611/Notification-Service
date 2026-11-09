@@ -1,14 +1,8 @@
-// =============================================================================
-// API Fetch Wrapper (Frontend)
-// =============================================================================
-// Utility untuk memanggil backend API dari frontend dengan proteksi:
-// - In-flight request deduplication (mencegah request ganda simultan)
-// - Debounce & cooldown mechanism (mencegah spam polling berulang)
-// - Timeout otomatis 30s (memberi waktu backend produksi merespons)
-// =============================================================================
-
 import { API_URL } from "./config.js";
+
+// Wrapper fetch API frontend dengan proteksi in-flight deduplication dan timeout otomatis 30 detik.
 const REQUEST_TIMEOUT_MS = 30000;
+const inFlightRequests = new Map();
 
 async function requestJson(url, init) {
   try {
@@ -18,27 +12,17 @@ async function requestJson(url, init) {
   } catch (failure) {
     if (failure.name !== "TimeoutError" && failure.status !== 504) throw failure;
     const outcomeUnknown = init.method !== "GET";
-    const error = new Error(outcomeUnknown
-      ? "Respons server melewati batas waktu. Perubahan mungkin sudah tersimpan. Periksa daftar sebelum mencoba lagi."
-      : "Server belum merespons dalam batas waktu. Silakan muat ulang data.");
+    const error = new Error(
+      outcomeUnknown
+        ? "Respons server melewati batas waktu. Perubahan mungkin sudah tersimpan. Periksa daftar sebelum mencoba lagi."
+        : "Server belum merespons dalam batas waktu. Silakan muat ulang data."
+    );
     error.code = "REQUEST_TIMEOUT";
     error.outcomeUnknown = outcomeUnknown;
     throw error;
   }
 }
 
-// In-flight GET request deduplication cache: urlKey -> Promise
-const inFlightRequests = new Map();
-
-// Debounce timer cache untuk request berbasis debounce
-const debounceTimers = new Map();
-
-/**
- * buildHeaders — Membangun headers untuk request, termasuk JWT jika tersedia.
- * @param {object} [options] - Opsi tambahan
- * @param {string} [options.apiKey] - API Key untuk autentikasi
- * @returns {Record<string, string>} Headers object
- */
 function buildHeaders(options = {}) {
   const headers = { "Content-Type": "application/json" };
 
@@ -51,11 +35,6 @@ function buildHeaders(options = {}) {
   return headers;
 }
 
-/**
- * handleErrorResponse — Memproses response non-OK dari backend.
- * @param {Response} res - Fetch response
- * @throws {Error}
- */
 async function handleErrorResponse(res) {
   const error = await res.json().catch(() => ({}));
   const message =
@@ -76,20 +55,9 @@ async function handleErrorResponse(res) {
   throw apiError;
 }
 
-/**
- * GET request ke backend API.
- * Dilengkapi in-flight deduplication: jika request identik sedang berjalan,
- * return promise yang sama untuk menghemat bandwidth & beban server.
- *
- * @param {string} path - Path endpoint (misal: "/v1/logs")
- * @param {object} [options] - Opsi tambahan
- * @param {string} [options.apiKey] - API Key untuk autentikasi
- * @param {boolean} [options.skipDedupe=false] - Bypass in-flight deduplication
- * @returns {Promise<any>} Response JSON
- */
 export async function apiGet(path, options = {}) {
   const url = `${API_URL}${path}`;
-  const cacheKey = `${path}::${options.apiKey || ''}`;
+  const cacheKey = `${path}::${options.apiKey || ""}`;
 
   if (!options.skipDedupe && inFlightRequests.has(cacheKey)) {
     return inFlightRequests.get(cacheKey);
@@ -100,7 +68,7 @@ export async function apiGet(path, options = {}) {
       return await requestJson(url, {
         method: "GET",
         headers: buildHeaders(options),
-        credentials: "include"
+        credentials: "include",
       });
     } finally {
       inFlightRequests.delete(cacheKey);
@@ -114,73 +82,28 @@ export async function apiGet(path, options = {}) {
   return requestPromise;
 }
 
-/**
- * Debounced version dari apiGet.
- * Hanya mengeksekusi request jika tidak ada panggilan baru dalam jeda `waitMs`.
- * Sangat berguna untuk input pencarian atau trigger yang berubah cepat.
- *
- * @param {string} path
- * @param {number} [waitMs=300]
- * @param {object} [options]
- * @returns {Promise<any>}
- */
-export function debouncedApiGet(path, waitMs = 300, options = {}) {
-  const timerKey = `debounced::${path}`;
-
-  return new Promise((resolve, reject) => {
-    if (debounceTimers.has(timerKey)) {
-      clearTimeout(debounceTimers.get(timerKey));
-    }
-
-    const timer = setTimeout(async () => {
-      debounceTimers.delete(timerKey);
-      try {
-        const res = await apiGet(path, options);
-        resolve(res);
-      } catch (err) {
-        reject(err);
-      }
-    }, waitMs);
-
-    debounceTimers.set(timerKey, timer);
-  });
-}
-
-/**
- * POST request ke backend API.
- * @param {string} path - Path endpoint
- * @param {object} body - Request body
- * @param {object} [options] - Opsi tambahan
- * @returns {Promise<any>} Response JSON
- */
 export async function apiPost(path, body, options = {}) {
   return requestJson(`${API_URL}${path}`, {
     method: "POST",
     headers: buildHeaders(options),
     credentials: "include",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 }
 
-/**
- * PUT request ke backend API.
- */
 export async function apiPut(path, body, options = {}) {
   return requestJson(`${API_URL}${path}`, {
     method: "PUT",
     headers: buildHeaders(options),
     credentials: "include",
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 }
 
-/**
- * DELETE request ke backend API.
- */
 export async function apiDelete(path, options = {}) {
   return requestJson(`${API_URL}${path}`, {
     method: "DELETE",
     headers: buildHeaders(options),
-    credentials: "include"
+    credentials: "include",
   });
 }

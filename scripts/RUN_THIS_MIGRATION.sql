@@ -158,53 +158,6 @@ CREATE TABLE IF NOT EXISTS public.suppression_list (
     UNIQUE(contact, channel)
 );
 
-CREATE TABLE IF NOT EXISTS public.alert_rules (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(150) NOT NULL,
-    description TEXT,
-    metric VARCHAR(50) NOT NULL,
-    operator VARCHAR(5) NOT NULL DEFAULT '>',
-    threshold NUMERIC NOT NULL,
-    unit VARCHAR(20) DEFAULT '%',
-    window_minutes INT DEFAULT 5,
-    enabled BOOLEAN DEFAULT TRUE,
-    trigger_count INT DEFAULT 0,
-    last_triggered_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.alert_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rule_id UUID REFERENCES public.alert_rules(id) ON DELETE CASCADE,
-    rule_name VARCHAR(150) NOT NULL,
-    metric_value NUMERIC NOT NULL,
-    threshold NUMERIC NOT NULL,
-    unit VARCHAR(20) DEFAULT '%',
-    resolved BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.mta_domains (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    domain VARCHAR(255) UNIQUE NOT NULL,
-    is_primary BOOLEAN DEFAULT FALSE,
-    reputation INT DEFAULT 0,
-    dns_records JSONB DEFAULT '[]'::jsonb,
-    last_checked_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.ip_pools (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ip_address VARCHAR(45) UNIQUE NOT NULL,
-    type VARCHAR(20) NOT NULL DEFAULT 'Shared',
-    status VARCHAR(20) NOT NULL DEFAULT 'warming',
-    reputation INT DEFAULT 0,
-    daily_volume INT DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON public.audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON public.projects(owner_id);
@@ -225,7 +178,6 @@ CREATE INDEX IF NOT EXISTS idx_webhooks_log_message ON public.webhooks_log(messa
 CREATE INDEX IF NOT EXISTS idx_webhooks_log_created ON public.webhooks_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_suppression_contact ON public.suppression_list(contact);
 CREATE INDEX IF NOT EXISTS idx_suppression_channel ON public.suppression_list(channel);
-CREATE INDEX IF NOT EXISTS idx_alert_history_rule ON public.alert_history(rule_id);
 
 CREATE OR REPLACE VIEW public.admin_project_usage WITH (security_invoker = true) AS
 SELECT p.id, p.owner_id, p.name, p.slug, p.is_active, p.daily_quota, p.rate_limit_per_min, p.created_at,
@@ -319,22 +271,5 @@ LANGUAGE sql STABLE AS $$
   WHERE (p_project_id IS NULL OR project_id = p_project_id)
   GROUP BY channel;
 $$;
-
-INSERT INTO public.alert_rules (name, description, metric, operator, threshold, unit, window_minutes, enabled)
-SELECT * FROM (VALUES
-  ('High Failure Rate', 'Alert ketika failure rate melebihi threshold dalam jendela waktu terakhir', 'failure_rate', '>', 5, '%', 5, TRUE),
-  ('Queue Overload', 'Alert ketika antrean tertunda melebihi batas pesan', 'queue_pending', '>', 5000, 'pesan', 5, TRUE),
-  ('High Latency', 'Alert ketika rata-rata latency pengiriman melebihi threshold', 'avg_latency', '>', 500, 'ms', 10, FALSE)
-) AS seed(name, description, metric, operator, threshold, unit, window_minutes, enabled)
-WHERE NOT EXISTS (SELECT 1 FROM public.alert_rules);
-
-INSERT INTO public.mta_domains (domain, is_primary, dns_records)
-SELECT 'mail.gateway.com', TRUE, '[
-  {"type": "SPF", "expected": "v=spf1"},
-  {"type": "MX", "expected": null},
-  {"type": "DMARC", "expected": "v=DMARC1"},
-  {"type": "DKIM", "expected": null, "selector": "default._domainkey"}
-]'::jsonb
-WHERE NOT EXISTS (SELECT 1 FROM public.mta_domains);
 
 NOTIFY pgrst, 'reload schema';

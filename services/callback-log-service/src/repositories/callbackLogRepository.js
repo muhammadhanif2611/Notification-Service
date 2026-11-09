@@ -1,7 +1,6 @@
 import { supabase } from '@notification-gateway/database';
 
-// Repository: akses database tabel 'notification_logs' dan 'projects' (callback-log-service)
-
+// Repository akses database untuk log notifikasi, statistik, webhook log, dan suppression list.
 export async function updateLogStatus(messageId, statusData) {
   const { error } = await supabase
     .from('notification_logs')
@@ -20,15 +19,15 @@ export async function findProjectWebhook(projectId) {
   return data;
 }
 
-export async function findRecentLogs({ projectId = null, limit = 100, page = 1 } = {}) {
+export async function findRecentLogs({ projectId = null, channel = null, statuses = null, limit = 100, page = 1 } = {}) {
   let query = supabase
     .from('notification_logs')
     .select('*, projects(name, slug)')
     .order('created_at', { ascending: false });
 
-  if (projectId) {
-    query = query.eq('project_id', projectId);
-  }
+  if (projectId) query = query.eq('project_id', projectId);
+  if (channel) query = query.eq('channel', channel);
+  if (statuses?.length) query = query.in('status', statuses);
 
   const offset = (page - 1) * limit;
   query = query.range(offset, offset + limit - 1);
@@ -38,7 +37,6 @@ export async function findRecentLogs({ projectId = null, limit = 100, page = 1 }
   return data;
 }
 
-// Statistik agregat via SQL GROUP BY — tidak fetch seluruh row ke memori
 export async function findLogStats(projectId = null) {
   const { data, error } = await supabase.rpc('get_notification_log_stats', {
     p_project_id: projectId || null
@@ -47,7 +45,6 @@ export async function findLogStats(projectId = null) {
   return data;
 }
 
-// Mengambil id internal log notifikasi berdasarkan message_id
 export async function findLogIdByMessageId(messageId) {
   const { data, error } = await supabase
     .from('notification_logs')
@@ -58,19 +55,6 @@ export async function findLogIdByMessageId(messageId) {
   return data;
 }
 
-// Memperbarui status notifikasi dari provider webhook (DELIVERED/READ/FAILED dll)
-export async function updateStatusByProvider(messageId, status, extraFields = {}) {
-  const updatePayload = { status, updated_at: new Date().toISOString(), ...extraFields };
-  if (status === 'DELIVERED') updatePayload.delivered_at = new Date().toISOString();
-  if (status === 'READ') updatePayload.read_at = new Date().toISOString();
-  const { error } = await supabase
-    .from('notification_logs')
-    .update(updatePayload)
-    .eq('message_id', messageId);
-  if (error) throw error;
-}
-
-// Menyimpan histori pengiriman callback webhook ke tabel webhooks_log
 export async function insertWebhookLog({ notificationId = null, messageId = null, webhookUrl, payloadSent, signature, httpStatus = null, deliveredAt = null }) {
   const { error } = await supabase
     .from('webhooks_log')
@@ -86,14 +70,60 @@ export async function insertWebhookLog({ notificationId = null, messageId = null
   if (error) throw error;
 }
 
-// Tren harian pengiriman (delivered/queued/failed) via RPC GROUP BY tanggal
+const SENT_STATUSES = ['SENT', 'DELIVERED', 'READ'];
+const QUEUED_STATUSES = ['PENDING', 'QUEUED', 'PROCESSING'];
+
 export async function findDailyTrend(projectId = null, days = 7) {
   const { data, error } = await supabase.rpc('get_notification_daily_trend', {
     p_project_id: projectId || null,
     p_days: days
   });
   if (error) throw error;
-  return data;
+
+  const hasActivity = data?.some(
+    (r) => Number(r.delivered) > 0 || Number(r.queued) > 0 || Number(r.failed) > 0
+  );
+  if (hasActivity) return data;
+
+  let latestQuery = supabase
+    .from('notification_logs')
+    .select('created_at')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (projectId) latestQuery = latestQuery.eq('project_id', projectId);
+
+  const { data: latestRows } = await latestQuery;
+  if (!latestRows?.length) return data || [];
+
+  const endDayStr = new Date(latestRows[0].created_at).toISOString().slice(0, 10);
+  const endDate = new Date(`${endDayStr}T23:59:59.999Z`);
+  const startDate = new Date(endDate.getTime() - (days - 1) * 86400000);
+  const startIso = `${startDate.toISOString().slice(0, 10)}T00:00:00.000Z`;
+
+  let logsQuery = supabase
+    .from('notification_logs')
+    .select('created_at, status')
+    .gte('created_at', startIso)
+    .lte('created_at', endDate.toISOString());
+  if (projectId) logsQuery = logsQuery.eq('project_id', projectId);
+
+  const { data: logs } = await logsQuery;
+  const buckets = new Map();
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(endDate.getTime() - i * 86400000).toISOString().slice(0, 10);
+    buckets.set(d, { day: d, delivered: 0, queued: 0, failed: 0 });
+  }
+
+  for (const row of logs || []) {
+    const dayKey = new Date(row.created_at).toISOString().slice(0, 10);
+    const bucket = buckets.get(dayKey);
+    if (!bucket) continue;
+    if (SENT_STATUSES.includes(row.status)) bucket.delivered += 1;
+    else if (QUEUED_STATUSES.includes(row.status)) bucket.queued += 1;
+    else if (row.status === 'FAILED') bucket.failed += 1;
+  }
+
+  return Array.from(buckets.values());
 }
 
 export async function findChannelBreakdown(projectId = null) {
@@ -102,6 +132,20 @@ export async function findChannelBreakdown(projectId = null) {
   });
   if (error) throw error;
   return data;
+}
+
+function computeAvgLatencyMs(rows) {
+  if (!rows?.length) return 0;
+  let validCount = 0;
+  const totalMs = rows.reduce((sum, row) => {
+    const diff = new Date(row.sent_at) - new Date(row.created_at);
+    if (diff >= 0) {
+      validCount += 1;
+      return sum + diff;
+    }
+    return sum;
+  }, 0);
+  return validCount > 0 ? Math.round(totalMs / validCount) : 0;
 }
 
 export async function findAvgLatency(projectId = null, days = 7) {
@@ -117,16 +161,22 @@ export async function findAvgLatency(projectId = null, days = 7) {
   if (projectId) query = query.eq('project_id', projectId);
 
   const { data, error } = await query;
-  if (error || !data?.length) return 0;
+  if (!error && data?.length) {
+    return computeAvgLatencyMs(data);
+  }
 
-  const totalMs = data.reduce((sum, row) => {
-    const diff = new Date(row.sent_at) - new Date(row.created_at);
-    return diff >= 0 ? sum + diff : sum;
-  }, 0);
-  return Math.round(totalMs / data.length);
+  let fallbackQuery = supabase
+    .from('notification_logs')
+    .select('created_at, sent_at')
+    .not('sent_at', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (projectId) fallbackQuery = fallbackQuery.eq('project_id', projectId);
+
+  const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+  if (fallbackError || !fallbackData?.length) return 0;
+  return computeAvgLatencyMs(fallbackData);
 }
-
-// ── Suppression List ────────────────────────────────────────────────────────
 
 export async function findSuppressions(channel = null) {
   let query = supabase.from('suppression_list').select('*').order('created_at', { ascending: false });
@@ -154,65 +204,5 @@ export async function insertSuppression({ contact, channel, reason, sourceLogId 
 
 export async function deleteSuppression(id) {
   const { error } = await supabase.from('suppression_list').delete().eq('id', id);
-  if (error) throw error;
-}
-
-// ── Alert Rules & History ───────────────────────────────────────────────────
-
-export async function findAlertRules() {
-  const { data, error } = await supabase
-    .from('alert_rules').select('*').order('created_at', { ascending: true });
-  if (error) throw error;
-  return data;
-}
-
-export async function insertAlertRule(rule) {
-  const { data, error } = await supabase.from('alert_rules').insert(rule).select().single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateAlertRule(id, updateData) {
-  const { data, error } = await supabase
-    .from('alert_rules')
-    .update({ ...updateData, updated_at: new Date().toISOString() })
-    .eq('id', id).select().maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export async function deleteAlertRule(id) {
-  const { error } = await supabase.from('alert_rules').delete().eq('id', id);
-  if (error) throw error;
-}
-
-export async function findAlertHistory(limit = 50) {
-  const { data, error } = await supabase
-    .from('alert_history').select('*').order('created_at', { ascending: false }).limit(limit);
-  if (error) throw error;
-  return data;
-}
-
-export async function insertAlertHistory(entry) {
-  const { data, error } = await supabase.from('alert_history').insert(entry).select().single();
-  if (error) throw error;
-  return data;
-}
-
-export async function resolveAlertHistory(id) {
-  const { data, error } = await supabase
-    .from('alert_history').update({ resolved: true }).eq('id', id).select().maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
-export async function incrementRuleTrigger(id) {
-  const { data: rule, error: findError } = await supabase
-    .from('alert_rules').select('trigger_count').eq('id', id).maybeSingle();
-  if (findError) throw findError;
-  const { error } = await supabase
-    .from('alert_rules')
-    .update({ trigger_count: (rule?.trigger_count || 0) + 1, last_triggered_at: new Date().toISOString() })
-    .eq('id', id);
   if (error) throw error;
 }

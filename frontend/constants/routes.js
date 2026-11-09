@@ -1,4 +1,3 @@
-
 export const ROUTES = Object.freeze({
   HOME: "/",
   LOGIN: "/login",
@@ -6,12 +5,11 @@ export const ROUTES = Object.freeze({
     OVERVIEW: "/client",
     PROJECTS: "/client/projects",
     RIWAYAT: "/client/riwayat",
-    STATISTIK: "/client/statistik",
     API_KEYS: "/client/api-keys",
     TEMPLATES: "/client/templates",
     BROADCAST: "/client/broadcast",
     WA_SESSION: "/client/wa-session",
-    SDK: "/client/sdk",
+    DOCS: "/client/docs",
     WEBHOOK: "/client/webhook",
   },
   ADMIN: {
@@ -21,10 +19,7 @@ export const ROUTES = Object.freeze({
     MONITORING: "/admin/monitoring",
     VENDORS: "/admin/vendors",
     WA_SESSION: "/admin/wa-session",
-    CREDENTIALS: "/admin/vendors",
-    DOMAIN_MTA: "/admin/domain-mta",
     USERS: "/admin/users",
     SUPPRESSION_LIST: "/admin/suppression-list",
-    THRESHOLD_ALERT: "/admin/threshold-alert",
   },
 });

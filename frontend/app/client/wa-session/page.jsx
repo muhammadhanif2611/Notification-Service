@@ -21,6 +21,7 @@ const STATUS_LABEL = {
   DISCONNECTED: "Terputus",
 };
 
+// Halaman WhatsApp Session Client untuk menghubungkan nomor WhatsApp per project melalui scan QR Code.
 export default function ClientWaSessionPage() {
   const toast = useToast();
   const { activeProject, activeProjectId } = useProjectContext();
@@ -49,38 +50,36 @@ export default function ClientWaSessionPage() {
     }
   }, [activeProjectId]);
 
-  // Initial fetch saat project berubah
   useEffect(() => {
-    fetchStatus();
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchStatus();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchStatus]);
 
-  // Smart Polling Trigger:
-  // HANYA melakukan polling saat aktif dalam proses pairing (WAITING_QR atau CONNECTING)
-  // Berhenti total saat CONNECTED atau DISCONNECTED.
-  // Pause saat tab browser tidak aktif.
   useEffect(() => {
     const isPairing = session.status === "WAITING_QR" || session.status === "CONNECTING";
     if (!isPairing) return;
 
     let pollCount = 0;
-    const maxPolls = 24; // Maksimal 2 menit (24 x 5s) untuk mencegah pemanggilan terus-menerus tanpa batas
+    const maxPolls = 24;
 
     const interval = setInterval(() => {
       if (document.visibilityState !== "visible") return;
-
       pollCount += 1;
       if (pollCount > maxPolls) {
         clearInterval(interval);
         return;
       }
-
       fetchStatus();
     }, 5000);
 
     return () => clearInterval(interval);
   }, [session.status, fetchStatus]);
 
-  // Loading diturunkan dari state fetch — tanpa setState sinkron di effect
   const loading = isFetching && !hasLoaded;
 
   const handleConnect = async () => {
@@ -161,7 +160,6 @@ export default function ClientWaSessionPage() {
         </div>
       )}
 
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <div className="rounded-xl border border-[var(--neutral-border)] bg-[var(--neutral-surface)] p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -177,7 +175,11 @@ export default function ClientWaSessionPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--text-secondary)]">Status</span>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLE[session.status] || STATUS_STYLE.DISCONNECTED}`}>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                  STATUS_STYLE[session.status] || STATUS_STYLE.DISCONNECTED
+                }`}
+              >
                 {isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
                 {STATUS_LABEL[session.status] || session.status}
               </span>
@@ -188,7 +190,7 @@ export default function ClientWaSessionPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--text-secondary)]">Auto-refresh</span>
-              <span className="text-xs text-[var(--text-muted)]">setiap 5 detik</span>
+              <span className="text-xs text-[var(--text-muted)]">setiap 5 detik saat pairing</span>
             </div>
           </div>
           <div className="mt-6 pt-4 border-t border-[var(--neutral-border)]">
@@ -198,7 +200,6 @@ export default function ClientWaSessionPage() {
             </p>
           </div>
         </div>
-
 
         <div className="rounded-xl border border-[var(--neutral-border)] bg-[var(--neutral-surface)] p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -215,7 +216,7 @@ export default function ClientWaSessionPage() {
               </div>
             ) : qrDataUrl ? (
               <>
-                {/* eslint-disable-next-line @next/next/no-img-element -- QR data URL tidak perlu optimasi next/image */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrDataUrl} alt="WhatsApp QR Code" className="rounded-lg border border-[var(--neutral-border)]" width={280} height={280} />
                 <p className="mt-4 text-xs text-[var(--text-secondary)] text-center max-w-xs">
                   Buka WhatsApp di HP &rarr; <strong>Settings &rarr; Linked Devices &rarr; Link a Device</strong>, lalu scan QR code di atas.
@@ -238,4 +239,3 @@ export default function ClientWaSessionPage() {
     </>
   );
 }
-

@@ -4,7 +4,7 @@ import * as profileRepository from '../repositories/profileRepository.js';
 
 const logger = createLogger('gateway-service');
 
-// Middleware: autentikasi via API Key
+// Middleware autentikasi API Key, JWT Bearer token, dan pemeriksaan role.
 export async function apiKeyAuth(req, res, next) {
   const apiKey = req.headers['x-api-key'];
   if (!apiKey) {
@@ -17,7 +17,6 @@ export async function apiKeyAuth(req, res, next) {
       return res.status(401).json({ success: false, error: { code: 'INVALID_API_KEY_FORMAT', message: 'API Key must start with ngw_prod_ or ngw_sand_' } });
     }
 
-    // Filter berdasarkan key_preview (8 char terakhir) sebelum bcrypt compare → hanya 1 record
     const keys = await apiKeyRepository.findActiveByPrefixAndPreview(keyPrefix, extractKeyPreview(apiKey));
     if (!keys?.length) {
       return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or inactive API Key.' } });
@@ -41,8 +40,7 @@ export async function apiKeyAuth(req, res, next) {
     req.apiKeyRecord = matchedKey;
     req.environment = matchedKey.environment;
 
-    // Update last_used_at secara async
-    apiKeyRepository.updateLastUsed(matchedKey.id);
+    await apiKeyRepository.updateLastUsed(matchedKey.id).catch(() => {});
 
     next();
   } catch (err) {
@@ -51,7 +49,6 @@ export async function apiKeyAuth(req, res, next) {
   }
 }
 
-// Middleware: autentikasi via JWT Bearer token
 export async function jwtAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -76,7 +73,6 @@ export async function jwtAuth(req, res, next) {
   }
 }
 
-// Middleware: cek role user
 export function roleCheck(allowedRoles = ['admin']) {
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {

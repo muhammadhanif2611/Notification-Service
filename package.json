@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Modular Microservices & SDK-Ready Notification System",
+  "description": "Modular Microservices Notification Gateway System",
   "workspaces": [
     "packages/*",
     "services/*",
@@ -36,7 +36,7 @@
   "keywords": [
     "notification-service",
     "microservices",
-    "sdk",
+    "rest-api",
     "supabase",
     "whatsapp",
     "email"

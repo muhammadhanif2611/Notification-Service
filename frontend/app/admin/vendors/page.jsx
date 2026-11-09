@@ -8,20 +8,14 @@ import { useAdminData } from "@/hooks/useAdminData";
 import { useToast } from "@/lib/toast-context";
 import { apiPost, apiPut, apiDelete } from "@/lib/api";
 
-/**
- * Vendors Page — Manajemen integrasi vendor provider.
- * DESIGN.md 6B.2: WhatsApp, Email, SMS providers. Rate limit TPS, fallback routing, API key management.
- */
-
 const CHANNEL_BADGE = {
   WHATSAPP: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   EMAIL: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-  SMS: "bg-purple-500/10 text-purple-700 dark:text-purple-400",
 };
 
+// Halaman Vendors & Kredensial Admin untuk mengelola provider SMTP Email beserta enkripsi AES-256-GCM.
 export default function VendorsPage() {
   const toast = useToast();
-  // Hanya fetch scope 'vendors' untuk efisiensi
   const scopeConfig = useMemo(() => ({ scope: ["vendors"] }), []);
   const { vendors, loading, refetch } = useAdminData(scopeConfig);
   const [showModal, setShowModal] = useState(false);
@@ -34,13 +28,11 @@ export default function VendorsPage() {
     credentials: "{}",
   });
 
-  // State untuk modal Update Kredensial
-  const [editVendor, setEditVendor] = useState(null); // vendor yang sedang diedit
-  const [editData, setEditData] = useState({ name: "", priority: 1, credentials: "" });
+  const [editVendor, setEditVendor] = useState(null);
+  const [editData, setEditData] = useState({ name: "", priority: 1, is_active: true, credentials: "" });
   const [updating, setUpdating] = useState(false);
 
-  // State untuk modal konfirmasi Hapus Vendor
-  const [deleteVendor, setDeleteVendor] = useState(null); // vendor yang akan dihapus
+  const [deleteVendor, setDeleteVendor] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -70,48 +62,50 @@ export default function VendorsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Buka modal Update Kredensial untuk vendor terpilih
   const openEditModal = (vendor) => {
     setEditVendor(vendor);
-    setEditData({ name: vendor.name, priority: vendor.priority, credentials: "" });
+    setEditData({
+      name: vendor.name,
+      priority: vendor.priority,
+      is_active: vendor.is_active ?? true,
+      credentials: "",
+    });
   };
 
   const closeEditModal = () => {
     setEditVendor(null);
-    setEditData({ name: "", priority: 1, credentials: "" });
+    setEditData({ name: "", priority: 1, is_active: true, credentials: "" });
   };
 
-  // Submit Update Kredensial — enkripsi ulang terjadi di server (AES-256-GCM)
   const handleUpdate = async (e) => {
     e.preventDefault();
-    if (!editData.credentials.trim()) {
-      toast.warning("Isi JSON kredensial baru untuk memperbarui.");
-      return;
+    const payload = {
+      name: editData.name,
+      priority: parseInt(editData.priority),
+      is_active: editData.is_active,
+    };
+
+    if (editData.credentials.trim()) {
+      try {
+        payload.credentials = JSON.parse(editData.credentials);
+      } catch {
+        toast.error("Format JSON kredensial tidak valid.");
+        return;
+      }
     }
-    let parsedCreds;
-    try {
-      parsedCreds = JSON.parse(editData.credentials);
-    } catch {
-      toast.error("Format JSON kredensial tidak valid.");
-      return;
-    }
+
     setUpdating(true);
     try {
-      await apiPut(`/v1/clients/vendors/${editVendor.id}`, {
-        name: editData.name,
-        priority: parseInt(editData.priority),
-        credentials: parsedCreds,
-      });
+      await apiPut(`/v1/clients/vendors/${editVendor.id}`, payload);
       await refetch();
       closeEditModal();
     } catch (err) {
-      toast.error("Gagal memperbarui kredensial: " + err.message);
+      toast.error("Gagal memperbarui vendor: " + err.message);
     } finally {
       setUpdating(false);
     }
   };
 
-  // Submit Hapus Vendor
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -228,13 +222,10 @@ export default function VendorsPage() {
         </button>
       </div>
 
-      {/* Security Notice */}
       <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20">
         <Lock size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-            Kredensial terenkripsi
-          </p>
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Kredensial terenkripsi</p>
           <p className="text-xs text-amber-700 dark:text-amber-400/80 mt-0.5">
             Semua secret key disimpan dengan enkripsi AES-256-GCM. Key dekripsi hanya tersedia di environment variable server.
           </p>
@@ -249,7 +240,6 @@ export default function VendorsPage() {
         emptyDescription="Tambahkan vendor provider untuk mulai mengirim notifikasi."
       />
 
-      {/* Add Vendor Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Tambah Vendor Baru">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -258,7 +248,7 @@ export default function VendorsPage() {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Baileys WhatsApp / Gmail SMTP"
+              placeholder="e.g. Gmail SMTP / Mailtrap"
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               required
             />
@@ -293,9 +283,6 @@ export default function VendorsPage() {
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               required
             />
-            <p className="text-[10px] text-[var(--text-muted)] mt-1">
-              Masukkan credentials dalam format JSON. Contoh: {"{\"apiKey\": \"sk_live_123\", \"endpoint\": \"https://api.vendor.com\"}"}
-            </p>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
             <button
@@ -316,8 +303,7 @@ export default function VendorsPage() {
         </form>
       </Modal>
 
-      {/* Update Kredensial Modal */}
-      <Modal isOpen={!!editVendor} onClose={closeEditModal} title={`Update Kredensial — ${editVendor?.name ?? ""}`}>
+      <Modal isOpen={!!editVendor} onClose={closeEditModal} title={`Edit Vendor — ${editVendor?.name ?? ""}`}>
         <form onSubmit={handleUpdate} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Vendor</label>
@@ -329,30 +315,43 @@ export default function VendorsPage() {
               required
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Priority (1-10)</label>
-            <input
-              type="number"
-              value={editData.priority}
-              onChange={(e) => setEditData({ ...editData, priority: e.target.value })}
-              min="1"
-              max="10"
-              className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
-              required
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Priority (1-10)</label>
+              <input
+                type="number"
+                value={editData.priority}
+                onChange={(e) => setEditData({ ...editData, priority: e.target.value })}
+                min="1"
+                max="10"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Status Vendor</label>
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editData.is_active}
+                  onChange={(e) => setEditData({ ...editData, is_active: e.target.checked })}
+                  className="rounded border-[var(--neutral-border)]"
+                />
+                <span>{editData.is_active ? "Active" : "Inactive"}</span>
+              </label>
+            </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Kredensial Baru (JSON)</label>
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Kredensial Baru (JSON — Opsional)</label>
             <textarea
               value={editData.credentials}
               onChange={(e) => setEditData({ ...editData, credentials: e.target.value })}
               rows={4}
-              placeholder='{"host": "smtp.gmail.com", "port": 587, "secure": false, "user": "you@gmail.com", "pass": "app-password", "from": "..."}'
+              placeholder='Kosongkan jika tidak ingin mengubah kredensial SMTP. Contoh: {"host": "smtp.gmail.com", "port": 587, "secure": false, "user": "...", "pass": "...", "from": "..."}'
               className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-              required
             />
             <p className="text-[10px] text-[var(--text-muted)] mt-1">
-              Isi JSON kredensial baru. Nilai lama tidak ditampilkan demi keamanan; kredensial dienkripsi ulang dengan AES-256-GCM di server.
+              Biarkan kosong jika hanya mengubah nama, prioritas, atau status. Isi JSON baru untuk mengganti dan mengenkripsi ulang kredensial SMTP dengan AES-256-GCM.
             </p>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
@@ -368,23 +367,20 @@ export default function VendorsPage() {
               disabled={updating}
               className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
             >
-              {updating ? "Memperbarui..." : "Update Kredensial"}
+              {updating ? "Memperbarui..." : "Simpan Perubahan"}
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Hapus Vendor Modal */}
       <Modal isOpen={!!deleteVendor} onClose={() => setDeleteVendor(null)} title="Hapus Vendor">
         <div className="space-y-4">
           <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20">
             <Trash2 size={16} className="text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-red-800 dark:text-red-300">
-                Hapus vendor &ldquo;{deleteVendor?.name}&rdquo;?
-              </p>
+              <p className="text-sm font-medium text-red-800 dark:text-red-300">Hapus vendor &ldquo;{deleteVendor?.name}&rdquo;?</p>
               <p className="text-xs text-red-700 dark:text-red-400/80 mt-0.5">
-                Tindakan ini permanen dan tidak dapat dibatalkan. Kredensial terenkripsi vendor akan ikut terhapus. Vendor yang sedang aktif dipakai untuk pengiriman Email akan berhenti berfungsi.
+                Tindakan ini permanen dan tidak dapat dibatalkan. Kredensial terenkripsi vendor akan ikut terhapus.
               </p>
             </div>
           </div>

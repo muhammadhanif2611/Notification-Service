@@ -1,14 +1,14 @@
 import * as clientService from '../services/clientService.js';
 
-// Helper: ambil userId dari JWT (req.user) atau header x-user-id yang di-forward gateway.
-// Client-service tidak punya JWT middleware sendiri — user info datang via header dari gateway.
+// Controller endpoint manajemen proyek, API key, template, vendor SMTP, dan pengecekan webhook.
 function getUserId(req) {
   return req.user?.userId ?? req.headers['x-user-id'] ?? null;
 }
 
 function getUserRole(req) {
   return req.user?.role ?? req.headers['x-user-role'] ?? 'user';
-}// User info diterima dari header (x-user-id, x-user-role) yang di-forward gateway untuk semua method
+}
+
 export async function getProjects(req, res, next) {
   try {
     const user = req.user || {
@@ -18,12 +18,16 @@ export async function getProjects(req, res, next) {
     const data = await clientService.listProjects(user);
     return res.json({ success: true, data });
   } catch (err) { next(err); }
-}export async function getProjectById(req, res, next) {
+}
+
+export async function getProjectById(req, res, next) {
   try {
     const data = await clientService.getProjectById(req.params.id);
     return res.json({ success: true, data });
   } catch (err) { next(err); }
-}export async function createProject(req, res, next) {
+}
+
+export async function createProject(req, res, next) {
   try {
     const data = await clientService.createProject(req.body, getUserId(req), getUserRole(req));
     const isPending = !data.is_active;
@@ -35,7 +39,9 @@ export async function getProjects(req, res, next) {
       data
     });
   } catch (err) { next(err); }
-}export async function approveProject(req, res, next) {
+}
+
+export async function approveProject(req, res, next) {
   try {
     const data = await clientService.approveProject(req.params.id, req.body, getUserId(req));
     return res.json({
@@ -44,86 +50,123 @@ export async function getProjects(req, res, next) {
       data
     });
   } catch (err) { next(err); }
-}export async function updateProject(req, res, next) {
+}
+
+export async function updateProject(req, res, next) {
   try {
     const data = await clientService.updateProject(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'Project updated successfully', data });
   } catch (err) { next(err); }
-}export async function deleteProject(req, res, next) {
+}
+
+export async function deleteProject(req, res, next) {
   try {
     const data = await clientService.deleteProject(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'Project deleted successfully', data });
   } catch (err) { next(err); }
-}export async function listApiKeys(req, res, next) {
+}
+
+export async function checkWebhookHealth(req, res, next) {
   try {
-    const data = await clientService.listApiKeys();
+    const data = await clientService.checkWebhookHealth(req.params.projectId);
     return res.json({ success: true, data });
   } catch (err) { next(err); }
-}export async function generateApiKey(req, res, next) {
+}
+
+export async function listApiKeys(req, res, next) {
+  try {
+    const data = await clientService.listApiKeys(req.query.projectId || null, getUserId(req), getUserRole(req));
+    return res.json({ success: true, data });
+  } catch (err) { next(err); }
+}
+
+export async function generateApiKey(req, res, next) {
   try {
     const data = await clientService.generateApiKey(req.body, getUserId(req));
     return res.status(201).json({ success: true, message: 'API Key generated. Save the raw key — it will not be shown again.', data });
   } catch (err) { next(err); }
-}export async function regenerateApiKey(req, res, next) {
+}
+
+export async function regenerateApiKey(req, res, next) {
   try {
     const data = await clientService.regenerateApiKey(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'API Key regenerated. Save the raw key — it will not be shown again.', data });
   } catch (err) { next(err); }
-}export async function deactivateApiKey(req, res, next) {
+}
+
+export async function deactivateApiKey(req, res, next) {
   try {
     const data = await clientService.deactivateApiKey(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'API Key deactivated successfully', data });
   } catch (err) { next(err); }
-}export async function updateApiKey(req, res, next) {
+}
+
+export async function updateApiKey(req, res, next) {
   try {
     const data = await clientService.updateApiKey(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'API Key updated successfully', data });
   } catch (err) { next(err); }
-}export async function deleteApiKey(req, res, next) {
+}
+
+export async function deleteApiKey(req, res, next) {
   try {
     const data = await clientService.deleteApiKey(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'API Key deleted successfully', data });
   } catch (err) { next(err); }
-}export async function getTemplates(req, res, next) {
+}
+
+export async function getTemplates(req, res, next) {
   try {
     const data = await clientService.listTemplates(req.query.projectId, getUserId(req), getUserRole(req));
     return res.json({ success: true, data });
   } catch (err) { next(err); }
-}export async function createTemplate(req, res, next) {
+}
+
+export async function createTemplate(req, res, next) {
   try {
     const data = await clientService.createTemplate(req.body, getUserId(req), getUserRole(req));
     return res.status(201).json({ success: true, message: 'Template berhasil dibuat dan siap digunakan.', data });
   } catch (err) { next(err); }
-}export async function updateTemplate(req, res, next) {
+}
+
+export async function updateTemplate(req, res, next) {
   try {
     const data = await clientService.updateTemplate(req.params.id, req.body, getUserId(req), getUserRole(req));
     return res.json({ success: true, message: 'Template berhasil diperbarui dan siap digunakan.', data });
   } catch (err) { next(err); }
-}export async function deleteTemplate(req, res, next) {
+}
+
+export async function deleteTemplate(req, res, next) {
   try {
     const data = await clientService.deleteTemplate(req.params.id, getUserId(req), getUserRole(req));
     return res.json({ success: true, message: 'Template deleted successfully', data });
   } catch (err) { next(err); }
-}export async function getVendors(req, res, next) {
+}
+
+export async function getVendors(req, res, next) {
   try {
     const data = await clientService.listVendors();
     return res.json({ success: true, data });
   } catch (err) { next(err); }
-}export async function createVendor(req, res, next) {
+}
+
+export async function createVendor(req, res, next) {
   try {
     const data = await clientService.createVendor(req.body, getUserId(req));
     return res.status(201).json({ success: true, message: 'Vendor registered successfully', data });
   } catch (err) { next(err); }
-}export async function updateVendor(req, res, next) {
+}
+
+export async function updateVendor(req, res, next) {
   try {
     const data = await clientService.updateVendor(req.params.id, req.body, getUserId(req));
     return res.json({ success: true, message: 'Vendor updated successfully', data });
   } catch (err) { next(err); }
-}export async function deleteVendor(req, res, next) {
+}
+
+export async function deleteVendor(req, res, next) {
   try {
     const data = await clientService.deleteVendor(req.params.id, getUserId(req));
     return res.json({ success: true, message: 'Vendor deleted successfully', data });
   } catch (err) { next(err); }
 }
-
-

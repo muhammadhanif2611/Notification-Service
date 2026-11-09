@@ -1,8 +1,7 @@
 "use client";
 
 import { API_URL } from "@/lib/config";
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   FolderKanban,
   Search,
@@ -12,68 +11,67 @@ import {
   Activity,
   CheckCircle2,
   Clock,
-  AlertCircle,
   Sliders,
   Check,
   Copy,
-  Shield,
-  Send,
-  Eye,
-  X
 } from "lucide-react";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
 import MetricCard from "@/components/shared/MetricCard";
 import Modal from "@/components/shared/Modal";
 import Alert from "@/components/shared/Alert";
 
+// Halaman Daftar Project Admin untuk menyetujui pengajuan proyek klien, menerbitkan API Key awal, dan mengelola kuota.
 export default function AdminProjectsPage() {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("ALL"); // ALL | PENDING | ACTIVE
+  const [activeTab, setActiveTab] = useState("ALL");
 
-  // Approve modal state
   const [approvingProject, setApprovingProject] = useState(null);
   const [approveForm, setApproveForm] = useState({
     dailyQuota: 5000,
     rateLimitPerMin: 100,
-    environment: "production"
+    environment: "production",
   });
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveResult, setApproveResult] = useState(null);
   const [copiedEnv, setCopiedEnv] = useState(false);
 
-  // Edit quota modal state
   const [editingProject, setEditingProject] = useState(null);
   const [editForm, setEditForm] = useState({ daily_quota: 5000, rate_limit_per_min: 100, is_active: true });
   const [editSaving, setEditSaving] = useState(false);
   const [modalError, setModalError] = useState(null);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
       const res = await apiGet("/v1/clients/projects");
       setProjects(res?.data || []);
-    } catch (err) {
-      console.error("Gagal memuat projects:", err);
+    } catch {
       setProjects([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchProjects();
   }, []);
 
-  // Evaluasi status koneksi & approval
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) await fetchProjects();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchProjects]);
+
   const getProjectStatus = (p) => {
     if (!p.is_active) {
       return {
         type: "PENDING",
         label: "Menunggu Persetujuan",
-        badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40",
-        icon: Clock
+        badgeClass:
+          "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40",
+        icon: Clock,
       };
     }
 
@@ -85,36 +83,36 @@ export default function AdminProjectsPage() {
     if (lastUsedKey?.last_used_at) {
       return {
         type: "CONNECTED",
-        label: "Terhubung (SDK Aktif)",
+        label: "Terhubung (API Aktif)",
         lastHit: lastUsedKey.last_used_at,
-        badgeClass: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40",
-        icon: CheckCircle2
+        badgeClass:
+          "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40",
+        icon: CheckCircle2,
       };
     }
 
     return {
       type: "APPROVED_WAITING",
-      label: "Disetujui (Menunggu Hit SDK)",
+      label: "Disetujui (Menunggu Hit API)",
       keyCount: keys.length,
-      badgeClass: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40",
-      icon: Activity
+      badgeClass:
+        "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40",
+      icon: Activity,
     };
   };
 
-  // Open approve modal
   const handleOpenApprove = (p) => {
     setApprovingProject(p);
     setApproveForm({
       dailyQuota: p.daily_quota || 5000,
       rateLimitPerMin: p.rate_limit_per_min || 100,
-      environment: "production"
+      environment: "production",
     });
     setApproveResult(null);
     setCopiedEnv(false);
     setModalError(null);
   };
 
-  // Execute approval (Model 2: Approve & Auto-generate API Key)
   const handleConfirmApprove = async (e) => {
     e.preventDefault();
     setApproveSubmitting(true);
@@ -123,7 +121,7 @@ export default function AdminProjectsPage() {
       const res = await apiPost(`/v1/clients/projects/${approvingProject.id}/approve`, {
         dailyQuota: Number(approveForm.dailyQuota),
         rateLimitPerMin: Number(approveForm.rateLimitPerMin),
-        environment: approveForm.environment
+        environment: approveForm.environment,
       });
       setApproveResult(res?.data || {});
       await fetchProjects();
@@ -139,7 +137,7 @@ export default function AdminProjectsPage() {
     setEditForm({
       daily_quota: p.daily_quota || 5000,
       rate_limit_per_min: p.rate_limit_per_min || 100,
-      is_active: p.is_active ?? true
+      is_active: p.is_active ?? true,
     });
     setModalError(null);
   };
@@ -152,7 +150,7 @@ export default function AdminProjectsPage() {
       await apiPut(`/v1/clients/projects/${editingProject.id}`, {
         dailyQuota: Number(editForm.daily_quota),
         rateLimitPerMin: Number(editForm.rate_limit_per_min),
-        isActive: editForm.is_active
+        isActive: editForm.is_active,
       });
       setEditingProject(null);
       await fetchProjects();
@@ -165,13 +163,9 @@ export default function AdminProjectsPage() {
 
   const pendingProjects = projects.filter((p) => !p.is_active);
   const activeProjects = projects.filter((p) => p.is_active);
-  const connectedProjects = projects.filter((p) => {
-    const s = getProjectStatus(p);
-    return s.type === "CONNECTED";
-  });
+  const connectedProjects = projects.filter((p) => getProjectStatus(p).type === "CONNECTED");
 
   const filteredProjects = projects.filter((p) => {
-    const s = getProjectStatus(p);
     const matchesTab =
       activeTab === "ALL" ||
       (activeTab === "PENDING" && !p.is_active) ||
@@ -188,11 +182,10 @@ export default function AdminProjectsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-5 border-b border-[var(--neutral-border)]">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Katalog & Persetujuan Proyek Klien</h1>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">Katalog &amp; Persetujuan Proyek Klien</h1>
             {pendingProjects.length > 0 && (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 animate-pulse">
                 {pendingProjects.length} Menunggu Persetujuan
@@ -200,7 +193,7 @@ export default function AdminProjectsPage() {
             )}
           </div>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Tinjau permohonan akses dari klien, terbitkan kredensial API Key resmi, dan pantau telemetry hit pertama SDK.
+            Tinjau permohonan akses dari klien, terbitkan kredensial API Key resmi, dan pantau telemetry hit pertama REST API.
           </p>
         </div>
         <button
@@ -213,7 +206,6 @@ export default function AdminProjectsPage() {
         </button>
       </div>
 
-      {/* Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           icon={<FolderKanban size={16} />}
@@ -231,13 +223,12 @@ export default function AdminProjectsPage() {
         />
         <MetricCard
           icon={<CheckCircle2 size={16} className="text-emerald-500" />}
-          label="SDK Aktif / Terhubung"
+          label="API Aktif / Terhubung"
           value={loading ? "..." : connectedProjects.length}
           subtitle={`${activeProjects.length} disetujui · ${connectedProjects.length} pernah hit`}
         />
       </div>
 
-      {/* Search & Tabs */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[var(--neutral-surface)] p-3 rounded-xl border border-[var(--neutral-border)] shadow-xs">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -250,12 +241,11 @@ export default function AdminProjectsPage() {
           />
         </div>
 
-        {/* Tab Filter */}
         <div className="flex items-center gap-1.5 p-1 bg-[var(--neutral-bg)] rounded-lg text-xs font-medium border border-[var(--neutral-border)] w-full sm:w-auto">
           {[
             { id: "ALL", label: `Semua (${projects.length})` },
             { id: "PENDING", label: `🟡 Pengajuan Baru (${pendingProjects.length})` },
-            { id: "ACTIVE", label: `🟢 Disetujui & Aktif (${activeProjects.length})` }
+            { id: "ACTIVE", label: `🟢 Disetujui & Aktif (${activeProjects.length})` },
           ].map((t) => (
             <button
               key={t.id}
@@ -272,7 +262,6 @@ export default function AdminProjectsPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-[var(--neutral-surface)] rounded-xl border border-[var(--neutral-border)] shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -280,7 +269,7 @@ export default function AdminProjectsPage() {
               <tr>
                 <th className="px-6 py-3.5">Proyek Klien</th>
                 <th className="px-6 py-3.5">Pemohon (Client)</th>
-                <th className="px-6 py-3.5">Status & Telemetry SDK</th>
+                <th className="px-6 py-3.5">Status &amp; Telemetry API</th>
                 <th className="px-6 py-3.5">API Keys</th>
                 <th className="px-6 py-3.5">Alokasi Kuota</th>
                 <th className="px-6 py-3.5 text-right">Aksi</th>
@@ -313,10 +302,13 @@ export default function AdminProjectsPage() {
                   const status = getProjectStatus(p);
                   return (
                     <tr key={p.id} className="hover:bg-[var(--neutral-bg)] transition-colors">
-                      {/* Nama & Deskripsi */}
                       <td className="px-6 py-4">
                         <div className="flex items-start gap-2.5">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${p.is_active ? "bg-[var(--primary)]/10 text-[var(--text-primary)]" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50"}`}>
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                              p.is_active ? "bg-[var(--primary)]/10 text-[var(--text-primary)]" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50"
+                            }`}
+                          >
                             <FolderKanban size={15} />
                           </div>
                           <div>
@@ -325,30 +317,22 @@ export default function AdminProjectsPage() {
                               <span className="text-[11px] font-mono text-[var(--text-muted)]">({p.slug})</span>
                             </div>
                             {p.description && (
-                              <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2 max-w-md">
-                                {p.description}
-                              </p>
+                              <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2 max-w-md">{p.description}</p>
                             )}
                           </div>
                         </div>
                       </td>
 
-                      {/* Pemohon */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <User size={13} className="text-[var(--text-muted)]" />
                           <div>
-                            <p className="text-xs font-medium text-[var(--text-primary)]">
-                              {p.profiles?.name || "Klien"}
-                            </p>
-                            <p className="text-[11px] text-[var(--text-muted)]">
-                              {p.profiles?.email || "-"}
-                            </p>
+                            <p className="text-xs font-medium text-[var(--text-primary)]">{p.profiles?.name || "Klien"}</p>
+                            <p className="text-[11px] text-[var(--text-muted)]">{p.profiles?.email || "-"}</p>
                           </div>
                         </div>
                       </td>
 
-                      {/* Status & Telemetry */}
                       <td className="px-6 py-4">
                         <div>
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md ${status.badgeClass}`}>
@@ -357,43 +341,40 @@ export default function AdminProjectsPage() {
                           </span>
                           {status.lastHit && (
                             <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                              Hit pertama/terakhir: {new Date(status.lastHit).toLocaleString("id-ID", {
+                              Hit pertama/terakhir:{" "}
+                              {new Date(status.lastHit).toLocaleString("id-ID", {
                                 day: "numeric",
                                 month: "short",
                                 hour: "2-digit",
-                                minute: "2-digit"
+                                minute: "2-digit",
                               })}
                             </p>
                           )}
                         </div>
                       </td>
 
-                      {/* API Keys */}
                       <td className="px-6 py-4">
                         <div className="space-y-1">
                           {(p.api_keys || []).slice(0, 2).map((k) => (
                             <div key={k.id} className="flex items-center gap-1 text-[11px] font-mono text-[var(--text-secondary)]">
                               <KeyRound size={11} className="text-[var(--text-muted)]" />
-                              <span>{k.key_prefix}••••{k.key_preview}</span>
+                              <span>
+                                {k.key_prefix}••••{k.key_preview}
+                              </span>
                             </div>
                           ))}
-                          {(p.api_keys || []).length === 0 && (
-                            <span className="text-xs text-[var(--text-muted)]">Belum terbit</span>
-                          )}
+                          {(p.api_keys || []).length === 0 && <span className="text-xs text-[var(--text-muted)]">Belum terbit</span>}
                         </div>
                       </td>
 
-                      {/* Kuota */}
                       <td className="px-6 py-4 text-xs">
                         <p className="font-semibold text-[var(--text-primary)]">
-                          {(p.daily_quota || 5000).toLocaleString("id-ID")} <span className="font-normal text-[var(--text-muted)]">pesan/hari</span>
+                          {(p.daily_quota || 5000).toLocaleString("id-ID")}{" "}
+                          <span className="font-normal text-[var(--text-muted)]">pesan/hari</span>
                         </p>
-                        <p className="text-[11px] text-[var(--text-muted)]">
-                          {p.rate_limit_per_min || 100} req/menit
-                        </p>
+                        <p className="text-[11px] text-[var(--text-muted)]">{p.rate_limit_per_min || 100} req/menit</p>
                       </td>
 
-                      {/* Aksi */}
                       <td className="px-6 py-4 text-right">
                         {!p.is_active ? (
                           <button
@@ -401,7 +382,7 @@ export default function AdminProjectsPage() {
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors shadow-xs"
                           >
                             <Check size={13} />
-                            Tinjau & Setujui
+                            Tinjau &amp; Setujui
                           </button>
                         ) : (
                           <button
@@ -422,7 +403,6 @@ export default function AdminProjectsPage() {
         </div>
       </div>
 
-      {/* Modal: Tinjau & Setujui Pengajuan Proyek */}
       <Modal
         isOpen={!!approvingProject}
         onClose={() => setApprovingProject(null)}
@@ -430,10 +410,10 @@ export default function AdminProjectsPage() {
         maxWidth={approveResult ? "max-w-2xl" : "max-w-lg"}
       >
         {approveResult ? (
-          /* Tampilan Sukses & Kredensial Onboarding */
           <div className="min-w-0 space-y-4">
             <Alert variant="success" title="Kredensial Resmi Telah Diterbitkan">
-              Proyek ini sekarang aktif. Bagikan konfigurasi di bawah ke developer klien untuk dipasang ke file <code className="font-mono">.env</code> aplikasi mereka.
+              Proyek ini sekarang aktif. Bagikan konfigurasi di bawah ke developer klien untuk dipasang ke file{" "}
+              <code className="font-mono">.env</code> aplikasi mereka.
             </Alert>
 
             {approveResult.rawApiKey ? (
@@ -449,9 +429,7 @@ export default function AdminProjectsPage() {
 
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-1">
-                    <label className="text-xs font-medium text-[var(--text-secondary)]">
-                      Paket Konfigurasi .env Siap Salin
-                    </label>
+                    <label className="text-xs font-medium text-[var(--text-secondary)]">Paket Konfigurasi .env Siap Salin</label>
                     <button
                       type="button"
                       onClick={() => {
@@ -462,12 +440,19 @@ export default function AdminProjectsPage() {
                       }}
                       className="inline-flex shrink-0 items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     >
-                      {copiedEnv ? <><Check size={12} className="text-emerald-500" /> Disalin!</> : <><Copy size={12} /> Salin .env</>}
+                      {copiedEnv ? (
+                        <>
+                          <Check size={12} className="text-emerald-500" /> Disalin!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} /> Salin .env
+                        </>
+                      )}
                     </button>
                   </div>
                   <pre className="w-full max-w-full whitespace-pre-wrap break-all p-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-xs font-mono text-[var(--text-primary)]">
-{`NGW_API_KEY=${approveResult.rawApiKey}
-NGW_BASE_URL=${API_URL}`}
+                    {`NGW_API_KEY=${approveResult.rawApiKey}\nNGW_BASE_URL=${API_URL}`}
                   </pre>
                 </div>
               </div>
@@ -483,19 +468,24 @@ NGW_BASE_URL=${API_URL}`}
                 onClick={() => setApprovingProject(null)}
                 className="px-4 py-2 bg-[var(--primary)] text-[var(--on-primary)] rounded-lg text-xs font-semibold"
               >
-                Selesai & Tutup
+                Selesai &amp; Tutup
               </button>
             </div>
           </div>
         ) : (
-          /* Form Persetujuan Kuota */
           <form onSubmit={handleConfirmApprove} className="space-y-4">
             {modalError && <Alert variant="error">{modalError}</Alert>}
 
-            {/* Info pengajuan klien */}
             <div className="p-3.5 rounded-lg bg-[var(--neutral-bg)] border border-[var(--neutral-border)] space-y-1.5 text-xs">
-              <p className="text-[var(--text-muted)]">Pemohon: <span className="font-semibold text-[var(--text-primary)]">{approvingProject?.profiles?.name} ({approvingProject?.profiles?.email})</span></p>
-              <p className="text-[var(--text-muted)]">Slug Proyek: <span className="font-mono text-[var(--text-primary)]">{approvingProject?.slug}</span></p>
+              <p className="text-[var(--text-muted)]">
+                Pemohon:{" "}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {approvingProject?.profiles?.name} ({approvingProject?.profiles?.email})
+                </span>
+              </p>
+              <p className="text-[var(--text-muted)]">
+                Slug Proyek: <span className="font-mono text-[var(--text-primary)]">{approvingProject?.slug}</span>
+              </p>
               {approvingProject?.description && (
                 <p className="text-[var(--text-muted)] pt-1 border-t border-[var(--neutral-border)]">
                   Kebutuhan Notifikasi: <span className="text-[var(--text-secondary)] italic">{approvingProject.description}</span>
@@ -532,9 +522,7 @@ NGW_BASE_URL=${API_URL}`}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-                Mode Kunci Akses Awal
-              </label>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Mode Kunci Akses Awal</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -584,7 +572,7 @@ NGW_BASE_URL=${API_URL}`}
                 ) : (
                   <>
                     <Check size={14} />
-                    Setujui & Terbitkan API Key
+                    Setujui &amp; Terbitkan API Key
                   </>
                 )}
               </button>
@@ -593,7 +581,6 @@ NGW_BASE_URL=${API_URL}`}
         )}
       </Modal>
 
-      {/* Modal: Kelola Kuota (Proyek Aktif) */}
       <Modal
         isOpen={!!editingProject}
         onClose={() => setEditingProject(null)}
@@ -604,8 +591,12 @@ NGW_BASE_URL=${API_URL}`}
           {modalError && <Alert variant="error">{modalError}</Alert>}
 
           <div className="p-3 rounded-lg bg-[var(--neutral-bg)] border border-[var(--neutral-border)] space-y-1">
-            <p className="text-xs text-[var(--text-muted)]">Slug: <span className="font-mono text-[var(--text-primary)]">{editingProject?.slug}</span></p>
-            <p className="text-xs text-[var(--text-muted)]">Pemilik: <span className="text-[var(--text-primary)]">{editingProject?.profiles?.email || "-"}</span></p>
+            <p className="text-xs text-[var(--text-muted)]">
+              Slug: <span className="font-mono text-[var(--text-primary)]">{editingProject?.slug}</span>
+            </p>
+            <p className="text-xs text-[var(--text-muted)]">
+              Pemilik: <span className="text-[var(--text-primary)]">{editingProject?.profiles?.email || "-"}</span>
+            </p>
           </div>
 
           <div>

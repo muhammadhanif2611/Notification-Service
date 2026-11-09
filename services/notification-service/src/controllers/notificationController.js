@@ -1,4 +1,6 @@
-import * as notificationService from '../services/notificationService.js';// Project & environment dibaca dari header yang di-forward gateway — body murni business payload.
+import * as notificationService from '../services/notificationService.js';
+
+// Controller pemrosesan pengiriman pesan tunggal dan broadcast berdasarkan konteks header dari Gateway.
 export async function process(req, res, next) {
   try {
     const context = {
@@ -10,32 +12,17 @@ export async function process(req, res, next) {
     const data = await notificationService.processNotification(context);
     return res.status(202).json({ success: true, data });
   } catch (err) { next(err); }
-}export async function broadcast(req, res, next) {
+}
+
+export async function broadcast(req, res, next) {
   try {
     const { channel, recipients, templateCode, body, subject, variables, recipientVariables } = req.body;
+    const isSandbox = req.headers['x-environment'] === 'sandbox' || req.headers['x-api-key-prefix'] === 'ngw_sand_';
     const data = await notificationService.processBroadcast({
       channel, recipients, templateCode, body, subject, variables, recipientVariables,
       project: { id: req.headers['x-project-id'] },
-      isSandbox: req.headers['x-environment'] === 'sandbox'
+      isSandbox
     });
     return res.status(202).json({ success: true, data });
-  } catch (err) { next(err); }
-}export async function getLogs(req, res, next) {
-  try {
-    const { projectId } = req.params;
-    const { page = 1, limit = 20, status, channel } = req.query;
-    const result = await notificationService.getNotificationLogs({
-      projectId,
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
-      status: status ?? null,
-      channel: channel ?? null
-    });
-    return res.json({ success: true, data: result.data, pagination: result.pagination });
-  } catch (err) { next(err); }
-}export async function getByMessageId(req, res, next) {
-  try {
-    const data = await notificationService.getNotificationByMessageId(req.params.messageId);
-    return res.json({ success: true, data });
   } catch (err) { next(err); }
 }

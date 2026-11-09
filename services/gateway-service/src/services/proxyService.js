@@ -1,20 +1,9 @@
 import { createLogger } from '@notification-gateway/shared';
 
 const logger = createLogger('gateway-service:proxy');
-
-// Lebih pendek daripada timeout dashboard (30 detik), agar error gateway dapat diterima.
 const PROXY_TIMEOUT_MS = 20000;
 
-/**
- * Meneruskan request HTTP dari Gateway ke microservice tujuan.
- * Menjamin headers auth, user info, dan query parameters di-forward dengan benar.
- * Dilengkapi dengan AbortSignal.timeout untuk mencegah request menggantung tanpa batas.
- *
- * @param {string} targetUrl - URL endpoint microservice tujuan
- * @param {import('express').Request} req - Express Request
- * @param {import('express').Response} res - Express Response
- * @returns {Promise<import('express').Response>}
- */
+// Meneruskan request HTTP dari Gateway ke microservice tujuan beserta konteks user, project, dan API key.
 export async function forwardProxyRequest(targetUrl, req, res) {
   try {
     let url = targetUrl;
@@ -27,10 +16,10 @@ export async function forwardProxyRequest(targetUrl, req, res) {
       'Content-Type': 'application/json',
       ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
       ...(req.headers['x-api-key'] ? { 'x-api-key': req.headers['x-api-key'] } : {}),
-      // Forward user & project context
       ...(req.user ? { 'x-user-id': req.user.userId, 'x-user-role': req.user.role } : {}),
       ...(req.project ? { 'x-project-id': req.project.id } : {}),
-      ...(req.environment ? { 'x-environment': req.environment } : {})
+      ...(req.environment ? { 'x-environment': req.environment } : {}),
+      ...(req.apiKeyRecord?.key_prefix ? { 'x-api-key-prefix': req.apiKeyRecord.key_prefix } : {})
     };
 
     const hasBody = req.method !== 'GET' && req.method !== 'HEAD';

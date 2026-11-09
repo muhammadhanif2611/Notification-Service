@@ -3,12 +3,13 @@ import { whatsappQueue, emailQueue } from '../config/queue.js';
 import { config } from '../config/env.js';
 import { AppError } from '../middlewares/errorHandler.js';
 import { randomBytes } from 'node:crypto';
-
-const logger = createLogger('notification-service');
 import * as templateRepository from '../repositories/templateRepository.js';
 import * as projectRepository from '../repositories/projectRepository.js';
 import * as notificationLogRepository from '../repositories/notificationLogRepository.js';
 
+const logger = createLogger('notification-service');
+
+// Layanan validasi kuota, rate limit, resolusi template, dan antrean BullMQ untuk pengiriman tunggal & broadcast.
 function generateMessageId() {
   return `msg_${Date.now()}_${randomBytes(4).toString('hex')}`;
 }
@@ -37,7 +38,6 @@ async function resolveMessageContent(projectId, channel, templateCode, body, var
   return { resolvedBody, resolvedSubject: template.subject ?? null };
 }
 
-// Helper mengambil raw body (tanpa replace variabel) — dipakai untuk personalisasi broadcast
 async function resolveRawBody(projectId, channel, templateCode, body) {
   if (!templateCode) return { rawBody: body, resolvedSubject: null };
 
@@ -58,8 +58,6 @@ function replaceTemplateVariables(body, variables) {
   return result;
 }
 
-// Helper mengecek kuota harian & status keaktifan project
-// Return { project, todayCount } agar caller tidak perlu query countTodayByProject ulang
 async function checkProjectThreshold(projectId) {
   const project = await projectRepository.findByIdWithQuota(projectId);
   if (!project) throw new AppError('Associated project not found.', 404, 'PROJECT_NOT_FOUND');
@@ -70,7 +68,6 @@ async function checkProjectThreshold(projectId) {
     throw new AppError(`Daily quota of ${project.daily_quota} has been reached.`, 429, 'DAILY_QUOTA_EXCEEDED');
   }
 
-  // Real-time rate limit per menit (Redis Sliding Window) berdasarkan rate_limit_per_min project
   const perMinuteLimit = project.rate_limit_per_min ?? 100;
   const rateResult = await checkRateLimit({
     key: `ratelimit:project:${projectId}`,
@@ -90,7 +87,6 @@ async function checkProjectThreshold(projectId) {
   return { project, todayCount };
 }
 
-// Helper menyimpan log dan memasukkan job ke antrean BullMQ
 async function persistAndEnqueue({ messageId, projectId, channel, recipient, payload, isSandbox, subject, body, templateCode, variables, broadcastId }) {
   await notificationLogRepository.insert({
     message_id: messageId,
@@ -167,7 +163,6 @@ export async function processNotification({ body: reqBody, project, environment,
   };
 }
 
-// Optimasi: batch insert 1 query ke DB + addBulk 1 call ke BullMQ (bukan N sequential await)
 export async function processBroadcast({ channel, recipients, templateCode, body, subject, variables, recipientVariables, project, isSandbox = false }) {
   if (!Array.isArray(recipients) || recipients.length === 0) {
     throw new AppError('recipients must be a non-empty array.', 400, 'VALIDATION_ERROR');
@@ -194,8 +189,6 @@ export async function processBroadcast({ channel, recipients, templateCode, body
       throw new AppError(`Broadcast exceeds quota. Remaining: ${remainingQuota}, Requested: ${activeRecipients.length}.`, 429, 'DAILY_QUOTA_EXCEEDED');
     }
 
-    // Rate limit anti-spam untuk broadcast: N recipient memesan N slot pada jendela 1 menit.
-    // Tanpa ini, satu panggil broadcast bisa melewati rate limit yang berlaku untuk single send.
     const perMinuteLimit = projectRecord.rate_limit_per_min ?? 100;
     const rateResult = await checkRateLimit({
       key: `ratelimit:project:${projectId}`,
@@ -214,15 +207,11 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     }
   }
 
-  // Ambil raw body (belum di-replace variabel) agar bisa dipersonalisasi per penerima
   const { rawBody, resolvedSubject } = await resolveRawBody(projectId, normalizedChannel, templateCode, body);
   const finalSubject = resolvedSubject ?? subject;
 
-  // Siapkan seluruh messageId, log rows, dan job payloads sekaligus
   const queuedResults = activeRecipients.map((recipient) => {
     const messageId = generateMessageId();
-
-    // Personalisasi: gabungkan variabel global + variabel khusus penerima ini
     const perRecipientVars = (recipientVariables && typeof recipientVariables === 'object')
       ? recipientVariables[recipient]
       : null;
@@ -230,7 +219,6 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     const finalBody = replaceTemplateVariables(rawBody, mergedVars);
 
     logger.debug({ recipient, messageId }, 'Broadcast message prepared');
-
     return { recipient, messageId, finalBody };
   });
   const createdAt = new Date().toISOString();
@@ -261,7 +249,6 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     }
   }));
 
-  // Batch insert 1 query + addBulk 1 call
   await notificationLogRepository.insertMany(logRows);
 
   const targetQueue = normalizedChannel === CHANNELS.WHATSAPP ? whatsappQueue : emailQueue;
@@ -276,20 +263,4 @@ export async function processBroadcast({ channel, recipients, templateCode, body
     recipients: queuedResults,
     acceptedAt: createdAt
   };
-}
-
-export async function getNotificationLogs({ projectId, page = 1, limit = 20, status = null, channel = null }) {
-  const { data, count } = await notificationLogRepository.findPaginated({ projectId, page, limit, status, channel });
-  return {
-    data,
-    pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) }
-  };
-}
-
-export async function getNotificationByMessageId(messageId) {
-  const notification = await notificationLogRepository.findByMessageId(messageId);
-  if (!notification) {
-    throw new AppError(`Notification '${messageId}' not found.`, 404, 'NOT_FOUND');
-  }
-  return notification;
 }

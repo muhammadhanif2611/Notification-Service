@@ -23,8 +23,6 @@ const MIGRATIONS = [
   '20260822_notification_log_stats_rpc.sql',
   '20260827_drop_template_status.sql',
   '20261023_remove_template_approval.sql',
-  '20261101_phase6_alert_rules.sql',
-  '20261101_phase6_mta_domain.sql',
   '20261101_phase6_stats_trend.sql',
   '20261101_phase6_suppression_list.sql',
   '20261101_phase6_webhook_events.sql'
@@ -40,10 +38,6 @@ const REQUIRED_RELATIONS = [
   'notification_logs',
   'webhooks_log',
   'suppression_list',
-  'alert_rules',
-  'alert_history',
-  'mta_domains',
-  'ip_pools',
   'admin_project_usage',
   'admin_client_overview',
   'admin_client_summary'
@@ -82,70 +76,6 @@ async function verifySchema() {
   return missingRelations;
 }
 
-async function seedDefaultData() {
-  const { data: existingRules, error: rulesErr } = await supabase
-    .from('alert_rules')
-    .select('id')
-    .limit(1);
-
-  if (!rulesErr && existingRules && existingRules.length === 0) {
-    await supabase.from('alert_rules').insert([
-      {
-        name: 'High Failure Rate',
-        description: 'Alert ketika failure rate melebihi threshold dalam jendela waktu terakhir',
-        metric: 'failure_rate',
-        operator: '>',
-        threshold: 5,
-        unit: '%',
-        window_minutes: 5,
-        enabled: true
-      },
-      {
-        name: 'Queue Overload',
-        description: 'Alert ketika antrean tertunda melebihi batas pesan',
-        metric: 'queue_pending',
-        operator: '>',
-        threshold: 5000,
-        unit: 'pesan',
-        window_minutes: 5,
-        enabled: true
-      },
-      {
-        name: 'High Latency',
-        description: 'Alert ketika rata-rata latency pengiriman melebihi threshold',
-        metric: 'avg_latency',
-        operator: '>',
-        threshold: 500,
-        unit: 'ms',
-        window_minutes: 10,
-        enabled: false
-      }
-    ]);
-    console.log('   [SEEDED] Default alert_rules');
-  }
-
-  const { data: existingDomains, error: domainsErr } = await supabase
-    .from('mta_domains')
-    .select('id')
-    .limit(1);
-
-  if (!domainsErr && existingDomains && existingDomains.length === 0) {
-    await supabase.from('mta_domains').insert([
-      {
-        domain: 'mail.gateway.com',
-        is_primary: true,
-        dns_records: [
-          { type: 'SPF', expected: 'v=spf1' },
-          { type: 'MX', expected: null },
-          { type: 'DMARC', expected: 'v=DMARC1' },
-          { type: 'DKIM', expected: null, selector: 'default._domainkey' }
-        ]
-      }
-    ]);
-    console.log('   [SEEDED] Default mta_domains');
-  }
-}
-
 async function main() {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     console.error('Missing Supabase credentials in .env');
@@ -173,12 +103,11 @@ async function main() {
   }
 
   const missing = await verifySchema();
-  await seedDefaultData();
 
   if (missing.length > 0) {
     console.log('\nTo synchronize missing tables/views/RPCs on Supabase, run scripts/RUN_THIS_MIGRATION.sql in the Supabase SQL Editor.');
   } else {
-    console.log('\nAll Phase 1-6 tables, views, and RPC functions are synchronized on Supabase!');
+    console.log('\nAll tables, views, and RPC functions are synchronized on Supabase!');
   }
 }
 

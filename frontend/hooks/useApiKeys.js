@@ -3,20 +3,26 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 
+// Hook manajemen siklus hidup API Key (list, create, regenerate, deactivate, update, delete) per project.
 export function useApiKeys(projectId = null) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchKeys = useCallback(async () => {
+    if (!projectId) {
+      setKeys([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await apiGet("/v1/clients/api-keys");
+      const query = `?projectId=${encodeURIComponent(projectId)}`;
+      const res = await apiGet(`/v1/clients/api-keys${query}`, { skipDedupe: true });
       const d = res?.data;
       let list = Array.isArray(d) ? d : d?.data || [];
-      // Scoping per project: hanya tampilkan key milik project aktif
-      if (projectId) list = list.filter((k) => k.project_id === projectId);
+      list = list.filter((k) => k.project_id === projectId);
       setKeys(list);
     } catch (err) {
       setError(err.message);
@@ -25,19 +31,26 @@ export function useApiKeys(projectId = null) {
     }
   }, [projectId]);
 
-  /**
-   * Membuat API Key baru.
-   * @param {string} projectId - UUID project pemilik key
-   * @param {string} name - Label key (mis. "Production Key")
-   * @param {string} environment - "production" | "sandbox"
-   * @returns {Promise<{rawApiKey: string, apiKeyInfo: object}>}
-   */
   const createKey = async (projectId, name, environment) => {
     setLoading(true);
     try {
       const res = await apiPost("/v1/clients/api-keys", { projectId, name, environment });
       await fetchKeys();
-      return res.data; // { rawApiKey, apiKeyInfo }
+      return res.data;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateKey = async (id) => {
+    setLoading(true);
+    try {
+      const res = await apiPost(`/v1/clients/api-keys/${id}/regenerate`);
+      await fetchKeys();
+      return res.data;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -60,7 +73,6 @@ export function useApiKeys(projectId = null) {
     }
   };
 
-  // Edit label/nama API Key
   const updateKey = async (id, name) => {
     try {
       const res = await apiPut(`/v1/clients/api-keys/${id}`, { name });
@@ -72,7 +84,6 @@ export function useApiKeys(projectId = null) {
     }
   };
 
-  // Hapus API Key secara permanen
   const deleteKey = async (id) => {
     try {
       const res = await apiDelete(`/v1/clients/api-keys/${id}`);
@@ -89,9 +100,10 @@ export function useApiKeys(projectId = null) {
     (async () => {
       if (!cancelled) await fetchKeys();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [fetchKeys]);
 
-  return { keys, loading, error, createKey, deactivateKey, updateKey, deleteKey, refetch: fetchKeys };
+  return { keys, loading, error, createKey, regenerateKey, deactivateKey, updateKey, deleteKey, refetch: fetchKeys };
 }
-

@@ -9,32 +9,28 @@ import { useUsers } from "@/hooks/useUsers";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/lib/toast-context";
 
-const EMPTY_FORM = { name: "", email: "", password: "", role: "user", project_name: "", quota_daily: "", rate_limit: "" };
+const EMPTY_FORM = { name: "", email: "", password: "", role: "user" };
 
-/** UsersPage — Kelola Pengguna: admin membuat akun login untuk client (DESIGN.md 6B.5). */
+// Halaman Kelola Pengguna Admin untuk membuat, mengubah, menonaktifkan, dan menghapus akun login.
 export default function UsersPage() {
   const toast = useToast();
   const { user: currentUser } = useAuth();
   const { users, loading, error, createUser, setUserStatus, deleteUser, updateUser, refetch } = useUsers();
 
-  // Create modal state
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
-  // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState(EMPTY_FORM);
   const [editingUserId, setEditingUserId] = useState(null);
 
-  // Credentials modal (setelah akun berhasil dibuat)
   const [createdCreds, setCreatedCreds] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
 
-  // Confirm action modal
-  const [confirmAction, setConfirmAction] = useState(null); // { type: 'suspend'|'activate'|'delete', user }
+  const [confirmAction, setConfirmAction] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -57,6 +53,7 @@ export default function UsersPage() {
     setEditForm(EMPTY_FORM);
     setEditingUserId(null);
     setFormError(null);
+    setShowPassword(false);
   };
 
   const handleEdit = (user) => {
@@ -64,11 +61,8 @@ export default function UsersPage() {
     setEditForm({
       name: user.name || "",
       email: user.email || "",
-      password: "", // Password tidak diisi, biarkan kosong jika tidak ingin diubah
+      password: "",
       role: user.role || "user",
-      project_name: user.project_name || "",
-      quota_daily: user.quota_daily || "",
-      rate_limit: user.rate_limit || "",
     });
     setShowEditModal(true);
   };
@@ -82,11 +76,7 @@ export default function UsersPage() {
         name: editForm.name.trim(),
         email: editForm.email.trim(),
         role: editForm.role,
-        project_name: editForm.project_name.trim() || null,
-        quota_daily: editForm.quota_daily ? Number(editForm.quota_daily) : null,
-        rate_limit: editForm.rate_limit ? Number(editForm.rate_limit) : null,
       };
-      // Password hanya diupdate jika diisi
       if (editForm.password) {
         payload.password = editForm.password;
       }
@@ -111,18 +101,17 @@ export default function UsersPage() {
         email: form.email.trim(),
         password: form.password,
         role: form.role,
-        project_name: form.project_name.trim() || null,
-        quota_daily: form.quota_daily ? Number(form.quota_daily) : null,
-        rate_limit: form.rate_limit ? Number(form.rate_limit) : null,
       };
       await createUser(payload);
       setShowModal(false);
       setCreatedCreds({ email: payload.email, password: payload.password, name: payload.name, role: payload.role });
       resetForm();
     } catch (err) {
-      setFormError(err.code === "USER_EXISTS"
-        ? "Email ini sudah terdaftar. Tutup form lalu cari akun tersebut di daftar pengguna."
-        : err.message || "Gagal membuat akun.");
+      setFormError(
+        err.code === "USER_EXISTS"
+          ? "Email ini sudah terdaftar. Tutup form lalu cari akun tersebut di daftar pengguna."
+          : err.message || "Gagal membuat akun."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -153,23 +142,39 @@ export default function UsersPage() {
     { key: "name", label: "Nama", render: (v) => <span className="text-sm font-medium">{v || "—"}</span> },
     { key: "email", label: "Email", render: (v) => <span className="text-xs">{v}</span> },
     {
-      key: "role", label: "Role",
+      key: "role",
+      label: "Role",
       render: (v) => (
-        <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
-          v === "admin" ? "bg-[var(--admin-badge-bg)] text-[var(--admin-badge-text)]" : "bg-[var(--client-badge-bg)] text-[var(--client-badge-text)]"
-        }`}>{v === "user" ? "client" : v}</span>
+        <span
+          className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
+            v === "admin"
+              ? "bg-[var(--admin-badge-bg)] text-[var(--admin-badge-text)]"
+              : "bg-[var(--client-badge-bg)] text-[var(--client-badge-text)]"
+          }`}
+        >
+          {v === "user" ? "client" : v}
+        </span>
       ),
     },
     {
-      key: "last_login_at", label: "Login Terakhir", mono: true,
-      render: (v) => <span className="text-xs">{v ? new Date(v).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Belum pernah"}</span>,
+      key: "last_login_at",
+      label: "Login Terakhir",
+      mono: true,
+      render: (v) => (
+        <span className="text-xs">
+          {v ? new Date(v).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Belum pernah"}
+        </span>
+      ),
     },
     {
-      key: "is_active", label: "Status",
+      key: "is_active",
+      label: "Status",
       render: (v) => <StatusBadge status={v ? "ACTIVE" : "SUSPENDED"} />,
     },
     {
-      key: "id", label: "Aksi", className: "text-right",
+      key: "id",
+      label: "Aksi",
+      className: "text-right",
       render: (_, row) => {
         const isSelf = row.id === currentUser?.id;
         return (
@@ -203,15 +208,17 @@ export default function UsersPage() {
     },
   ];
 
-  const inputCls = "w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]";
+  const inputCls =
+    "w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]";
   const labelCls = "block text-xs font-medium text-[var(--text-secondary)] mb-1.5";
+
   return (
     <>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Kelola Pengguna</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Buat akun login untuk client. Client menggunakan email & password yang Anda buatkan di sini.
+            Buat dan kelola akun login untuk Client maupun Admin. Pengajuan project dan kuota diatur di menu Daftar Project.
           </p>
         </div>
         <div className="flex gap-2">
@@ -225,7 +232,7 @@ export default function UsersPage() {
             onClick={() => setShowModal(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
           >
-            <Plus size={14} /> Buat Akun Client
+            <Plus size={14} /> Buat Akun Baru
           </button>
         </div>
       </div>
@@ -245,12 +252,18 @@ export default function UsersPage() {
           columns={columns}
           data={users}
           emptyTitle="Belum ada pengguna"
-          emptyDescription="Buat akun client pertama dengan tombol 'Buat Akun Client'."
+          emptyDescription="Buat akun pertama dengan tombol 'Buat Akun Baru'."
         />
       )}
 
-      {/* Modal: Buat Akun Client */}
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); resetForm(); }} title="Buat Akun Client Baru">
+      <Modal
+        isOpen={showModal}
+        onClose={() => {
+          setShowModal(false);
+          resetForm();
+        }}
+        title="Buat Akun Pengguna Baru"
+      >
         <form onSubmit={handleCreate} className="space-y-4">
           {formError && (
             <div className="px-3 py-2.5 rounded-lg bg-[var(--status-failed-bg)] text-[var(--status-failed-text)] text-xs">
@@ -259,17 +272,40 @@ export default function UsersPage() {
           )}
 
           <div>
-            <label className={labelCls} htmlFor="cu-name">Nama Lengkap / Perusahaan</label>
-            <input id="cu-name" type="text" required value={form.name} onChange={set("name")} placeholder="e.g. Budi Santoso — PT Maju Jaya" className={inputCls} />
+            <label className={labelCls} htmlFor="cu-name">
+              Nama Lengkap / Perusahaan
+            </label>
+            <input
+              id="cu-name"
+              type="text"
+              required
+              value={form.name}
+              onChange={set("name")}
+              placeholder="e.g. Budi Santoso — PT Maju Jaya"
+              className={inputCls}
+            />
           </div>
 
           <div>
-            <label className={labelCls} htmlFor="cu-email">Email (untuk login)</label>
-            <input id="cu-email" type="email" required value={form.email} onChange={set("email")} placeholder="client@company.com" autoComplete="off" className={inputCls} />
+            <label className={labelCls} htmlFor="cu-email">
+              Email (untuk login)
+            </label>
+            <input
+              id="cu-email"
+              type="email"
+              required
+              value={form.email}
+              onChange={set("email")}
+              placeholder="client@company.com"
+              autoComplete="off"
+              className={inputCls}
+            />
           </div>
 
           <div>
-            <label className={labelCls} htmlFor="cu-password">Password</label>
+            <label className={labelCls} htmlFor="cu-password">
+              Password
+            </label>
             <div className="relative">
               <input
                 id="cu-password"
@@ -283,51 +319,55 @@ export default function UsersPage() {
                 className={`${inputCls} pr-20 font-mono`}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <button type="button" onClick={generatePassword} title="Generate password acak" className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                <button
+                  type="button"
+                  onClick={generatePassword}
+                  title="Generate password acak"
+                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
                   <KeyRound size={14} />
                 </button>
-                <button type="button" onClick={() => setShowPassword(!showPassword)} title={showPassword ? "Sembunyikan" : "Tampilkan"} className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  title={showPassword ? "Sembunyikan" : "Tampilkan"}
+                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
                   {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
             <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
-              Password ini akan Anda berikan ke client untuk login pertama kali.
+              Password ini akan diberikan kepada pengguna untuk login pertama kali.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls} htmlFor="cu-role">Role</label>
-              <select id="cu-role" value={form.role} onChange={set("role")} className={inputCls}>
-                <option value="user">Client (User)</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls} htmlFor="cu-project">Project <span className="text-red-500">*</span></label>
-              <input id="cu-project" type="text" required value={form.project_name} onChange={set("project_name")} placeholder="e.g. kasir-pos" className={`${inputCls} font-mono`} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls} htmlFor="cu-quota">Kuota Harian <span className="text-red-500">*</span></label>
-              <input id="cu-quota" type="number" required min="0" value={form.quota_daily} onChange={set("quota_daily")} placeholder="25000" className={`${inputCls} font-mono`} />
-            </div>
-            <div>
-              <label className={labelCls} htmlFor="cu-rate">Rate Limit/menit <span className="text-red-500">*</span></label>
-              <input id="cu-rate" type="number" required min="0" value={form.rate_limit} onChange={set("rate_limit")} placeholder="60" className={`${inputCls} font-mono`} />
-            </div>
+          <div>
+            <label className={labelCls} htmlFor="cu-role">
+              Role
+            </label>
+            <select id="cu-role" value={form.role} onChange={set("role")} className={inputCls}>
+              <option value="user">Client (User)</option>
+              <option value="admin">Admin</option>
+            </select>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
-            <button type="button" onClick={() => { setShowModal(false); resetForm(); }}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+            <button
+              type="button"
+              onClick={() => {
+                setShowModal(false);
+                resetForm();
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+            >
               Batal
             </button>
-            <button type="submit" disabled={submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+            >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               {submitting ? "Membuat..." : "Buat Akun"}
             </button>
@@ -335,8 +375,15 @@ export default function UsersPage() {
         </form>
       </Modal>
 
-      {/* Modal: Edit Akun */}
-      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); resetEditForm(); }} title="Edit Akun Pengguna" maxWidth="max-w-lg">
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          resetEditForm();
+        }}
+        title="Edit Akun Pengguna"
+        maxWidth="max-w-lg"
+      >
         <form onSubmit={handleUpdate} className="space-y-4">
           {formError && (
             <div className="px-3 py-2.5 rounded-lg bg-[var(--status-failed-bg)] text-[var(--status-failed-text)] text-xs">
@@ -345,59 +392,87 @@ export default function UsersPage() {
           )}
 
           <div>
-            <label className={labelCls} htmlFor="eu-name">Nama Lengkap</label>
-            <input id="eu-name" type="text" required value={editForm.name} onChange={setEdit("name")} placeholder="e.g. Budi Santoso" className={inputCls} />
+            <label className={labelCls} htmlFor="eu-name">
+              Nama Lengkap
+            </label>
+            <input
+              id="eu-name"
+              type="text"
+              required
+              value={editForm.name}
+              onChange={setEdit("name")}
+              placeholder="e.g. Budi Santoso"
+              className={inputCls}
+            />
           </div>
 
           <div>
-            <label className={labelCls} htmlFor="eu-email">Email</label>
-            <input id="eu-email" type="email" required value={editForm.email} onChange={setEdit("email")} placeholder="client@perusahaan.co.id" className={inputCls} />
+            <label className={labelCls} htmlFor="eu-email">
+              Email
+            </label>
+            <input
+              id="eu-email"
+              type="email"
+              required
+              value={editForm.email}
+              onChange={setEdit("email")}
+              placeholder="client@perusahaan.co.id"
+              className={inputCls}
+            />
           </div>
 
           <div>
-            <label className={labelCls} htmlFor="eu-password">Password Baru (kosongkan jika tidak ingin mengubah)</label>
+            <label className={labelCls} htmlFor="eu-password">
+              Password Baru (kosongkan jika tidak ingin mengubah)
+            </label>
             <div className="relative">
-              <input id="eu-password" type={showPassword ? "text" : "password"} value={editForm.password} onChange={setEdit("password")} placeholder="Biarkan kosong untuk tidak mengubah" className={`${inputCls} pr-16`} />
+              <input
+                id="eu-password"
+                type={showPassword ? "text" : "password"}
+                value={editForm.password}
+                onChange={setEdit("password")}
+                placeholder="Biarkan kosong untuk tidak mengubah"
+                className={`${inputCls} pr-16`}
+              />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <button type="button" onClick={() => setShowPassword(!showPassword)} title={showPassword ? "Sembunyikan" : "Tampilkan"} className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  title={showPassword ? "Sembunyikan" : "Tampilkan"}
+                  className="p-1.5 rounded-md text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
                   {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls} htmlFor="eu-role">Role</label>
-              <select id="eu-role" value={editForm.role} onChange={setEdit("role")} className={inputCls}>
-                <option value="user">Client (User)</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelCls} htmlFor="eu-project">Project <span className="text-red-500">*</span></label>
-              <input id="eu-project" type="text" required value={editForm.project_name} onChange={setEdit("project_name")} placeholder="e.g. kasir-pos" className={`${inputCls} font-mono`} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls} htmlFor="eu-quota">Kuota Harian <span className="text-red-500">*</span></label>
-              <input id="eu-quota" type="number" required min="0" value={editForm.quota_daily} onChange={setEdit("quota_daily")} placeholder="25000" className={`${inputCls} font-mono`} />
-            </div>
-            <div>
-              <label className={labelCls} htmlFor="eu-rate">Rate Limit/menit <span className="text-red-500">*</span></label>
-              <input id="eu-rate" type="number" required min="0" value={editForm.rate_limit} onChange={setEdit("rate_limit")} placeholder="60" className={`${inputCls} font-mono`} />
-            </div>
+          <div>
+            <label className={labelCls} htmlFor="eu-role">
+              Role
+            </label>
+            <select id="eu-role" value={editForm.role} onChange={setEdit("role")} className={inputCls}>
+              <option value="user">Client (User)</option>
+              <option value="admin">Admin</option>
+            </select>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
-            <button type="button" onClick={() => { setShowEditModal(false); resetEditForm(); }}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+            <button
+              type="button"
+              onClick={() => {
+                setShowEditModal(false);
+                resetEditForm();
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+            >
               Batal
             </button>
-            <button type="submit" disabled={submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+            >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               {submitting ? "Mengupdate..." : "Update Akun"}
             </button>
@@ -405,12 +480,11 @@ export default function UsersPage() {
         </form>
       </Modal>
 
-      {/* Modal: Kredensial Akun Baru */}
       <Modal isOpen={!!createdCreds} onClose={() => setCreatedCreds(null)} title="Akun Berhasil Dibuat" maxWidth="max-w-md">
         {createdCreds && (
           <div className="space-y-4">
             <div className="px-3 py-2.5 rounded-lg bg-[var(--status-queued-bg)] text-[var(--status-queued-text)] text-xs">
-              Simpan kredensial ini dan berikan ke client. Password tidak ditampilkan lagi setelah modal ditutup.
+              Simpan kredensial ini dan berikan ke pengguna. Password tidak ditampilkan lagi setelah modal ditutup.
             </div>
             {[
               ["Nama", createdCreds.name],
@@ -428,50 +502,84 @@ export default function UsersPage() {
               <div key={label}>
                 <p className="text-xs text-[var(--text-muted)] mb-1.5">{label}</p>
                 <div className="relative">
-                  <input type="text" readOnly value={value}
-                    className="w-full pl-3 pr-14 py-2.5 text-xs font-mono bg-zinc-950 text-emerald-400 border border-zinc-800 rounded-lg focus:outline-none" />
-                  <button onClick={() => copyText(value, field)}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-md transition-colors">
-                    {copiedField === field ? <><Check size={12} /> Disalin</> : <><Copy size={12} /> Salin</>}
+                  <input
+                    type="text"
+                    readOnly
+                    value={value}
+                    className="w-full pl-3 pr-14 py-2.5 text-xs font-mono bg-zinc-950 text-emerald-400 border border-zinc-800 rounded-lg focus:outline-none"
+                  />
+                  <button
+                    onClick={() => copyText(value, field)}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-md transition-colors"
+                  >
+                    {copiedField === field ? (
+                      <>
+                        <Check size={12} /> Disalin
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} /> Salin
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
             ))}
-            <button onClick={() => setCreatedCreds(null)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors">
+            <button
+              onClick={() => setCreatedCreds(null)}
+              className="w-full px-4 py-2.5 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
+            >
               Saya Sudah Menyimpan Kredensial
             </button>
           </div>
         )}
       </Modal>
 
-      {/* Modal: Konfirmasi Aksi */}
-      <Modal isOpen={!!confirmAction} onClose={() => setConfirmAction(null)} title={
-        confirmAction?.type === "delete" ? "Hapus Akun?" :
-        confirmAction?.type === "suspend" ? "Suspend Akun?" : "Aktifkan Akun?"
-      } maxWidth="max-w-sm">
+      <Modal
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        title={
+          confirmAction?.type === "delete"
+            ? "Hapus Akun?"
+            : confirmAction?.type === "suspend"
+              ? "Suspend Akun?"
+              : "Aktifkan Akun?"
+        }
+        maxWidth="max-w-sm"
+      >
         {confirmAction && (
           <div className="space-y-4">
             <p className="text-xs text-[var(--text-secondary)]">
               {confirmAction.type === "delete" && (
-                <>Akun <span className="font-semibold text-[var(--text-primary)]">{confirmAction.user.email}</span> akan dihapus permanen dan tidak bisa login lagi. Tindakan ini tidak dapat dibatalkan.</>
+                <>
+                  Akun <span className="font-semibold text-[var(--text-primary)]">{confirmAction.user.email}</span> akan dihapus permanen dan tidak bisa login lagi. Tindakan ini tidak dapat dibatalkan.
+                </>
               )}
               {confirmAction.type === "suspend" && (
-                <>Akun <span className="font-semibold text-[var(--text-primary)]">{confirmAction.user.email}</span> akan di-suspend dan tidak bisa login sampai diaktifkan kembali.</>
+                <>
+                  Akun <span className="font-semibold text-[var(--text-primary)]">{confirmAction.user.email}</span> akan di-suspend dan tidak bisa login sampai diaktifkan kembali.
+                </>
               )}
               {confirmAction.type === "activate" && (
-                <>Akun <span className="font-semibold text-[var(--text-primary)]">{confirmAction.user.email}</span> akan diaktifkan kembali dan bisa login.</>
+                <>
+                  Akun <span className="font-semibold text-[var(--text-primary)]">{confirmAction.user.email}</span> akan diaktifkan kembali dan bisa login.
+                </>
               )}
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmAction(null)}
-                className="px-3.5 py-2 text-xs font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="px-3.5 py-2 text-xs font-medium text-[var(--text-secondary)] border border-[var(--neutral-border)] rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              >
                 Batal
               </button>
-              <button onClick={handleConfirmAction} disabled={actionLoading}
+              <button
+                onClick={handleConfirmAction}
+                disabled={actionLoading}
                 className={`inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${
                   confirmAction.type === "activate" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
-                }`}>
+                }`}
+              >
                 {actionLoading && <Loader2 size={12} className="animate-spin" />}
                 {confirmAction.type === "delete" ? "Ya, Hapus" : confirmAction.type === "suspend" ? "Ya, Suspend" : "Ya, Aktifkan"}
               </button>

@@ -7,10 +7,10 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { useProjectContext } from "@/lib/project-context";
 import { apiGet } from "@/lib/api";
 
-const CHANNELS = ["ALL", "WHATSAPP", "EMAIL", "SMS"];
+const CHANNELS = ["ALL", "WHATSAPP", "EMAIL"];
 const STATUSES = ["ALL", "DELIVERED", "QUEUED", "FAILED"];
 
-/** RiwayatPage â€” Log transaksi pesan dengan filter + drawer detail (DESIGN.md 6A.6). */
+// Halaman Riwayat Pesan Client untuk memantau log pengiriman per project beserta detail payload.
 export default function RiwayatPage() {
   const { activeProject } = useProjectContext();
   const [logs, setLogs] = useState([]);
@@ -22,7 +22,11 @@ export default function RiwayatPage() {
   const projectId = activeProject?.id;
 
   const fetchLogs = useCallback(async () => {
-    if (!projectId) { setLogs([]); setLoading(false); return; }
+    if (!projectId) {
+      setLogs([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -33,7 +37,11 @@ export default function RiwayatPage() {
       const res = await apiGet(`/v1/logs?${params}`);
       const d = res?.data;
       setLogs(Array.isArray(d) ? d : d?.data || []);
-    } catch { setLogs([]); } finally { setLoading(false); }
+    } catch {
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
   }, [channel, status, projectId]);
 
   useEffect(() => {
@@ -41,23 +49,33 @@ export default function RiwayatPage() {
     (async () => {
       if (!cancelled) await fetchLogs();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [fetchLogs]);
 
   const filterBtn = (active) =>
     `px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-      active ? "bg-[var(--primary)] text-[var(--on-primary)]"
-        : "border border-[var(--neutral-border)] text-[var(--text-secondary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50"}`;
+      active
+        ? "bg-[var(--primary)] text-[var(--on-primary)]"
+        : "border border-[var(--neutral-border)] text-[var(--text-secondary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+    }`;
 
   const columns = [
-    { key: "message_id", label: "Message ID", mono: true, render: (v) => <span className="text-xs">{(v || "â€”").slice(0, 18)}</span> },
-    { key: "channel", label: "Channel", render: (v) => <span className="text-xs font-mono">{v || "â€”"}</span> },
-    { key: "recipient", label: "Penerima", render: (v) => <span className="text-xs">{v || "â€”"}</span> },
+    { key: "message_id", label: "Message ID", mono: true, render: (v) => <span className="text-xs">{(v || "—").slice(0, 18)}</span> },
+    { key: "channel", label: "Channel", render: (v) => <span className="text-xs font-mono">{v || "—"}</span> },
+    { key: "recipient", label: "Penerima", render: (v) => <span className="text-xs">{v || "—"}</span> },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
     { key: "retry_count", label: "Retry", mono: true, render: (v) => <span className="text-xs">{v ?? 0}</span> },
     {
-      key: "created_at", label: "Waktu", mono: true,
-      render: (v) => <span className="text-xs">{v ? new Date(v).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "â€”"}</span>,
+      key: "created_at",
+      label: "Waktu",
+      mono: true,
+      render: (v) => (
+        <span className="text-xs">
+          {v ? new Date(v).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+        </span>
+      ),
     },
   ];
 
@@ -68,37 +86,43 @@ export default function RiwayatPage() {
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Riwayat Pesan</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">Log transaksi pengiriman notifikasi.</p>
         </div>
-        <button onClick={fetchLogs} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+        <button
+          onClick={fetchLogs}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[var(--neutral-border)] text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        >
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-[var(--text-muted)] mr-1">Channel:</span>
           {CHANNELS.map((c) => (
-            <button key={c} onClick={() => setChannel(c)} className={filterBtn(channel === c)}>{c}</button>
+            <button key={c} onClick={() => setChannel(c)} className={filterBtn(channel === c)}>
+              {c}
+            </button>
           ))}
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-[var(--text-muted)] mr-1">Status:</span>
           {STATUSES.map((s) => (
-            <button key={s} onClick={() => setStatus(s)} className={filterBtn(status === s)}>{s}</button>
+            <button key={s} onClick={() => setStatus(s)} className={filterBtn(status === s)}>
+              {s}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Info Project Aktif */}
       {activeProject && (
         <div className="text-xs text-[var(--text-muted)]">
           Menampilkan log untuk project: <span className="font-medium text-[var(--text-primary)]">{activeProject.name}</span>
         </div>
       )}
 
-      {/* Table */}
       {loading ? (
-        <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-12 text-center text-sm text-[var(--text-muted)]">Memuat data...</div>
+        <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-12 text-center text-sm text-[var(--text-muted)]">
+          Memuat data...
+        </div>
       ) : (
         <DataTable
           columns={columns}
@@ -109,14 +133,17 @@ export default function RiwayatPage() {
         />
       )}
 
-      {/* Detail Drawer */}
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSelected(null)} />
           <div className="relative w-full max-w-md h-full bg-[var(--neutral-surface)] border-l border-[var(--neutral-border)] shadow-xl overflow-y-auto">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--neutral-border)]">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">Detail Pesan</h3>
-              <button onClick={() => setSelected(null)} className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" aria-label="Tutup">
+              <button
+                onClick={() => setSelected(null)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="Tutup"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -131,12 +158,12 @@ export default function RiwayatPage() {
                 ["Penerima", selected.recipient],
                 ["Template", selected.template_id],
                 ["Retry Count", selected.retry_count ?? 0],
-                ["Dibuat", selected.created_at ? new Date(selected.created_at).toLocaleString("id-ID") : "â€”"],
-                ["Diupdate", selected.updated_at ? new Date(selected.updated_at).toLocaleString("id-ID") : "â€”"],
+                ["Dibuat", selected.created_at ? new Date(selected.created_at).toLocaleString("id-ID") : "—"],
+                ["Diupdate", selected.updated_at ? new Date(selected.updated_at).toLocaleString("id-ID") : "—"],
               ].map(([label, value]) => (
                 <div key={label} className="flex items-start justify-between gap-4">
                   <span className="text-xs text-[var(--text-muted)] shrink-0">{label}</span>
-                  <span className="text-xs font-mono text-[var(--text-primary)] text-right break-all">{value || "â€”"}</span>
+                  <span className="text-xs font-mono text-[var(--text-primary)] text-right break-all">{value || "—"}</span>
                 </div>
               ))}
               {selected.payload && (

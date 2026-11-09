@@ -7,8 +7,7 @@ import MetricCard from "@/components/shared/MetricCard";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { useToast } from "@/lib/toast-context";
 
-/** Suppression List Page — Daftar kontak terblokir (hard bounce, spam, unsubscribe) dari database. */
-
+// Halaman Suppression List Admin untuk mengelola kontak terblokir (hard bounce, spam, unsubscribe, manual).
 const REASON_BADGE = {
   HARD_BOUNCE: { label: "Hard Bounce", className: "bg-red-500/10 text-red-700 dark:text-red-400" },
   SPAM_COMPLAINT: { label: "Spam", className: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
@@ -22,7 +21,7 @@ export default function SuppressionListPage() {
   const [filter, setFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ contact: "", channel: "EMAIL", reason: "MANUAL" });
+  const [form, setForm] = useState({ contact: "", channel: "EMAIL", reason: "MANUAL", notes: "" });
   const [saving, setSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -39,8 +38,12 @@ export default function SuppressionListPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => { if (!cancelled) await fetchData(); })();
-    return () => { cancelled = true; };
+    (async () => {
+      if (!cancelled) await fetchData();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchData]);
 
   const handleRemove = async (row) => {
@@ -58,10 +61,13 @@ export default function SuppressionListPage() {
     if (!form.contact) return;
     setSaving(true);
     try {
-      await apiPost("/v1/suppressions", form);
+      await apiPost("/v1/suppressions", {
+        ...form,
+        notes: form.notes.trim() || undefined,
+      });
       toast.success({ title: "Kontak ditambahkan", message: `${form.contact} masuk suppression list.` });
       setShowForm(false);
-      setForm({ contact: "", channel: "EMAIL", reason: "MANUAL" });
+      setForm({ contact: "", channel: "EMAIL", reason: "MANUAL", notes: "" });
       await fetchData();
     } catch (err) {
       toast.error({ title: "Gagal menambahkan", message: err.message });
@@ -158,7 +164,6 @@ export default function SuppressionListPage() {
         </div>
       </div>
 
-      {/* Form tambah manual */}
       {showForm && (
         <form onSubmit={handleAdd} className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-4 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-48">
@@ -196,6 +201,16 @@ export default function SuppressionListPage() {
               <option value="UNSUBSCRIBE">Unsubscribe</option>
             </select>
           </div>
+          <div className="flex-1 min-w-48">
+            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Catatan (Opsional)</label>
+            <input
+              type="text"
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="Alasan blokir tambahan..."
+              className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            />
+          </div>
           <button
             type="submit"
             disabled={saving}
@@ -206,7 +221,6 @@ export default function SuppressionListPage() {
         </form>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard
           icon={<UserX size={16} className="text-red-500" />}
@@ -226,7 +240,6 @@ export default function SuppressionListPage() {
         />
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-2">
         <Filter size={14} className="text-[var(--text-muted)]" />
         {["ALL", "EMAIL", "WHATSAPP"].map((f) => (
