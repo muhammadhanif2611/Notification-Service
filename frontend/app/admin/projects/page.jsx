@@ -493,37 +493,39 @@ export default function AdminProjectsPage() {
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-                Alokasi Kuota Harian (Pesan / Hari)
-              </label>
-              <input
-                type="number"
-                required
-                min={100}
-                value={approveForm.dailyQuota}
-                onChange={(e) => setApproveForm({ ...approveForm, dailyQuota: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                  Alokasi Kuota Harian (Pesan / Hari)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={100}
+                  value={approveForm.dailyQuota}
+                  onChange={(e) => setApproveForm({ ...approveForm, dailyQuota: e.target.value })}
+                  className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-                Rate Limit (Request / Menit)
-              </label>
-              <input
-                type="number"
-                required
-                min={10}
-                value={approveForm.rateLimitPerMin}
-                onChange={(e) => setApproveForm({ ...approveForm, rateLimitPerMin: e.target.value })}
-                className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-              />
+              <div>
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                  Rate Limit (Request / Menit)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={10}
+                  value={approveForm.rateLimitPerMin}
+                  onChange={(e) => setApproveForm({ ...approveForm, rateLimitPerMin: e.target.value })}
+                  className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Mode Kunci Akses Awal</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setApproveForm({ ...approveForm, environment: "production" })}
@@ -551,7 +553,7 @@ export default function AdminProjectsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[var(--neutral-border)]">
+            <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setApprovingProject(null)}
@@ -599,32 +601,34 @@ export default function AdminProjectsPage() {
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-              Kuota Harian (Pesan / Hari)
-            </label>
-            <input
-              type="number"
-              required
-              min={100}
-              value={editForm.daily_quota}
-              onChange={(e) => setEditForm({ ...editForm, daily_quota: e.target.value })}
-              className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-            />
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                Kuota Harian (Pesan / Hari)
+              </label>
+              <input
+                type="number"
+                required
+                min={100}
+                value={editForm.daily_quota}
+                onChange={(e) => setEditForm({ ...editForm, daily_quota: e.target.value })}
+                className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-              Rate Limit (Request / Menit)
-            </label>
-            <input
-              type="number"
-              required
-              min={10}
-              value={editForm.rate_limit_per_min}
-              onChange={(e) => setEditForm({ ...editForm, rate_limit_per_min: e.target.value })}
-              className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
-            />
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                Rate Limit (Request / Menit)
+              </label>
+              <input
+                type="number"
+                required
+                min={10}
+                value={editForm.rate_limit_per_min}
+                onChange={(e) => setEditForm({ ...editForm, rate_limit_per_min: e.target.value })}
+                className="w-full px-3 py-2 text-sm bg-[var(--neutral-bg)] border border-[var(--neutral-border)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)]"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2 pt-2">
@@ -640,7 +644,7 @@ export default function AdminProjectsPage() {
             </label>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[var(--neutral-border)]">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={() => setEditingProject(null)}

@@ -36,23 +36,23 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = "ma
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 dark:bg-black/70" />
+      <div className="fixed inset-0 bg-black/50 dark:bg-black/70" onClick={onClose} />
 
       {/* Dialog */}
       <div
-        className={`relative min-w-0 w-full ${maxWidth} bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl shadow-xl`}
+        className={`relative flex flex-col max-h-[calc(100vh-1.5rem)] sm:max-h-[90vh] min-w-0 w-full ${maxWidth} bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl shadow-xl overflow-hidden`}
         style={{ boxShadow: "var(--shadow-xl)" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--neutral-border)]">
-          <h2 className="text-base font-semibold text-[var(--text-primary)]">{title}</h2>
+        <div className="flex shrink-0 items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[var(--neutral-border)]">
+          <h2 className="text-base font-semibold text-[var(--text-primary)] truncate pr-2">{title}</h2>
           <button
             onClick={onClose}
-            className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="flex shrink-0 items-center justify-center w-8 h-8 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             aria-label="Tutup modal"
           >
             <X size={16} />
@@ -60,7 +60,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = "ma
         </div>
 
         {/* Body */}
-        <div className="px-6 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 py-4">{children}</div>
       </div>
     </div>
   );

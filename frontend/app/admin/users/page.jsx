@@ -271,19 +271,31 @@ export default function UsersPage() {
             </div>
           )}
 
-          <div>
-            <label className={labelCls} htmlFor="cu-name">
-              Nama Lengkap / Perusahaan
-            </label>
-            <input
-              id="cu-name"
-              type="text"
-              required
-              value={form.name}
-              onChange={set("name")}
-              placeholder="e.g. Budi Santoso — PT Maju Jaya"
-              className={inputCls}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="cu-name">
+                Nama Lengkap / Perusahaan
+              </label>
+              <input
+                id="cu-name"
+                type="text"
+                required
+                value={form.name}
+                onChange={set("name")}
+                placeholder="e.g. Budi Santoso — PT Maju Jaya"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls} htmlFor="cu-role">
+                Role
+              </label>
+              <select id="cu-role" value={form.role} onChange={set("role")} className={inputCls}>
+                <option value="user">Client (User)</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -342,17 +354,7 @@ export default function UsersPage() {
             </p>
           </div>
 
-          <div>
-            <label className={labelCls} htmlFor="cu-role">
-              Role
-            </label>
-            <select id="cu-role" value={form.role} onChange={set("role")} className={inputCls}>
-              <option value="user">Client (User)</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => {
@@ -391,19 +393,31 @@ export default function UsersPage() {
             </div>
           )}
 
-          <div>
-            <label className={labelCls} htmlFor="eu-name">
-              Nama Lengkap
-            </label>
-            <input
-              id="eu-name"
-              type="text"
-              required
-              value={editForm.name}
-              onChange={setEdit("name")}
-              placeholder="e.g. Budi Santoso"
-              className={inputCls}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="eu-name">
+                Nama Lengkap
+              </label>
+              <input
+                id="eu-name"
+                type="text"
+                required
+                value={editForm.name}
+                onChange={setEdit("name")}
+                placeholder="e.g. Budi Santoso"
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls} htmlFor="eu-role">
+                Role
+              </label>
+              <select id="eu-role" value={editForm.role} onChange={setEdit("role")} className={inputCls}>
+                <option value="user">Client (User)</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -447,17 +461,7 @@ export default function UsersPage() {
             </div>
           </div>
 
-          <div>
-            <label className={labelCls} htmlFor="eu-role">
-              Role
-            </label>
-            <select id="eu-role" value={editForm.role} onChange={setEdit("role")} className={inputCls}>
-              <option value="user">Client (User)</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => {

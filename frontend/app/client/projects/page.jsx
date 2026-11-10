@@ -286,7 +286,7 @@ export default function ProjectsPage() {
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Ajukan Proyek Baru" maxWidth="max-w-md">
         <form onSubmit={handleCreate} className="space-y-4">
           {formFields}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setShowCreate(false)}
@@ -308,7 +308,7 @@ export default function ProjectsPage() {
       <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Project" maxWidth="max-w-md">
         <form onSubmit={handleUpdate} className="space-y-4">
           {formFields}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setEditing(null)}

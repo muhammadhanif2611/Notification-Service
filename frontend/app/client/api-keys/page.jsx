@@ -337,7 +337,7 @@ export default function ApiKeysPage() {
 
           <div>
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Mode Operasi</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setModeInput("production")}
@@ -375,7 +375,7 @@ export default function ApiKeysPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--neutral-border)]">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(false)}

@@ -22,7 +22,7 @@ function ClientDetails({ clientId }) {
   if (!client) return null;
 
   return (
-    <div className="max-h-[70vh] space-y-5 overflow-y-auto pr-1">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold">{client.name}</h3>

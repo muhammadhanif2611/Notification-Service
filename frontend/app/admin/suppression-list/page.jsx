@@ -138,14 +138,14 @@ export default function SuppressionListPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Suppression List</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             Kontak yang diblokir dari pengiriman (bounce, spam, unsubscribe).
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowForm((v) => !v)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors"
@@ -165,8 +165,8 @@ export default function SuppressionListPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleAdd} className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-4 flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-48">
+        <form onSubmit={handleAdd} className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 items-end gap-3">
+          <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Email / Nomor</label>
             <input
               type="text"
@@ -182,7 +182,7 @@ export default function SuppressionListPage() {
             <select
               value={form.channel}
               onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))}
-              className="px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
             >
               <option value="EMAIL">EMAIL</option>
               <option value="WHATSAPP">WHATSAPP</option>
@@ -193,7 +193,7 @@ export default function SuppressionListPage() {
             <select
               value={form.reason}
               onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-              className="px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
             >
               <option value="MANUAL">Manual</option>
               <option value="HARD_BOUNCE">Hard Bounce</option>
@@ -201,7 +201,7 @@ export default function SuppressionListPage() {
               <option value="UNSUBSCRIBE">Unsubscribe</option>
             </select>
           </div>
-          <div className="flex-1 min-w-48">
+          <div>
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Catatan (Opsional)</label>
             <input
               type="text"
@@ -214,7 +214,7 @@ export default function SuppressionListPage() {
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
+            className="w-full px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
           >
             {saving ? "Menyimpan..." : "Simpan"}
           </button>

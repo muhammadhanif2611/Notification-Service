@@ -214,7 +214,7 @@ export default function WebhookPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-3 border-t border-[var(--neutral-border)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[var(--neutral-border)]">
           <button
             type="button"
             onClick={handlePing}

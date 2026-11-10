@@ -389,9 +389,9 @@ export default function BroadcastPage() {
               </div>
             )}
 
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {recipients.map((r, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <input
                     type="text"
                     value={r.phone}
@@ -399,16 +399,18 @@ export default function BroadcastPage() {
                     placeholder={channel === "WHATSAPP" ? "6281234567890" : "user@email.com"}
                     className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm font-mono text-[var(--text-primary)]"
                   />
-                  <input
-                    type="text"
-                    value={r.name}
-                    onChange={(e) => updateRecipient(i, "name", e.target.value)}
-                    placeholder="Nama (opsional)"
-                    className="w-32 shrink-0 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
-                  />
-                  <button type="button" onClick={() => removeRecipient(i)} className="shrink-0 text-[var(--text-muted)] hover:text-red-500">
-                    <X size={16} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={r.name}
+                      onChange={(e) => updateRecipient(i, "name", e.target.value)}
+                      placeholder="Nama (opsional)"
+                      className="flex-1 sm:w-36 shrink-0 px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
+                    />
+                    <button type="button" onClick={() => removeRecipient(i)} className="shrink-0 p-1.5 text-[var(--text-muted)] hover:text-red-500">
+                      <X size={16} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

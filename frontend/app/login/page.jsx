@@ -50,7 +50,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--neutral-bg)] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--neutral-bg)] px-4 py-6 overflow-y-auto">
       {/* Deteksi ?reason=idle / ?expired=1 untuk pesan sesi berakhir */}
       <Suspense fallback={null}>
         <SessionNotice onNotice={setSessionNotice} />

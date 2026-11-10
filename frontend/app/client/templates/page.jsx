@@ -596,7 +596,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Template</label>
               <input
@@ -620,7 +620,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Channel</label>
               <select
@@ -658,7 +658,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
           <div>
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Isi Pesan</label>
             <textarea
-              rows={4}
+              rows={3}
               required
               value={form.body}
               onChange={(e) => handleBodyChange(e.target.value)}
@@ -684,7 +684,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
               </button>
             </div>
           )}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setShowModal(false)}
@@ -705,7 +705,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
 
       <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Template" maxWidth="max-w-2xl">
         <form onSubmit={handleUpdate} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Template</label>
               <input
@@ -749,7 +749,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
           <div>
             <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Isi Pesan</label>
             <textarea
-              rows={4}
+              rows={3}
               required
               value={form.body}
               onChange={(e) => handleBodyChange(e.target.value)}
@@ -759,7 +759,7 @@ Tagihan Anda dengan nomor {{nomor_invoice}} sebesar Rp {{nominal}} telah diterbi
 
           {renderFormGuidance()}
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setEditing(null)}

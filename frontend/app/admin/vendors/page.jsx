@@ -253,7 +253,7 @@ export default function VendorsPage() {
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Channel</label>
               <div className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-zinc-100 dark:bg-zinc-800 text-sm text-[var(--text-secondary)]">
@@ -284,7 +284,7 @@ export default function VendorsPage() {
               required
             />
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setShowModal(false)}
@@ -315,7 +315,7 @@ export default function VendorsPage() {
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Priority (1-10)</label>
               <input
@@ -354,7 +354,7 @@ export default function VendorsPage() {
               Biarkan kosong jika hanya mengubah nama, prioritas, atau status. Isi JSON baru untuk mengganti dan mengenkripsi ulang kredensial SMTP dengan AES-256-GCM.
             </p>
           </div>
-          <div className="flex justify-end gap-2 pt-2 border-t border-[var(--neutral-border)]">
+          <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
             <button
               type="button"
               onClick={closeEditModal}
