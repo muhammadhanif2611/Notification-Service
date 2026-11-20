@@ -46,9 +46,9 @@ function ClientDetails({ clientId }) {
       </div>
 
       <div>
-        <h4 className="mb-3 text-sm font-semibold">Project Client ({client.projects?.length || 0})</h4>
+        <h4 className="mb-3 text-sm font-semibold">Aplikasi Client ({client.projects?.length || 0})</h4>
         {!client.projects?.length ? (
-          <p className="text-sm text-[var(--text-muted)]">Client belum memiliki project.</p>
+          <p className="text-sm text-[var(--text-muted)]">Client belum memiliki aplikasi.</p>
         ) : (
           <div className="space-y-3">
             {client.projects.map((project) => (
@@ -84,7 +84,7 @@ function ClientDetails({ clientId }) {
 
       <div className="flex items-center justify-between border-t border-[var(--neutral-border)] pt-3 text-xs">
         <Link href="/admin/projects" className="underline text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-          Kelola project dan kuota
+          Kelola aplikasi dan kuota
         </Link>
         <Link href="/admin/users" className="underline text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
           Kelola akun pengguna
@@ -125,10 +125,10 @@ export default function ClientMonitoringPage() {
     },
     {
       key: "total_projects",
-      label: "Project",
+      label: "Aplikasi",
       render: (value, client) => (
         <div className="text-xs">
-          <p>{countLabel(value)} project</p>
+          <p>{countLabel(value)} aplikasi</p>
           <p className="text-[var(--text-muted)]">{countLabel(client.active_projects)} aktif</p>
         </div>
       ),

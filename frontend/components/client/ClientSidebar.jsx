@@ -41,10 +41,10 @@ export default function ClientSidebar() {
         </div>
       </div>
 
-      {/* Project Switcher — konteks global untuk semua halaman client */}
+      {/* Aplikasi Switcher — konteks global untuk semua halaman client */}
       <div className="px-4 pt-4 pb-2">
         <label className="block text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
-          Project Aktif
+          Aplikasi Aktif
         </label>
         <div className="relative">
           <select
@@ -54,7 +54,7 @@ export default function ClientSidebar() {
             className="w-full appearance-none px-3 py-2 pr-8 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-xs font-medium text-[var(--text-primary)] focus:outline-none focus:border-[var(--primary)] disabled:opacity-50"
           >
             {projects.length === 0 && (
-              <option value="">{loading ? "Memuat..." : "Belum ada project"}</option>
+              <option value="">{loading ? "Memuat..." : "Belum ada aplikasi"}</option>
             )}
             {projects.map((p) => (
               <option key={p.id} value={p.id}>

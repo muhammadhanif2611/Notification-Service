@@ -95,7 +95,7 @@ export default function ClientWaSessionPage() {
   };
 
   const handleReset = async () => {
-    if (!confirm("Reset sesi WhatsApp project ini? Koneksi saat ini akan diputus dan QR baru dibuat.")) return;
+    if (!confirm("Reset sesi WhatsApp aplikasi ini? Koneksi saat ini akan diputus dan QR baru dibuat.")) return;
     setResetting(true);
     try {
       await apiPost("/v1/clients/wa-session/reset", { projectId: activeProjectId });
@@ -115,7 +115,7 @@ export default function ClientWaSessionPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">WhatsApp Session</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Hubungkan nomor WhatsApp perusahaan Anda untuk project <strong>{activeProject?.name || "..."}</strong>.
+            Hubungkan nomor WhatsApp perusahaan Anda untuk aplikasi <strong>{activeProject?.name || "..."}</strong>.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -170,7 +170,7 @@ export default function ClientWaSessionPage() {
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[var(--text-secondary)]">Project</span>
+              <span className="text-sm text-[var(--text-secondary)]">Aplikasi</span>
               <span className="text-sm font-medium text-[var(--text-primary)]">{activeProject?.name || "-"}</span>
             </div>
             <div className="flex items-center justify-between">
@@ -195,7 +195,7 @@ export default function ClientWaSessionPage() {
           </div>
           <div className="mt-6 pt-4 border-t border-[var(--neutral-border)]">
             <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-              Sesi ini hanya dipakai untuk pengiriman WhatsApp milik project <strong>{activeProject?.name}</strong>.
+              Sesi ini hanya dipakai untuk pengiriman WhatsApp milik aplikasi <strong>{activeProject?.name}</strong>.
               Scan QR dari HP perusahaan Anda via WhatsApp &rarr; <strong>Linked Devices &rarr; Link a Device</strong>.
             </p>
           </div>

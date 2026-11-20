@@ -167,7 +167,7 @@ export default function TemplatesPage() {
     e.preventDefault();
     if (saving || submissionWarning) return;
     if (!projectId) {
-      toast.warning("Pilih project terlebih dahulu dari sidebar.");
+      toast.warning("Pilih aplikasi terlebih dahulu dari sidebar.");
       return;
     }
     setSaving(true);
@@ -391,8 +391,8 @@ export default function TemplatesPage() {
     return (
       <div className="py-16 text-center bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl">
         <FileText size={32} className="mx-auto text-[var(--text-muted)] mb-3" />
-        <p className="text-sm font-medium text-[var(--text-primary)]">Belum ada project aktif</p>
-        <p className="text-xs text-[var(--text-secondary)] mt-1">Buat atau pilih project terlebih dahulu di halaman Projects.</p>
+        <p className="text-sm font-medium text-[var(--text-primary)]">Belum ada aplikasi aktif</p>
+        <p className="text-xs text-[var(--text-secondary)] mt-1">Buat atau pilih aplikasi terlebih dahulu di halaman Aplikasi.</p>
       </div>
     );
   }
@@ -403,7 +403,7 @@ export default function TemplatesPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Template Pesan</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Template untuk project <span className="font-semibold text-[var(--text-primary)]">{activeProject.name}</span>. Template langsung dapat digunakan setelah disimpan.
+            Template untuk aplikasi <span className="font-semibold text-[var(--text-primary)]">{activeProject.name}</span>. Template langsung dapat digunakan setelah disimpan.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -431,7 +431,7 @@ export default function TemplatesPage() {
         columns={columns}
         data={templates}
         emptyTitle="Belum ada template"
-        emptyDescription={loading ? "Memuat template..." : "Buat template pesan untuk project ini."}
+        emptyDescription={loading ? "Memuat template..." : "Buat template pesan untuk aplikasi ini."}
       />
 
       <div className="bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl p-5 space-y-4">

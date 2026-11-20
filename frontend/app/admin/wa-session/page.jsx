@@ -80,7 +80,7 @@ export default function AdminWaSessionsPage() {
   }, [autoRefresh, fetchSessions]);
 
   const handleDisconnect = async (projectId, projectName) => {
-    if (!confirm(`Putuskan sesi WhatsApp project "${projectName}"?`)) return;
+    if (!confirm(`Putuskan sesi WhatsApp aplikasi "${projectName}"?`)) return;
     setDisconnecting(projectId);
     try {
       await apiPost(`/v1/admin/wa-sessions/${projectId}/disconnect`, {});
@@ -98,7 +98,7 @@ export default function AdminWaSessionsPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">WhatsApp Sessions</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Monitoring seluruh sesi WhatsApp per-project. Client mengelola sesi mereka sendiri — admin hanya bisa memantau dan force-disconnect.
+            Monitoring seluruh sesi WhatsApp per-aplikasi. Client mengelola sesi mereka sendiri — admin hanya bisa memantau dan force-disconnect.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -134,7 +134,7 @@ export default function AdminWaSessionsPage() {
           <div className="p-2 rounded-lg bg-emerald-500/10">
             <MessageSquare size={18} className="text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h3 className="font-semibold text-[var(--text-primary)]">Semua Sesi Project</h3>
+          <h3 className="font-semibold text-[var(--text-primary)]">Semua Sesi Aplikasi</h3>
         </div>
 
         {loading && sessions.length === 0 ? (
@@ -143,12 +143,12 @@ export default function AdminWaSessionsPage() {
             Memuat data sesi...
           </div>
         ) : sessions.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[var(--text-muted)]">Belum ada project terdaftar.</div>
+          <div className="py-16 text-center text-sm text-[var(--text-muted)]">Belum ada aplikasi terdaftar.</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--neutral-border)] text-left">
-                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Project</th>
+                <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Aplikasi</th>
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Status</th>
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Terhubung Sejak</th>
                 <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] text-right">Aksi</th>

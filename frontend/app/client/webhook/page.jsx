@@ -54,7 +54,7 @@ export default function WebhookPage() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!activeProject?.id) {
-      setError("Pilih project terlebih dahulu.");
+      setError("Pilih aplikasi terlebih dahulu.");
       return;
     }
     setSaving(true);
@@ -112,8 +112,8 @@ export default function WebhookPage() {
   if (loading) return <div className="text-sm text-[var(--text-muted)]">Memuat konfigurasi webhook...</div>;
   if (!activeProject) {
     return (
-      <Alert variant="warning" title="Project belum dipilih">
-        Silakan pilih project di menu Projects terlebih dahulu.
+      <Alert variant="warning" title="Aplikasi belum dipilih">
+        Silakan pilih aplikasi di menu Aplikasi terlebih dahulu.
       </Alert>
     );
   }
@@ -189,7 +189,7 @@ export default function WebhookPage() {
             </div>
           </div>
           <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
-            Simpan secret ini di env project Anda (<code className="font-mono">NGW_WEBHOOK_SECRET</code>).
+            Simpan secret ini di env aplikasi Anda (<code className="font-mono">NGW_WEBHOOK_SECRET</code>).
             Gateway mengirim header <code className="font-mono">webhook-id</code>, <code className="font-mono">webhook-timestamp</code>, dan <code className="font-mono">webhook-signature</code> — verifikasi dengan <code className="font-mono">client.webhooks.verify()</code>.
           </p>
         </div>
@@ -264,7 +264,7 @@ export default function WebhookPage() {
         </div>
 
         <ol className="list-decimal list-inside space-y-1.5 text-xs text-[var(--text-secondary)] leading-relaxed">
-          <li>Buat endpoint <code className="font-mono">POST</code> di project Anda, lalu simpan URL-nya di form atas beserta Signing Secret.</li>
+          <li>Buat endpoint <code className="font-mono">POST</code> di aplikasi Anda, lalu simpan URL-nya di form atas beserta Signing Secret.</li>
           <li>Setiap status pesan berubah (SENT/FAILED), gateway mengirim HTTP POST ke endpoint Anda dengan format event <code className="font-mono">{"{ type, created_at, data }"}</code>.</li>
           <li>Setiap request menyertakan header <code className="font-mono">webhook-id</code>, <code className="font-mono">webhook-timestamp</code>, dan <code className="font-mono">webhook-signature</code> (HMAC-SHA256).</li>
           <li>Verifikasi signature menggunakan HMAC-SHA256 sesuai contoh kode multi-bahasa agar request palsu &amp; replay attack tertolak otomatis.</li>
@@ -276,7 +276,7 @@ export default function WebhookPage() {
             href={ROUTES.CLIENT.DOCS}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--primary)] hover:underline"
           >
-            Lihat contoh kode verifikasi Webhook di halaman Dokumentasi <ArrowRight size={13} />
+            Lihat contoh kode verifikasi Webhook di halaman Manual Book <ArrowRight size={13} />
           </Link>
         </div>
       </div>

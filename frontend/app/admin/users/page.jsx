@@ -218,7 +218,7 @@ export default function UsersPage() {
         <div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Kelola Pengguna</h2>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Buat dan kelola akun login untuk Client maupun Admin. Pengajuan project dan kuota diatur di menu Daftar Project.
+            Buat dan kelola akun login untuk Client maupun Admin. Pengajuan aplikasi dan kuota diatur di menu Daftar Aplikasi.
           </p>
         </div>
         <div className="flex gap-2">

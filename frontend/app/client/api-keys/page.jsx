@@ -122,7 +122,7 @@ export default function ApiKeysPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">Kelola API Key</h1>
             <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-[var(--client-badge-bg)] text-[var(--client-badge-text)]">
-              {activeProject?.name || "Tanpa Project"}
+              {activeProject?.name || "Tanpa Aplikasi"}
             </span>
           </div>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -133,7 +133,7 @@ export default function ApiKeysPage() {
           disabled={!activeProject || !activeProject.is_active}
           onClick={() => setIsCreateModalOpen(true)}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--on-primary)] font-medium text-sm rounded-lg transition-colors shadow-xs focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-          title={activeProject && !activeProject.is_active ? "Project belum disetujui oleh Admin" : "Buat API Key Baru"}
+          title={activeProject && !activeProject.is_active ? "Aplikasi belum disetujui oleh Admin" : "Buat API Key Baru"}
         >
           <Plus className="w-4 h-4" />
           Buat API Key Baru
@@ -144,8 +144,8 @@ export default function ApiKeysPage() {
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-amber-700 dark:text-amber-300">
           <Clock className="w-5 h-5 shrink-0 mt-0.5" />
           <div className="text-xs leading-relaxed">
-            <span className="font-semibold text-sm block mb-0.5">Project Ini Menunggu Persetujuan Admin</span>
-            Status proyek <strong>{activeProject.name}</strong> masih dalam peninjauan oleh Admin Platform. Kredensial API Key pertama akan diterbitkan secara otomatis setelah Admin menyetujui proyek ini.
+            <span className="font-semibold text-sm block mb-0.5">Aplikasi Ini Menunggu Persetujuan Admin</span>
+            Status aplikasi <strong>{activeProject.name}</strong> masih dalam peninjauan oleh Admin Platform. Kredensial API Key pertama akan diterbitkan secara otomatis setelah Admin menyetujui aplikasi ini.
           </div>
         </div>
       )}
@@ -319,7 +319,7 @@ export default function ApiKeysPage() {
       <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Buat API Key Baru" maxWidth="max-w-md">
         <form onSubmit={handleCreateSubmit} className="space-y-4">
           <div className="p-3 rounded-lg bg-[var(--neutral-bg)] border border-[var(--neutral-border)]">
-            <p className="text-[11px] font-medium text-[var(--text-muted)]">Project</p>
+            <p className="text-[11px] font-medium text-[var(--text-muted)]">Aplikasi</p>
             <p className="text-sm font-semibold text-[var(--text-primary)]">{activeProject?.name || "-"}</p>
           </div>
 

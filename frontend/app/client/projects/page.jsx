@@ -108,11 +108,11 @@ export default function ProjectsPage() {
           Alur Pengajuan &amp; Persetujuan Admin
         </p>
         <p className="text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-300/80">
-          Setiap pengajuan proyek akan ditinjau oleh Admin Platform untuk alokasi kuota &amp; rate limit. Setelah disetujui, API Key pertama akan otomatis diterbitkan.
+          Setiap pengajuan aplikasi akan ditinjau oleh Admin Platform untuk alokasi kuota &amp; rate limit. Setelah disetujui, API Key pertama akan otomatis diterbitkan.
         </p>
       </div>
       <div>
-        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Project</label>
+        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Nama Aplikasi</label>
         <input
           type="text"
           required
@@ -143,7 +143,7 @@ export default function ProjectsPage() {
           rows={2}
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          placeholder="Kegunaan project ini..."
+          placeholder="Kegunaan aplikasi ini..."
           className="w-full px-3 py-2 rounded-lg border border-[var(--neutral-border)] bg-[var(--neutral-bg)] text-sm text-[var(--text-primary)]"
         />
       </div>
@@ -154,33 +154,33 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-[var(--text-primary)]">Projects</h1>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Aplikasi</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Kelola dan ajukan project Anda. Project yang disetujui Admin menjadi konteks untuk API Key, Template, dan Broadcast.
+            Kelola dan ajukan aplikasi Anda. Aplikasi yang disetujui Admin menjadi konteks untuk API Key, Template, dan Broadcast.
           </p>
         </div>
         <button
           onClick={openCreate}
           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-xs"
         >
-          <Plus size={14} /> Ajukan Proyek Baru
+          <Plus size={14} /> Ajukan Aplikasi Baru
         </button>
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-sm text-[var(--text-muted)]">Memuat project...</div>
+        <div className="py-16 text-center text-sm text-[var(--text-muted)]">Memuat aplikasi...</div>
       ) : projects.length === 0 ? (
         <div className="py-16 text-center bg-[var(--neutral-surface)] border border-[var(--neutral-border)] rounded-xl">
           <FolderKanban size={32} className="mx-auto text-[var(--text-muted)] mb-3" />
-          <p className="text-sm font-medium text-[var(--text-primary)]">Belum ada project</p>
+          <p className="text-sm font-medium text-[var(--text-primary)]">Belum ada aplikasi</p>
           <p className="text-xs text-[var(--text-secondary)] mt-1 mb-4">
-            Ajukan project pertama untuk mulai menggunakan Notification Gateway.
+            Ajukan aplikasi pertama untuk mulai menggunakan Notification Gateway.
           </p>
           <button
             onClick={openCreate}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)]"
           >
-            <Plus size={14} /> Ajukan Proyek Baru
+            <Plus size={14} /> Ajukan Aplikasi Baru
           </button>
         </div>
       ) : (
@@ -234,7 +234,7 @@ export default function ProjectsPage() {
                       <Clock size={14} className="shrink-0 mt-0.5" />
                       <div className="text-[11px] leading-snug">
                         <span className="font-semibold block">Menunggu Persetujuan Admin</span>
-                        Proyek ini sedang ditinjau. Kredensial API Key akan diterbitkan setelah disetujui.
+                        Aplikasi ini sedang ditinjau. Kredensial API Key akan diterbitkan setelah disetujui.
                       </div>
                     </div>
                   ) : (
@@ -261,7 +261,7 @@ export default function ProjectsPage() {
                   <div className="flex-1" />
                   <button
                     onClick={() => openEdit(p)}
-                    title="Edit project"
+                    title="Edit aplikasi"
                     className="p-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--neutral-bg)] transition-colors"
                   >
                     <Pencil size={14} />
@@ -271,7 +271,7 @@ export default function ProjectsPage() {
                       setError(null);
                       setDeleting(p);
                     }}
-                    title="Hapus project"
+                    title="Hapus aplikasi"
                     className="p-1.5 rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                   >
                     <Trash2 size={14} />
@@ -283,7 +283,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Ajukan Proyek Baru" maxWidth="max-w-md">
+      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Ajukan Aplikasi Baru" maxWidth="max-w-md">
         <form onSubmit={handleCreate} className="space-y-4">
           {formFields}
           <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
@@ -299,13 +299,13 @@ export default function ProjectsPage() {
               disabled={saving || !form.name.trim() || !form.slug.trim()}
               className="px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--on-primary)] text-xs font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50"
             >
-              {saving ? "Mengirim..." : "Kirim Pengajuan Proyek"}
+              {saving ? "Mengirim..." : "Kirim Pengajuan Aplikasi"}
             </button>
           </div>
         </form>
       </Modal>
 
-      <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Project" maxWidth="max-w-md">
+      <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Edit Aplikasi" maxWidth="max-w-md">
         <form onSubmit={handleUpdate} className="space-y-4">
           {formFields}
           <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 -mb-4 px-4 sm:px-6 py-3 bg-[var(--neutral-surface)] border-t border-[var(--neutral-border)] flex justify-end gap-2">
@@ -327,10 +327,10 @@ export default function ProjectsPage() {
         </form>
       </Modal>
 
-      <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Hapus Project" maxWidth="max-w-md">
+      <Modal isOpen={!!deleting} onClose={() => setDeleting(null)} title="Hapus Aplikasi" maxWidth="max-w-md">
         <div className="space-y-4">
           <p className="text-sm text-[var(--text-secondary)]">
-            Yakin ingin menghapus project <span className="font-semibold text-[var(--text-primary)]">{deleting?.name}</span>?
+            Yakin ingin menghapus aplikasi <span className="font-semibold text-[var(--text-primary)]">{deleting?.name}</span>?
             Semua API Key dan Template di dalamnya akan ikut terhapus. Tindakan ini tidak dapat dibatalkan.
           </p>
           {error && <Alert variant="error">{error}</Alert>}

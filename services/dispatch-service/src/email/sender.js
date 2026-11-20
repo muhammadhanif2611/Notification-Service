@@ -49,7 +49,10 @@ export async function sendEmail({ recipient, subject, body, credentials, isSandb
   // Mode produksi TANPA vendor SMTP aktif = error nyata, bukan simulasi diam-diam.
   // Sebelumnya kondisi ini disimulasikan seolah berhasil sehingga email tidak pernah terkirim.
   if (!credentials?.host) {
-    throw new Error('No active EMAIL vendor configured. Register SMTP vendor via dashboard admin /vendors or run npm run setup:smtp.');
+    throw Object.assign(
+      new Error('No active EMAIL vendor configured. Register SMTP vendor via dashboard admin /vendors or run npm run setup:smtp.'),
+      { isVendorConfigError: true }
+    );
   }
 
   const transporter = getTransporter(credentials);

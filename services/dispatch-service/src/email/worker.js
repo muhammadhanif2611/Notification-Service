@@ -1,18 +1,43 @@
-import { Worker, Queue } from 'bullmq';
+import { Worker, Queue, UnrecoverableError } from 'bullmq';
 import { createLogger, decryptAES } from '@notification-gateway/shared';
 import { sendEmail } from './sender.js';
 import * as dispatchRepository from '../repositories/dispatchRepository.js';
 
 const logger = createLogger('dispatch-service');
 
-// Helper: dekripsi credentials vendor jika tersedia, null jika sandbox
+// Helper: dekripsi credentials vendor jika tersedia, null jika sandbox.
+// Kegagalan dekripsi/parse ditandai isVendorConfigError (kesalahan sistem, bukan alamat penerima).
 function resolveVendorCredentials(vendorRecord) {
   if (!vendorRecord?.credential_encrypted) return null;
-  return JSON.parse(decryptAES({
-    encryptedData: vendorRecord.credential_encrypted,
-    iv: vendorRecord.credential_iv,
-    authTag: vendorRecord.credential_auth_tag
-  }));
+  try {
+    return JSON.parse(decryptAES({
+      encryptedData: vendorRecord.credential_encrypted,
+      iv: vendorRecord.credential_iv,
+      authTag: vendorRecord.credential_auth_tag
+    }));
+  } catch (err) {
+    throw Object.assign(new Error(`Vendor credentials could not be decrypted: ${err.message}`), { isVendorConfigError: true });
+  }
+}
+
+// Pola penolakan SMTP permanen karena alamat penerima salah / tidak ada.
+const RECIPIENT_REJECTED_PATTERN = /user unknown|unknown user|no such user|invalid (?:e-?mail )?address|invalid recipient|address rejected|mailbox (?:unavailable|not found|does not exist)|recipient (?:address )?rejected|does not exist|unrouteable address/i;
+// Penolakan 550 karena kebijakan/relay/spam adalah masalah pengirim, bukan alamat penerima.
+const POLICY_REJECTION_PATTERN = /\b5\.7\.\d+\b|relay|spam|blocked|blacklist|policy|denied|authentication/i;
+
+/**
+ * Menentukan apakah error SMTP berarti alamat email penerima salah (hard bounce).
+ * @param {any} error
+ * @returns {boolean}
+ */
+function isInvalidRecipientError(error) {
+  const response = String(error?.response || '');
+  const message = String(error?.message || '');
+  const text = `${response} ${message}`;
+  if (POLICY_REJECTION_PATTERN.test(text)) return false;
+  if (/\b5\.1\.[123]\b/.test(text)) return true;
+  if (RECIPIENT_REJECTED_PATTERN.test(text)) return true;
+  return error?.code === 'EENVELOPE' || [550, 551, 553].includes(error?.responseCode);
 }
 
 // Cache vendor credentials di memori — vendor jarang berubah, hindari query DB per job
@@ -54,8 +79,35 @@ export function startEmailWorker(redisConfig) {
       await statusQueue.add('status-update', { messageId, projectId, status: 'SENT', vendorId: vendorRecord?.id, recipient, channel: 'EMAIL' });
       return sendResult;
     } catch (error) {
-      logger.error({ messageId, err: error.message }, 'Email job failed');
-      await statusQueue.add('status-update', { messageId, projectId, status: 'FAILED', error: error.message, recipient, channel: 'EMAIL' });
+      const attempt = job.attemptsMade + 1;
+      const maxAttempts = job.opts?.attempts ?? 1;
+      const reportFailed = (suppress) => statusQueue.add('status-update', {
+        messageId, projectId, status: 'FAILED', error: error.message, recipient, channel: 'EMAIL', suppress
+      });
+
+      // 1) Salah alamat email (550 / 5.1.1 / user unknown / invalid address): berhenti tanpa retry & blokir.
+      if (!error.isVendorConfigError && isInvalidRecipientError(error)) {
+        logger.error({ messageId, err: error.message, attempt }, 'Email hard bounce — recipient suppressed');
+        await reportFailed(true);
+        throw new UnrecoverableError(error.message);
+      }
+
+      // 2) Konfigurasi vendor bermasalah (tidak ada vendor aktif / dekripsi gagal): kesalahan sistem, tanpa retry.
+      if (error.isVendorConfigError) {
+        logger.error({ messageId, err: error.message, attempt }, 'Email vendor configuration error — not retrying');
+        await reportFailed(false);
+        throw new UnrecoverableError(error.message);
+      }
+
+      // 3) Koneksi SMTP / timeout / gangguan sementara: jangan lapor FAILED sebelum retry habis.
+      if (attempt < maxAttempts) {
+        logger.warn({ messageId, err: error.message, attempt, maxAttempts }, 'Email job failed — will retry');
+        throw error;
+      }
+
+      // 4) Retry terakhir habis: lapor FAILED tanpa memblokir penerima.
+      logger.error({ messageId, err: error.message, attempt, maxAttempts }, 'Email job failed on final attempt');
+      await reportFailed(false);
       throw error;
     }
   }, {
@@ -71,5 +123,8 @@ export function startEmailWorker(redisConfig) {
   });
 
   worker.on('completed', (job) => logger.info({ messageId: job.data.messageId }, 'Email sent'));
-  worker.on('failed', (job, error) => logger.error({ messageId: job.data.messageId, err: error.message }, 'Email failed permanently'));
+  worker.on('failed', (job, error) => {
+    const exhausted = error?.name === 'UnrecoverableError' || job.attemptsMade >= (job.opts?.attempts ?? 1);
+    logger[exhausted ? 'error' : 'warn']({ messageId: job.data.messageId, err: error.message }, exhausted ? 'Email failed permanently' : 'Email attempt failed — retry scheduled');
+  });
 }

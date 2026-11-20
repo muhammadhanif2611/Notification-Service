@@ -418,8 +418,8 @@ echo json_encode(["received" => true]);`,
 const STEPS = [
   {
     icon: KeyRound,
-    title: "1. Ajukan Project & API Key",
-    desc: "Ajukan project di menu Projects. Setelah Admin menyetujui, salin API Key (ngw_prod_ / ngw_sand_) ke file .env aplikasi Anda.",
+    title: "1. Ajukan Aplikasi & API Key",
+    desc: "Ajukan aplikasi di menu Aplikasi. Setelah Admin menyetujui, salin API Key (ngw_prod_ / ngw_sand_) ke file .env aplikasi Anda.",
   },
   {
     icon: Activity,
@@ -442,7 +442,7 @@ const ENDPOINTS = [
   {
     method: "GET",
     path: "/v1/notifications/ping",
-    desc: "Memverifikasi validitas API Key, status project, alokasi kuota harian, dan mencatat waktu koneksi terakhir.",
+    desc: "Memverifikasi validitas API Key, status aplikasi, alokasi kuota harian, dan mencatat waktu koneksi terakhir.",
   },
   {
     method: "POST",
@@ -503,7 +503,7 @@ export default function DocsPage() {
   return (
     <>
       <div>
-        <h2 className="text-xl font-semibold text-[var(--text-primary)]">Dokumentasi Integrasi</h2>
+        <h2 className="text-xl font-semibold text-[var(--text-primary)]">Manual Book Integrasi</h2>
         <p className="text-sm text-[var(--text-secondary)] mt-1">
           Panduan langkah demi langkah untuk mengintegrasikan Notification Gateway ke aplikasi Anda menggunakan REST API standar.
         </p>
@@ -513,8 +513,8 @@ export default function DocsPage() {
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-amber-700 dark:text-amber-300">
           <Clock size={18} className="shrink-0 mt-0.5" />
           <div className="text-xs leading-relaxed">
-            <span className="font-semibold text-sm block mb-0.5">Project Belum Disetujui Admin</span>
-            Pengajuan proyek <strong>{activeProject.name}</strong> sedang dalam tahap verifikasi oleh Admin Platform. Setelah disetujui, API Key akan aktif secara otomatis.
+            <span className="font-semibold text-sm block mb-0.5">Aplikasi Belum Disetujui Admin</span>
+            Pengajuan aplikasi <strong>{activeProject.name}</strong> sedang dalam tahap verifikasi oleh Admin Platform. Setelah disetujui, API Key akan aktif secara otomatis.
           </div>
         </div>
       )}
@@ -571,7 +571,7 @@ export default function DocsPage() {
               </p>
             ) : (
               <p>
-                Gateway belum mendeteksi panggilan API untuk project ini. Panggil endpoint{" "}
+                Gateway belum mendeteksi panggilan API untuk aplikasi ini. Panggil endpoint{" "}
                 <code className="font-mono font-semibold text-[var(--text-primary)]">GET /v1/notifications/ping</code> menggunakan API Key Anda untuk memvalidasi koneksi.
               </p>
             )}
@@ -581,7 +581,7 @@ export default function DocsPage() {
             <div className="rounded-lg border border-[var(--neutral-border)] p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <KeyRound size={15} className="text-[var(--text-secondary)]" />
-                <h4 className="text-xs font-semibold text-[var(--text-primary)]">API Key Project Aktif ({activeProject.name})</h4>
+                <h4 className="text-xs font-semibold text-[var(--text-primary)]">API Key Aplikasi Aktif ({activeProject.name})</h4>
               </div>
               {loadingKeys ? (
                 <p className="text-xs text-[var(--text-muted)]">Memuat API Key...</p>

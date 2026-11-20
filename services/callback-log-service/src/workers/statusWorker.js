@@ -30,8 +30,10 @@ export function startStatusWorker(redisConfig) {
       sent_at: status === 'SENT' ? new Date().toISOString() : null
     });
 
-    // 2. Auto-suppression: kontak yang hard bounce diblokir dari pengiriman berikutnya
-    if (status === 'FAILED' && job.data.recipient && job.data.channel) {
+    // 2. Auto-suppression: hanya untuk hard bounce (salah nomor/alamat) yang ditandai suppress === true.
+    // Kegagalan karena sistem (sesi, vendor, jaringan) tidak memblokir kontak; Admin dapat memblokir
+    // manual lewat menu Suppression List bila diperlukan.
+    if (status === 'FAILED' && job.data.suppress === true && job.data.recipient && job.data.channel) {
       try {
         await callbackLogRepository.insertSuppression({
           contact: job.data.recipient,

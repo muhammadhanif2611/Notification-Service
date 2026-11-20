@@ -118,7 +118,7 @@ export default function ClientDashboardPage() {
               </span>
             )}
           </div>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">Ringkasan dan analisis pengiriman notifikasi project Anda.</p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">Ringkasan dan analisis pengiriman notifikasi aplikasi Anda.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -151,7 +151,7 @@ export default function ClientDashboardPage() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard icon={<Activity size={16} />} label="Total Pesan" value={isLoading ? "..." : total.toLocaleString("id-ID")} subtitle="Seluruh pesan project" />
+        <MetricCard icon={<Activity size={16} />} label="Total Pesan" value={isLoading ? "..." : total.toLocaleString("id-ID")} subtitle="Seluruh pesan aplikasi" />
         <MetricCard icon={<CheckCircle size={16} />} label="Berhasil" value={isLoading ? "..." : delivered.toLocaleString("id-ID")} subtitle={`Success rate ${successRate}%`} />
         <MetricCard icon={<XCircle size={16} />} label="Gagal" value={isLoading ? "..." : failed.toLocaleString("id-ID")} subtitle="Pesan gagal terkirim" />
         <MetricCard icon={<Clock size={16} />} label="Avg Latency" value={isLoading ? "..." : `${avgLatency}ms`} subtitle={`${rangeLabel} terakhir`} />

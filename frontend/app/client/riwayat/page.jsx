@@ -115,7 +115,7 @@ export default function RiwayatPage() {
 
       {activeProject && (
         <div className="text-xs text-[var(--text-muted)]">
-          Menampilkan log untuk project: <span className="font-medium text-[var(--text-primary)]">{activeProject.name}</span>
+          Menampilkan log untuk aplikasi: <span className="font-medium text-[var(--text-primary)]">{activeProject.name}</span>
         </div>
       )}
 

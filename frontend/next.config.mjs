@@ -1,15 +1,20 @@
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Root workspace = folder tempat next.config.mjs berada (folder frontend/)
-const workspaceRoot = path.dirname(fileURLToPath(import.meta.url));
+// Folder tempat next.config.mjs berada (folder frontend/)
+const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
+// Root monorepo: `next` terpasang (hoisted) di <root>/node_modules, bukan di frontend/node_modules
+const monorepoRoot = path.resolve(frontendRoot, "..");
+
+const isDev = process.env.NODE_ENV !== "production";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  // Fix Turbopack salah infer workspace root pada monorepo (lokal & Docker)
+  // Dev (Turbopack): root harus mencakup node_modules hasil hoisting di root monorepo.
+  // Build/Docker tetap memakai folder frontend agar struktur output standalone tidak berubah.
   turbopack: {
-    root: workspaceRoot,
+    root: isDev ? monorepoRoot : frontendRoot,
   },
 };
 

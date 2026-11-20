@@ -116,23 +116,14 @@ export async function approveProject(projectId, payload = {}, adminUserId = null
 
   const dailyQuota = payload.dailyQuota ? Number(payload.dailyQuota) : (existingProject.daily_quota || 5000);
   const rateLimitPerMin = payload.rateLimitPerMin ? Number(payload.rateLimitPerMin) : (existingProject.rate_limit_per_min || 100);
-  const environment = payload.environment || 'production';
 
+  // API Key tidak lagi dibuat otomatis saat approval — API Key bersifat rahasia
+  // dan hanya boleh dibuat sendiri oleh klien pemilik project.
   const updatedProject = await projectRepository.updateById(projectId, {
     is_active: true,
     daily_quota: dailyQuota,
     rate_limit_per_min: rateLimitPerMin
   });
-
-  let generatedKey = null;
-  const activeKeys = (existingProject.api_keys || []).filter(k => k.is_active);
-  if (activeKeys.length === 0) {
-    generatedKey = await generateApiKey({
-      projectId,
-      name: `${updatedProject.name} Initial Key`,
-      environment
-    }, adminUserId);
-  }
 
   logger.info({ projectId, adminUserId }, 'Project approved and activated');
   writeAuditLog({
@@ -142,11 +133,7 @@ export async function approveProject(projectId, payload = {}, adminUserId = null
     detail: `Admin approved project '${updatedProject.name}' with quota ${dailyQuota}/day`
   });
 
-  return {
-    project: updatedProject,
-    rawApiKey: generatedKey?.rawApiKey || null,
-    apiKeyInfo: generatedKey?.apiKeyInfo || null
-  };
+  return { project: updatedProject };
 }
 
 export async function checkWebhookHealth(projectId) {

@@ -40,7 +40,7 @@ export async function apiKeyAuth(req, res, next) {
     req.apiKeyRecord = matchedKey;
     req.environment = matchedKey.environment;
 
-    await apiKeyRepository.updateLastUsed(matchedKey.id).catch(() => {});
+    await apiKeyRepository.updateLastUsed(matchedKey.id).catch(() => { });
 
     next();
   } catch (err) {

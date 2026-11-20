@@ -7,16 +7,24 @@ import makeWASocket, {
   DisconnectReason
 } from '@whiskeysockets/baileys';
 import { createLogger, WHATSAPP_SESSION_STATUS } from '@notification-gateway/shared';
+import { createFlaggedError } from './errors.js';
 
 const logger = createLogger('dispatch-service');
 
-// Konstanta reconnect exponential backoff
+// Konstanta reconnect exponential backoff, keep-alive, dan watchdog
 const RECONNECT_BASE_DELAY_MS = 5000;
 const RECONNECT_MAX_DELAY_MS = 60000;
+const WA_VERSION_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const WATCHDOG_INTERVAL_MS = 30000;
+const CONNECT_WAIT_TIMEOUT_MS = 15000;
+const UUID_REGEX = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+let cachedWaVersion = null;
+let watchdogTimer = null;
 
 // Silent logger adapter untuk Baileys — hanya meneruskan error ke pino
 const baileysLogger = ['trace', 'debug', 'info', 'warn'].reduce((acc, level) => {
-  acc[level] = () => {};
+  acc[level] = () => { };
   return acc;
 }, {
   level: 'silent',
@@ -38,9 +46,46 @@ function createSessionState() {
     reconnectAttempts: 0,
     reconnectTimer: null,
     generation: 0,
+    requiresAction: false,
+    manuallyDisconnected: false,
+    connectWaiters: new Set(),
     lastError: null,
     connectedAt: null
   };
+}
+
+/**
+ * Menyelesaikan seluruh waiter yang sedang menunggu sesi berstatus CONNECTED.
+ * @param {object} state
+ * @param {Error|null} err
+ * @param {object|null} socket
+ */
+function settleConnectWaiters(state, err, socket = null) {
+  if (!state.connectWaiters?.size) return;
+  for (const waiter of state.connectWaiters) {
+    clearTimeout(waiter.timer);
+    if (err) waiter.reject(err);
+    else waiter.resolve(socket);
+  }
+  state.connectWaiters.clear();
+}
+
+/**
+ * Mengambil versi WhatsApp Web Baileys dengan cache 6 jam agar reconnect tidak gagal saat jaringan lambat.
+ * @returns {Promise<number[]|undefined>}
+ */
+async function getCachedBaileysVersion() {
+  if (cachedWaVersion && Date.now() - cachedWaVersion.fetchedAt < WA_VERSION_CACHE_TTL_MS) {
+    return cachedWaVersion.version;
+  }
+  try {
+    const { version } = await fetchLatestBaileysVersion({ timeout: 5000 });
+    cachedWaVersion = { version, fetchedAt: Date.now() };
+    return version;
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to fetch latest Baileys version — using cached/default version');
+    return cachedWaVersion?.version;
+  }
 }
 
 // Registry seluruh sesi WhatsApp: Map<projectId, SessionState>
@@ -93,19 +138,24 @@ async function connectSocket(projectId) {
   state.status = WHATSAPP_SESSION_STATUS.CONNECTING;
   state.lastQrCode = null;
   state.lastError = null;
+  state.requiresAction = false;
+  state.manuallyDisconnected = false;
   await state.credentialsPromise;
   if (state.generation !== generation) return null;
   const sessionPath = resolveProjectSessionPath(projectId);
   const { state: authState, saveCreds } = await useMultiFileAuthState(sessionPath);
-  const { version } = await fetchLatestBaileysVersion({ timeout: 5000 });
+  const version = await getCachedBaileysVersion();
   if (state.generation !== generation) return null;
 
   state.socket = makeWASocket({
-    version,
+    ...(version ? { version } : {}),
     auth: authState,
     logger: baileysLogger,
     printQRInTerminal: false,
-    browser: ['Notification Gateway', 'Chrome', '1.0.0']
+    browser: ['Notification Gateway', 'Chrome', '1.0.0'],
+    keepAliveIntervalMs: 25000,
+    connectTimeoutMs: 20000,
+    syncFullHistory: false
   });
 
   const socket = state.socket;
@@ -170,15 +220,22 @@ function handleConnectionUpdate(projectId, update) {
     state.lastQrCode = qr;
     logger.info({ projectId }, 'WhatsApp QR code generated — scan via WhatsApp > Linked Devices');
     qrcode.generate(qr, { small: true });
+    settleConnectWaiters(
+      state,
+      createFlaggedError(`WhatsApp session project ${projectId} menunggu scan QR terlebih dahulu.`, { sessionNeedsAction: true })
+    );
   }
 
   if (connection === 'open') {
     state.status = WHATSAPP_SESSION_STATUS.CONNECTED;
     state.lastQrCode = null;
     state.reconnectAttempts = 0;
+    state.requiresAction = false;
+    state.manuallyDisconnected = false;
     state.connectedAt = new Date().toISOString();
     state.lastError = null;
     logger.info({ projectId }, 'WhatsApp session connected');
+    settleConnectWaiters(state, null, state.socket);
   }
 
   if (connection === 'close') {
@@ -196,10 +253,12 @@ function handleConnectionUpdate(projectId, update) {
     ].includes(statusCode);
 
     if (requiresAction) {
+      state.requiresAction = true;
       state.lastError = statusCode === DisconnectReason.connectionReplaced
         ? 'Sesi dipakai oleh koneksi lain. Pastikan hanya satu service yang memakai sesi ini.'
         : 'Sesi WhatsApp perlu ditautkan ulang. Klik Reset Sesi lalu scan QR baru.';
       logger.warn({ projectId, statusCode }, 'WhatsApp session needs attention');
+      settleConnectWaiters(state, createFlaggedError(state.lastError, { sessionNeedsAction: true }));
       return;
     }
 
@@ -248,11 +307,17 @@ export async function disconnectProject(projectId) {
   state.generation += 1;
   state.socket = null;
   state.connectionPromise = null;
+  state.manuallyDisconnected = true;
 
   if (state.reconnectTimer) {
     clearTimeout(state.reconnectTimer);
     state.reconnectTimer = null;
   }
+
+  settleConnectWaiters(
+    state,
+    createFlaggedError(`WhatsApp session project ${projectId} diputuskan oleh admin.`, { sessionNeedsAction: true })
+  );
 
   try {
     socket?.end(undefined);
@@ -268,6 +333,55 @@ export async function disconnectProject(projectId) {
 
   logger.info({ projectId }, 'WhatsApp session disconnected');
   return { success: true };
+}
+
+/**
+ * Memicu koneksi/reconnect untuk projectId dan menunggu hingga berstatus CONNECTED.
+ * @param {string} projectId
+ * @param {number} [timeoutMs=15000]
+ * @returns {Promise<import('@whiskeysockets/baileys').WASocket>}
+ */
+export async function ensureConnected(projectId, timeoutMs = CONNECT_WAIT_TIMEOUT_MS) {
+  const state = getOrCreateState(projectId);
+  if (state.status === WHATSAPP_SESSION_STATUS.CONNECTED && state.socket) {
+    return state.socket;
+  }
+  if (state.requiresAction) {
+    throw createFlaggedError(
+      state.lastError || `WhatsApp session project ${projectId} perlu ditautkan ulang (scan QR).`,
+      { sessionNeedsAction: true }
+    );
+  }
+  if (state.status === WHATSAPP_SESSION_STATUS.WAITING_QR) {
+    throw createFlaggedError(
+      `WhatsApp session project ${projectId} menunggu scan QR terlebih dahulu.`,
+      { sessionNeedsAction: true }
+    );
+  }
+  if (state.manuallyDisconnected) {
+    throw createFlaggedError(
+      `WhatsApp session project ${projectId} diputuskan oleh admin. Hubungkan kembali terlebih dahulu.`,
+      { sessionNeedsAction: true }
+    );
+  }
+
+  const waitPromise = new Promise((resolve, reject) => {
+    const waiter = {
+      resolve,
+      reject,
+      timer: setTimeout(() => {
+        state.connectWaiters.delete(waiter);
+        reject(new Error(`WhatsApp session project ${projectId} not ready (status: ${state.status}).`));
+      }, timeoutMs)
+    };
+    state.connectWaiters.add(waiter);
+  });
+
+  connectProject(projectId).catch((err) => {
+    settleConnectWaiters(state, err);
+  });
+
+  return waitPromise;
 }
 
 /**
@@ -323,10 +437,13 @@ export async function resetProjectSession(projectId) {
   state.lastQrCode = null;
   state.connectedAt = null;
   state.reconnectAttempts = 0;
+  state.requiresAction = false;
+  state.manuallyDisconnected = false;
   state.lastError = null;
+  settleConnectWaiters(state, createFlaggedError(`WhatsApp session project ${projectId} sedang di-reset.`, { sessionNeedsAction: true }));
 
   // Wait until an older setup stops writing before removing its auth directory.
-  await pendingConnection?.catch(() => {});
+  await pendingConnection?.catch(() => { });
   await state.credentialsPromise;
 
   fs.rmSync(resolveProjectSessionPath(projectId), { recursive: true, force: true });
@@ -348,7 +465,7 @@ export async function restoreProjectSessions() {
   }
 
   for (const entry of entries) {
-    if (!entry.isDirectory() || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(entry.name)) continue;
+    if (!entry.isDirectory() || !UUID_REGEX.test(entry.name)) continue;
     try {
       const credentials = JSON.parse(await fs.promises.readFile(path.join(baseDir, entry.name, 'creds.json'), 'utf8'));
       if (!credentials.registered) continue;
@@ -356,6 +473,12 @@ export async function restoreProjectSessions() {
       logger.warn({ projectId: entry.name, err: err.message }, 'Could not read saved WhatsApp session');
       continue;
     }
+
+    const existing = sessions.get(entry.name);
+    if (existing && (existing.status !== WHATSAPP_SESSION_STATUS.DISCONNECTED || existing.requiresAction || existing.manuallyDisconnected || existing.reconnectTimer)) {
+      continue;
+    }
+
     try {
       await connectProject(entry.name);
       logger.info({ projectId: entry.name }, 'Restoring saved WhatsApp connection');
@@ -364,5 +487,52 @@ export async function restoreProjectSessions() {
       scheduleReconnect(entry.name);
     }
   }
+}
+
+/**
+ * Menjalankan watchdog berkala untuk menyambungkan ulang sesi paired yang terputus diam-diam.
+ * @returns {void}
+ */
+export function startSessionWatchdog() {
+  if (watchdogTimer) return;
+  watchdogTimer = setInterval(() => {
+    restoreProjectSessions().catch((err) => {
+      logger.error({ err: err.message }, 'WhatsApp session watchdog sweep failed');
+    });
+  }, WATCHDOG_INTERVAL_MS);
+  watchdogTimer.unref?.();
+  logger.info({ intervalMs: WATCHDOG_INTERVAL_MS }, 'WhatsApp session auto-heal watchdog started');
+}
+
+/**
+ * Menghentikan watchdog dan seluruh timer reconnect, lalu menunggu penyimpanan creds selesai sebelum shutdown.
+ * @returns {Promise<void>}
+ */
+export async function shutdownAllSessions() {
+  if (watchdogTimer) {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
+  }
+
+  const pendingSaves = [];
+  for (const [projectId, state] of sessions.entries()) {
+    state.generation += 1;
+    if (state.reconnectTimer) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+    settleConnectWaiters(state, new Error('Dispatch service shutting down.'));
+    try {
+      state.socket?.end(undefined);
+    } catch (err) {
+      logger.warn({ projectId, err: err.message }, 'Error closing WhatsApp socket on shutdown');
+    }
+    state.socket = null;
+    state.status = WHATSAPP_SESSION_STATUS.DISCONNECTED;
+    pendingSaves.push(state.credentialsPromise.catch(() => {}));
+  }
+
+  await Promise.allSettled(pendingSaves);
+  logger.info({ sessionCount: sessions.size }, 'All WhatsApp sessions flushed and closed gracefully');
 }
 
