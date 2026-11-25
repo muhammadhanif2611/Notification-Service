@@ -3,7 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Zap, Eye, EyeOff, Loader2, Clock } from "lucide-react";
+import { Eye, EyeOff, Loader2, Clock } from "lucide-react";
+import CifoLogo from "@/components/shared/CifoLogo";
 
 /**
  * LoginPage — Halaman login dashboard.
@@ -57,10 +58,8 @@ export default function LoginPage() {
       </Suspense>
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-[var(--primary)]">
-            <Zap size={22} className="text-[var(--on-primary)]" />
-          </div>
+        <div className="flex flex-col items-center gap-3.5">
+          <CifoLogo className="h-[72px] w-auto" priority />
           <div className="text-center">
             <h1 className="text-xl font-bold text-[var(--text-primary)]">Notification Gateway</h1>
             <p className="text-sm text-[var(--text-secondary)] mt-1">

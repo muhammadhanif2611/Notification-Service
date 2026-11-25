@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CLIENT_MENU_ITEMS } from "@/constants/menuItems";
-import { LayoutDashboard, Clock, BarChart2, Key, Webhook, Zap, LogOut, FileText, Send, Code2, FolderKanban, ChevronDown, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Clock, BarChart2, Key, Webhook, LogOut, FileText, Send, Code2, FolderKanban, ChevronDown, MessageSquare } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useProjectContext } from "@/lib/project-context";
+import { SidebarBrand } from "@/components/shared/CifoLogo";
 
 const ICON_MAP = {
   LayoutDashboard, Clock, BarChart2, Key, Webhook, FileText, Send, Code2, FolderKanban, MessageSquare,
@@ -24,22 +25,7 @@ export default function ClientSidebar() {
   return (
     <aside className="w-60 shrink-0 sticky top-0 h-screen flex flex-col border-r border-[var(--neutral-border)] bg-[var(--neutral-surface)]">
       {/* Brand */}
-      <div className="px-5 py-5 border-b border-[var(--neutral-border)]">
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--primary)]">
-            <Zap size={16} className="text-[var(--on-primary)]" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[var(--text-primary)] leading-tight">Notification</p>
-            <p className="text-[10px] text-[var(--text-muted)] leading-tight">Gateway</p>
-          </div>
-        </div>
-        <div className="mt-3">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[var(--client-badge-bg)] text-[var(--client-badge-text)]">
-            Client
-          </span>
-        </div>
-      </div>
+      <SidebarBrand role="client" />
 
       {/* Aplikasi Switcher — konteks global untuk semua halaman client */}
       <div className="px-4 pt-4 pb-2">
