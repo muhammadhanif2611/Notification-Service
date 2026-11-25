@@ -9,6 +9,28 @@ import { restoreProjectSessions, startSessionWatchdog, shutdownAllSessions } fro
 
 const logger = createLogger('dispatch-service');
 
+// Guard Baileys background socket rejections (mis. sendRetryRequest / 428 Connection Closed saat device removed)
+// agar tidak mematikan seluruh process dispatch-service beserta worker Email dan WhatsApp lainnya.
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  const statusCode = reason?.output?.statusCode;
+  logger.warn({ err: err.message, statusCode }, 'Unhandled promise rejection captured in dispatch-service');
+});
+
+process.on('uncaughtException', (err) => {
+  const statusCode = err?.output?.statusCode;
+  const isBaileysTransient =
+    err?.message === 'Connection Closed' ||
+    statusCode === 408 ||
+    statusCode === 428;
+  if (isBaileysTransient) {
+    logger.warn({ err: err.message, statusCode }, 'Transient Baileys socket exception suppressed');
+    return;
+  }
+  logger.error({ err: err.message, stack: err.stack }, 'Fatal uncaught exception in dispatch-service');
+  process.exit(1);
+});
+
 // Inisialisasi worker antrean WhatsApp dan Email
 startWhatsAppWorker(config.redis);
 startEmailWorker(config.redis);

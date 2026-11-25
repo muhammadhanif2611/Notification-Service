@@ -28,10 +28,15 @@ console.log('====================================================');
 console.log('🚀 Launching Notification Gateway Unified Backend...');
 console.log('====================================================\n');
 
-const runningProcesses = [];
+const runningProcesses = new Map();
+let shuttingDown = false;
 
-// Helper menjalankan masing-masing service
-function startService({ name, script, port }) {
+// Helper menjalankan masing-masing service dengan auto-restart jika mati mendadak
+function startService(service, attempt = 0) {
+  if (shuttingDown) return;
+  const { name, script, port } = service;
+  const startedAt = Date.now();
+
   const env = {
     ...process.env,
     ...(port ? { PORT: String(port) } : {}),
@@ -49,20 +54,29 @@ function startService({ name, script, port }) {
     env
   });
 
-  child.on('exit', (code, signal) => {
-    console.error(`⚠️ [${name}] stopped (code: ${code}, signal: ${signal})`);
-  });
+  runningProcesses.set(name, child);
 
-  runningProcesses.push(child);
+  child.on('exit', (code, signal) => {
+    runningProcesses.delete(name);
+    if (shuttingDown) return;
+    const uptimeMs = Date.now() - startedAt;
+    const nextAttempt = uptimeMs > 30000 ? 0 : attempt + 1;
+    const delayMs = Math.min(1000 * 2 ** nextAttempt, 15000);
+    console.error(`⚠️ [${name}] stopped (code: ${code}, signal: ${signal}) — restarting in ${delayMs}ms`);
+    setTimeout(() => startService(service, nextAttempt), delayMs);
+  });
 }
 
 // Mulai worker & microservices terlebih dahulu, lalu gateway di akhir
-services.forEach(startService);
+services.forEach((svc) => startService(svc));
 
 // Tangani graceful shutdown saat container di-stop oleh Railway
 function shutdown() {
+  shuttingDown = true;
   console.log('\n🛑 Shutting down all services gracefully...');
-  runningProcesses.forEach((p) => p.kill('SIGTERM'));
+  for (const child of runningProcesses.values()) {
+    child.kill('SIGTERM');
+  }
   process.exit(0);
 }
 

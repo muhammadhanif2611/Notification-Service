@@ -1,4 +1,4 @@
-> Deployment aktif: dashboard di Vercel (https://notification-gateway.vercel.app), backend di Railway. Set `CORS_ALLOWED_ORIGINS=https://notification-gateway.vercel.app` pada gateway Railway dan `NEXT_PUBLIC_API_URL=https://gateway-service-production-9201.up.railway.app` pada environment Production Vercel, lalu redeploy. Bagian frontend Railway di bawah hanya alternatif hosting.
+> Deployment aktif: dashboard & Nodemailer email relay di Vercel (https://notification-gateway.vercel.app), backend di Railway. Set `CORS_ALLOWED_ORIGINS=https://notification-gateway.vercel.app`, `EMAIL_RELAY_URL=https://notification-gateway.vercel.app/api/send-email`, dan `EMAIL_RELAY_SECRET` pada Railway, serta `NEXT_PUBLIC_API_URL=https://gateway-service-production-b6bc64ad.up.railway.app` dan `EMAIL_RELAY_SECRET` yang sama pada environment Production Vercel, lalu redeploy. Bagian frontend Railway di bawah hanya alternatif hosting.
 
 # 🚂 Panduan Deployment Notification Gateway ke Railway (Multi-Service)
 

@@ -159,6 +159,9 @@ async function connectSocket(projectId) {
   });
 
   const socket = state.socket;
+  socket.ws?.on?.('error', (err) => {
+    logger.warn({ projectId, err: err?.message }, 'WhatsApp WebSocket error captured safely');
+  });
   socket.ev.on('creds.update', () => {
     if (state.socket !== socket) return;
     state.credentialsPromise = state.credentialsPromise.then(() => {

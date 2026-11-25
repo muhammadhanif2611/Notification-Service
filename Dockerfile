@@ -48,6 +48,6 @@ USER nodejs
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=15s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://127.0.0.1:3001/health', (r) => {if(r.statusCode !== 200) process.exit(1)})"
+  CMD node -e "require('http').get('http://127.0.0.1:' + (process.env.PORT || 3001) + '/health', (r) => {if(r.statusCode !== 200) process.exit(1)})"
 
 CMD ["node", "scripts/start-backend.js"]

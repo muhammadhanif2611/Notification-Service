@@ -11,6 +11,7 @@ const isDev = process.env.NODE_ENV !== "production";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  serverExternalPackages: ["nodemailer"],
   // Dev (Turbopack): root harus mencakup node_modules hasil hoisting di root monorepo.
   // Build/Docker tetap memakai folder frontend agar struktur output standalone tidak berubah.
   turbopack: {

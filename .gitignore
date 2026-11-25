@@ -76,3 +76,5 @@ artifacts/
 packages/sdk-python/dist/
 packages/sdk-php/composer.lock
 *.tgz
+postman/
+.postman/
